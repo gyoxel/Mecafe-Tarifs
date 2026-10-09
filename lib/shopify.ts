@@ -212,3 +212,43 @@ export async function fetchShopifyMenu(): Promise<RawMenuItem[] | null> {
     return null;
   }
 }
+
+const ORDER_QUERY = /* GraphQL */ `
+  query CollectionOrder($handle: String!) {
+    collection(handle: $handle) {
+      products(first: 250, sortKey: COLLECTION_DEFAULT) {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+`;
+
+/**
+ * Ordre des produits de chaque collection, tel que réglé dans Shopify (le même que sur le site).
+ * handle → ids produits (numériques) dans l'ordre. Une collection en erreur est simplement ignorée.
+ */
+export async function fetchCollectionOrders(handles: string[]): Promise<Record<string, string[]>> {
+  const entries = await Promise.all(
+    handles.map(async (handle): Promise<[string, string[]] | null> => {
+      try {
+        const res = await fetch(`https://${DOMAIN}/api/${API_VERSION}/graphql.json`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...tokenHeaders() },
+          body: JSON.stringify({ query: ORDER_QUERY, variables: { handle } }),
+          next: { revalidate: CATALOG_REVALIDATE, tags: [CATALOG_TAG] },
+        });
+        if (!res.ok) return null;
+        const json = (await res.json()) as {
+          data?: { collection: { products: { nodes: { id: string }[] } } | null };
+        };
+        const nodes = json.data?.collection?.products.nodes;
+        return nodes ? [handle, nodes.map((n) => numericId(n.id))] : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return Object.fromEntries(entries.filter((e): e is [string, string[]] => e !== null));
+}

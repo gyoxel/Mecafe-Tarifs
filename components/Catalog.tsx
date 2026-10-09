@@ -20,6 +20,8 @@ type Props = {
   source: CatalogSource;
   /** Catégories = menu Shopify (niveau 1) et sous-catégories (niveau 2). */
   menu: MenuNode[];
+  /** Ordre des produits dans chaque collection (handle → ids produits), comme sur le site. */
+  order: Record<string, string[]>;
   isAdmin: boolean;
   initial: { q: string; brand: string; path: string[] };
 };
@@ -96,7 +98,7 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props) {
+export function Catalog({ items, prices, source, menu, order, isAdmin, initial }: Props) {
   // ── Filtres ───────────────────────────────────────────────────────
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
 
@@ -188,6 +190,22 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     () => leaves.map((l) => items.filter((it) => inNode(it.collections, l.node)).length),
     [leaves, items],
   );
+  const positions = useMemo(() => {
+    const m = new Map<string, Map<string, number>>();
+    for (const [handle, ids] of Object.entries(order)) m.set(handle, new Map(ids.map((id, i) => [id, i])));
+    return m;
+  }, [order]);
+  /** Rang du produit dans le groupe : ordre de la première collection du groupe qui le contient. */
+  const rankIn = (it: CatalogItem, k: number): number => {
+    const leaf = leaves[k];
+    if (!leaf) return Infinity;
+    for (const h of leaf.node.handles) {
+      const pos = positions.get(h)?.get(it.productId);
+      if (pos !== undefined) return pos;
+    }
+    return Infinity;
+  };
+
   const sorted = useMemo(() => {
     const promoStart = leaves.findIndex((l) => /promo/i.test([...l.crumbs, l.node].map((n) => n.title).join(" ")));
     const keyed = results.map((it, i) => {
@@ -195,11 +213,13 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
       const regular = promoStart === -1 ? ks : ks.filter((k) => k < promoStart);
       const pool = regular.length ? regular : ks;
       const k = pool.length ? pool.reduce((best, k) => (leafSizes[k] < leafSizes[best] ? k : best)) : leaves.length;
-      return { it, i, k };
+      return { it, i, k, r: rankIn(it, k) };
     });
-    keyed.sort((a, b) => a.k - b.k || a.i - b.i); // à l'intérieur d'un groupe : marque, nom, prix
+    // Groupes dans l'ordre du menu ; dans un groupe, ordre de la collection sur le site
+    // (les formats d'un même produit restent ensemble, du moins cher au plus cher).
+    keyed.sort((a, b) => a.k - b.k || (a.r === b.r ? 0 : a.r < b.r ? -1 : 1) || a.i - b.i);
     return keyed;
-  }, [results, leaves, leafSizes]);
+  }, [results, leaves, leafSizes, positions]);
   const groupSizes = useMemo(() => {
     const m = new Map<number, number>();
     for (const { k } of sorted) m.set(k, (m.get(k) ?? 0) + 1);

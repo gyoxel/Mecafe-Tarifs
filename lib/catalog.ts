@@ -4,7 +4,7 @@ import { BRAND_ORDER, CATEGORY_ORDER, FALLBACK_CATEGORY } from "./config";
 import { fold, slug } from "./format";
 import { DEMO_ITEMS } from "./demo-data";
 import { buildMenu, inNode, pruneMenu, type MenuNode } from "./menu";
-import { fetchShopifyCatalog, fetchShopifyMenu, isShopifyConfigured } from "./shopify";
+import { fetchCollectionOrders, fetchShopifyCatalog, fetchShopifyMenu, isShopifyConfigured } from "./shopify";
 
 const brandRank = (brand: string) => {
   const i = BRAND_ORDER.findIndex((b) => fold(b) === fold(brand));
@@ -28,10 +28,19 @@ function fallbackMenu(items: CatalogItem[]): MenuNode[] {
     .map((c) => ({ id: slug(c), title: c, handles: [`cat:${slug(c)}`], children: [] }));
 }
 
-export async function getCatalog(): Promise<{ items: CatalogItem[]; source: CatalogSource; menu: MenuNode[] }> {
+/** handle de collection → ids produits dans l'ordre du site. */
+export type CollectionOrder = Record<string, string[]>;
+
+export async function getCatalog(): Promise<{
+  items: CatalogItem[];
+  source: CatalogSource;
+  menu: MenuNode[];
+  order: CollectionOrder;
+}> {
   const source: CatalogSource = isShopifyConfigured() ? "shopify" : "demo";
   let items: CatalogItem[];
   let menu: MenuNode[] | null = null;
+  let order: CollectionOrder = {};
 
   if (source === "shopify") {
     const [shopItems, rawMenu] = await Promise.all([fetchShopifyCatalog(), fetchShopifyMenu()]);
@@ -40,6 +49,10 @@ export async function getCatalog(): Promise<{ items: CatalogItem[]; source: Cata
       for (const it of shopItems) it.collections.forEach((h, i) => titles.set(h, it.collectionTitles[i]));
       // Seules les entrées qui contiennent au moins un produit sont gardées.
       menu = pruneMenu(buildMenu(rawMenu, titles), (n) => shopItems.some((it) => inNode(it.collections, n)));
+      const handles = new Set<string>();
+      const collect = (nodes: MenuNode[]) => nodes.forEach((n) => (n.handles.forEach((h) => handles.add(h)), collect(n.children)));
+      collect(menu);
+      order = await fetchCollectionOrders([...handles]);
     }
     items = shopItems.map(({ collectionTitles: _t, ...it }) => it);
   } else {
@@ -73,5 +86,5 @@ export async function getCatalog(): Promise<{ items: CatalogItem[]; source: Cata
       a.productId.localeCompare(b.productId) ||
       a.price - b.price,
   );
-  return { items, source, menu };
+  return { items, source, menu, order };
 }
