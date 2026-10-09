@@ -32,6 +32,10 @@
 }
 html {
   -webkit-text-size-adjust: 100%;
+  /* Place de la barre de défilement toujours réservée : la page ne se décale pas
+     latéralement entre une liste longue et une liste courte. */
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 body {
   margin: 0;
@@ -448,13 +452,17 @@ img {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  min-height: 38px; /* même hauteur avec ou sans « Réinitialiser » / étiquettes */
   margin: 12px 0 14px;
   font-size: 13.5px;
   color: var(--muted);
 }
 .result-count {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   align-items: center;
   gap: 6px 8px;
 }
@@ -462,6 +470,9 @@ img {
   color: var(--ink);
 }
 .result-tag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 2px 9px;
   border-radius: 6px;
   background: var(--surface);
@@ -552,6 +563,12 @@ img {
   min-width: 0;
 }
 .group-crumb {
+  display: block;
+  min-height: 1.3em;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -861,8 +878,30 @@ img {
 }
 
 /* ═════════════ Sous-catégories ═════════════ */
-.sub-rail {
-  margin-top: 8px;
+/* Mobile / tablette : une seule rangée qui descend dans le menu ; bureau : liste imbriquée. */
+.mobile-cats {
+  margin-top: 0;
+}
+.back-chip {
+  width: 38px;
+  padding: 0;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+}
+.chip-more {
+  margin-left: -3px;
+  opacity: 0.5;
+}
+@media (max-width: 1099px) {
+  .cat-rail {
+    display: none;
+  }
+}
+@media (min-width: 1100px) {
+  .mobile-cats {
+    display: none;
+  }
 }
 .sub-chip {
   height: 32px;
@@ -884,9 +923,6 @@ img {
   display: none;
 }
 @media (min-width: 1100px) {
-  .sub-rail {
-    display: none;
-  }
   .sub-inline {
     display: inline-flex;
     height: 32px;

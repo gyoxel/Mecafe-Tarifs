@@ -108,6 +108,15 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
   const [path, setPath] = useState<string[]>(() => resolvePath(menu, initial.path).map((n) => n.id));
   const trail = resolvePath(menu, path);
   const catNode = trail[0] ?? null;
+  // Rangée mobile : enfants du dernier niveau ouvert qui en a ; sinon ses frères.
+  const levelParent =
+    trail.length === 0
+      ? null
+      : trail[trail.length - 1].children.length > 0
+        ? trail[trail.length - 1]
+        : (trail[trail.length - 2] ?? null);
+  const levelDepth = levelParent ? trail.indexOf(levelParent) + 1 : 0;
+  const levelNodes = levelParent ? levelParent.children : menu;
   const [limit, setLimit] = useState(PAGE_SIZE);
   const deferredQuery = useDeferredValue(query);
 
@@ -247,8 +256,8 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
     const crumbs = leaf.crumbs.filter((c) => c.id !== filterNode?.id);
     return { crumb: crumbs.map((c) => c.title).join(" › "), title: leaf.node.title };
   };
-  /** Titre de groupe : seulement s'il y a plusieurs groupes à l'écran. */
-  const showGroups = groupSizes.size > 1 || (groupSizes.size === 1 && leaves[sorted[0]?.k]?.node.id !== filterNode?.id);
+  /** Titre de groupe toujours affiché : les cartes commencent à la même hauteur sur toutes les pages. */
+  const showGroups = sorted.length > 0;
   const renderGroupHead = (k: number, list: boolean) => {
     const { crumb, title } = groupLabel(k);
     const groupBrand = groupBrands.get(k) ?? null;
@@ -261,7 +270,8 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
       >
         {groupBrand && <BrandBadge brand={groupBrand} className={list ? "brand-badge-xs" : "brand-badge-sm"} />}
         <span className="group-titles">
-          {crumb && <span className="group-crumb">{crumb}</span>}
+          {/* Ligne du fil d'Ariane toujours présente (vide au besoin) : titres de même hauteur partout */}
+          <span className="group-crumb">{crumb || "\u00A0"}</span>
           <span className="group-name">{title}</span>
         </span>
         <span className="group-count">{plural(groupSizes.get(k) ?? 0, "produit")}</span>
@@ -351,7 +361,7 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
 
   /**
    * Entrée de catégorie. Niveau 0 : puce de la rangée principale. Niveaux suivants : visibles
-   * seulement sur bureau, indentés sous l'entrée ouverte (sur mobile, voir les rangées .sub-rail).
+   * seulement sur bureau, indentés sous l'entrée ouverte (sur mobile, voir la rangée .mobile-cats).
    */
   const renderNode = (node: MenuNode, depth: number): React.ReactNode => {
     const count = countIn(node);
@@ -447,37 +457,54 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
             {menu.map((node) => renderNode(node, 0))}
           </nav>
 
-          {/* Mobile / tablette : un rang de puces par niveau ouvert */}
-          {trail.map((node, depth) =>
-            node.children.length > 0 ? (
-              <nav key={node.id} aria-label={`Sous-catégories : ${node.title}`} className="rail sub-rail">
+          {/* Mobile / tablette : une seule rangée de catégories, qui descend dans le menu
+              (« ‹ » pour remonter) — la page garde la même hauteur quel que soit le niveau. */}
+          <nav aria-label="Catégories" className="rail mobile-cats">
+            {levelParent ? (
+              <>
                 <button
                   type="button"
-                  className="cat-chip sub-chip"
-                  aria-pressed={path.length === depth + 1}
-                  onClick={() => pickNode(depth + 1, null)}
+                  className="cat-chip back-chip"
+                  aria-label={`Retour : ${levelDepth > 1 ? trail[levelDepth - 2].title : "toutes catégories"}`}
+                  onClick={() => pickNode(levelDepth - 1, null)}
                 >
-                  Tout {node.title}
+                  ‹
                 </button>
-                {node.children.map((child) => {
-                  const n = countIn(child);
-                  return (
-                    <button
-                      key={child.id}
-                      type="button"
-                      className="cat-chip sub-chip"
-                      aria-pressed={path[depth + 1] === child.id}
-                      data-empty={n === 0}
-                      onClick={() => pickNode(depth + 1, path[depth + 1] === child.id ? null : child.id)}
-                    >
-                      {child.title}
-                      <span className="chip-count">{n}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            ) : null,
-          )}
+                <button
+                  type="button"
+                  className="cat-chip"
+                  aria-pressed={path.length === levelDepth}
+                  onClick={() => pickNode(levelDepth, null)}
+                >
+                  Tout {levelParent.title}
+                  <span className="chip-count">{countIn(levelParent)}</span>
+                </button>
+              </>
+            ) : (
+              <button type="button" className="cat-chip" aria-pressed={path.length === 0} onClick={() => pickNode(0, null)}>
+                Toutes catégories
+                <span className="chip-count">{allCatCount}</span>
+              </button>
+            )}
+            {levelNodes.map((node) => {
+              const n = countIn(node);
+              const on = path[levelDepth] === node.id;
+              return (
+                <button
+                  key={node.id}
+                  type="button"
+                  className="cat-chip"
+                  aria-pressed={on}
+                  data-empty={n === 0}
+                  onClick={() => pickNode(levelDepth, on && path.length === levelDepth + 1 ? null : node.id)}
+                >
+                  {node.title}
+                  {node.children.length > 0 && <span className="chip-more">›</span>}
+                  <span className="chip-count">{n}</span>
+                </button>
+              );
+            })}
+          </nav>
         </aside>
 
         <section className="results" aria-label="Produits">
