@@ -234,9 +234,17 @@ img {
 .global-eye[aria-pressed="true"] .switch-thumb {
   transform: translateX(14px);
 }
-@media (max-width: 420px) {
+/* Petits écrans : l'œil et l'interrupteur suffisent, le libellé reste lu par les lecteurs d'écran. */
+@media (max-width: 430px) {
+  .global-eye {
+    padding: 0 8px 0 12px;
+  }
   .global-eye-label {
-    font-size: 12.5px;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 }
 
@@ -517,10 +525,7 @@ img {
   }
 }
 .card[data-revealed="true"] {
-  border-color: color-mix(in srgb, var(--pro) 45%, var(--line));
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
-  z-index: 2;
+  border-color: color-mix(in srgb, var(--pro) 40%, var(--line));
 }
 
 .card-media {
@@ -616,7 +621,7 @@ img {
 }
 
 .card-body {
-  padding: 12px 12px 12px;
+  padding: 12px 12px 10px;
 }
 .card-brand {
   display: flex;
@@ -649,24 +654,82 @@ img {
   overflow: hidden;
 }
 
-.price-site {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 10px;
+/* ── Barre de prix (pied de carte) ──
+   Fermée : le prix site occupe toute la largeur.
+   Ouverte : elle se partage en deux, prix site | prix commercial. Hauteur constante. */
+.price-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+  width: 100%;
+  height: 62px; /* fixe : la carte ne bouge pas, ouverte ou fermée */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  transition: grid-template-columns 0.42s var(--ease), background 0.2s;
 }
-.price-block {
+.price-bar[aria-pressed="true"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+@media (hover: hover) {
+  .price-bar:hover {
+    background: #fafafb;
+  }
+}
+.price-bar:focus-visible {
+  outline-offset: -3px;
+}
+.price-cell {
   min-width: 0;
+  overflow: hidden;
 }
+.price-cell-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+.price-cell-pro {
+  background: var(--pro-soft);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--pro) 25%, transparent);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+.price-bar[aria-pressed="true"] .price-cell-pro {
+  opacity: 1;
+  transition: opacity 0.3s ease 0.1s;
+}
+.price-cell-pro .price-cell-inner {
+  transform: translateX(14px);
+  transition: transform 0.42s var(--ease);
+}
+.price-bar[aria-pressed="true"] .price-cell-pro .price-cell-inner {
+  transform: none;
+}
+.price-cell-pro .amount {
+  color: var(--pro-ink);
+}
+.price-cell-pro .amount-cur,
+.price-cell-pro .label {
+  color: var(--pro);
+}
+
 .amount {
   display: block;
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  line-height: 1.05;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: font-size 0.35s var(--ease);
+}
+.price-bar[aria-pressed="true"] .amount {
+  font-size: 18px;
 }
 .amount-dec {
   font-size: 0.62em;
@@ -676,6 +739,9 @@ img {
   font-size: 0.55em;
   font-weight: 700;
   color: var(--muted);
+}
+.amount.amount-empty {
+  color: var(--faint);
 }
 .label {
   display: flex;
@@ -690,123 +756,31 @@ img {
   white-space: nowrap;
 }
 .compare {
-  font-size: 11px;
+  font-size: inherit;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
   color: var(--faint);
 }
-
-.eye-btn {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line-2);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--ink-2);
-  transition: background 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease),
-    transform 0.12s var(--ease);
+.price-bar[aria-pressed="true"] .compare {
+  display: none;
 }
-@media (hover: hover) {
-  .eye-btn:hover {
-    border-color: var(--ink);
-    color: var(--ink);
+@media (max-width: 520px) {
+  .price-bar {
+    height: 56px;
   }
-}
-.eye-btn:active {
-  transform: scale(0.9);
-}
-.eye-btn[aria-pressed="true"] {
-  background: var(--pro);
-  border-color: var(--pro);
-  color: #fff;
-}
-.eye-slash {
-  transition: stroke-dashoffset 0.3s var(--ease);
-}
-
-/* Zone « prix commercial » : s'ouvre sous le prix site (hauteur fluide + slide down + fade) */
-.reveal {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition: grid-template-rows 0.4s var(--ease), opacity 0.2s ease;
-}
-.reveal[data-open="true"] {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  transition: grid-template-rows 0.4s var(--ease), opacity 0.3s ease 0.08s;
-}
-.reveal-inner {
-  min-height: 0;
-  overflow: hidden;
-}
-.price-commercial {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 10px 10px 9px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--pro-soft);
-  transform: translateY(-10px);
-  transition: transform 0.4s var(--ease);
-}
-.reveal[data-open="true"] .price-commercial {
-  transform: translateY(0);
-}
-.price-commercial .amount {
-  color: var(--pro-ink);
-}
-.price-commercial .amount-cur,
-.price-commercial .label {
-  color: var(--pro);
-}
-.price-commercial[data-empty="true"] {
-  background: var(--bg);
-}
-.price-commercial[data-empty="true"] .label {
-  color: var(--muted);
-}
-.amount.amount-empty {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--muted);
-  padding: 3px 0;
-}
-.gap {
-  flex: none;
-  padding: 3px 7px;
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--pro-ink);
-  font-size: 11.5px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.gap[data-up="true"] {
-  color: var(--danger);
-}
-@media (max-width: 420px) {
-  .card-title {
-    font-size: 13.5px;
+  .price-cell-inner {
+    padding: 0 10px;
   }
   .amount {
     font-size: 20px;
   }
+  .price-bar[aria-pressed="true"] .amount {
+    font-size: 15px;
+  }
   .label {
     font-size: 9.5px;
-    letter-spacing: 0.04em;
-  }
-  .price-commercial {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+    letter-spacing: 0.03em;
   }
 }
 
@@ -1205,7 +1179,7 @@ img {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
-  .price-commercial {
+  .price-cell-pro .price-cell-inner {
     transform: none !important;
   }
 }
