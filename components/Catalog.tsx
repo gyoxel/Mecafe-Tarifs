@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { slug } from "@/lib/format";
-import { inNode, type MenuNode } from "@/lib/menu";
+import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
 import { brandStyle } from "@/lib/brands";
@@ -21,7 +21,7 @@ type Props = {
   /** Catégories = menu Shopify (niveau 1) et sous-catégories (niveau 2). */
   menu: MenuNode[];
   isAdmin: boolean;
-  initial: { q: string; brand: string; category: string; sub: string };
+  initial: { q: string; brand: string; path: string[] };
 };
 
 type Facet = { name: string; count: number };
@@ -102,14 +102,10 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
 
   const [query, setQuery] = useState(initial.q);
   const [brand, setBrand] = useState<string | null>(() => brands.find((b) => slug(b) === initial.brand) ?? null);
-  const [category, setCategory] = useState<string | null>(
-    () => menu.find((n) => n.id === initial.category)?.id ?? null,
-  );
-  const [sub, setSub] = useState<string | null>(
-    () => menu.find((n) => n.id === initial.category)?.children.find((c) => c.id === initial.sub)?.id ?? null,
-  );
-  const catNode = menu.find((n) => n.id === category) ?? null;
-  const subNode = catNode?.children.find((c) => c.id === sub) ?? null;
+  // Catégorie sélectionnée = chemin dans le menu (catégorie › sous-catégorie › détail).
+  const [path, setPath] = useState<string[]>(() => resolvePath(menu, initial.path).map((n) => n.id));
+  const trail = resolvePath(menu, path);
+  const catNode = trail[0] ?? null;
   const [limit, setLimit] = useState(PAGE_SIZE);
   const deferredQuery = useDeferredValue(query);
 
@@ -117,8 +113,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     // Une nouvelle recherche porte sur tout le catalogue : on quitte la catégorie / marque en cours.
     if (!query.trim() && v.trim()) {
       setBrand(null);
-      setCategory(null);
-      setSub(null);
+      setPath([]);
     }
     setQuery(v);
     setLimit(PAGE_SIZE);
@@ -130,15 +125,10 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     setBrand(b);
     setLimit(PAGE_SIZE);
   };
-  const pickCategory = (c: string | null) => {
+  /** Sélectionne `id` au niveau `depth` (0 = catégorie) ; `null` remonte au niveau parent. */
+  const pickNode = (depth: number, id: string | null) => {
     setQuery("");
-    setCategory(c);
-    setSub(null);
-    setLimit(PAGE_SIZE);
-  };
-  const pickSub = (c: string | null) => {
-    setQuery("");
-    setSub(c);
+    setPath((prev) => (id ? [...prev.slice(0, depth), id] : prev.slice(0, depth)));
     setLimit(PAGE_SIZE);
   };
 
@@ -164,7 +154,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     () => (tokens.length ? items.filter((_, i) => matchesAll(haystacks[i], tokens)) : items),
     [items, haystacks, tokens],
   );
-  const filterNode = subNode ?? catNode;
+  const filterNode = trail[trail.length - 1] ?? null;
   const inCategory = useCallback(
     (i: CatalogItem) => !filterNode || inNode(i.collections, filterNode),
     [filterNode],
@@ -239,23 +229,47 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     const p = new URLSearchParams();
     if (query.trim()) p.set("q", query.trim());
     if (brand) p.set("marque", slug(brand));
-    if (category) p.set("categorie", category);
-    if (sub) p.set("sous", sub);
+    if (path.length) p.set("categorie", path.join("/"));
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [query, brand, category, sub]);
+  }, [query, brand, path]);
 
   const resetFilters = () => {
     setQuery("");
     setBrand(null);
-    setCategory(null);
-    setSub(null);
+    setPath([]);
     setLimit(PAGE_SIZE);
   };
-  const filtered = Boolean(query.trim() || brand || category);
+  const filtered = Boolean(query.trim() || brand || path.length);
   const visible = results.slice(0, limit);
   const grouped = !brand; // titres de marque dans la grille quand plusieurs marques sont listées
   const showStock = items.some((i) => i.stock !== undefined); // présent seulement pour l'administrateur
+
+  /**
+   * Entrée de catégorie. Niveau 0 : puce de la rangée principale. Niveaux suivants : visibles
+   * seulement sur bureau, indentés sous l'entrée ouverte (sur mobile, voir les rangées .sub-rail).
+   */
+  const renderNode = (node: MenuNode, depth: number): React.ReactNode => {
+    const count = countIn(node);
+    const open = path[depth] === node.id;
+    const selected = open && path.length === depth + 1;
+    return (
+      <Fragment key={node.id}>
+        <button
+          type="button"
+          className={depth === 0 ? "cat-chip" : `cat-chip sub-chip sub-inline depth-${depth}`}
+          aria-pressed={selected}
+          data-open={open}
+          data-empty={count === 0}
+          onClick={() => pickNode(depth, selected ? null : node.id)}
+        >
+          {node.title}
+          <span className="chip-count">{count}</span>
+        </button>
+        {open && node.children.map((child) => renderNode(child, depth + 1))}
+      </Fragment>
+    );
+  };
 
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
@@ -311,72 +325,43 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
 
           <h2 className="side-label">Catégories</h2>
           <nav aria-label="Catégories" className="rail cat-rail">
-            <button type="button" className="cat-chip" aria-pressed={category === null} onClick={() => pickCategory(null)}>
+            <button type="button" className="cat-chip" aria-pressed={path.length === 0} onClick={() => pickNode(0, null)}>
               Toutes catégories
               <span className="chip-count">{allCatCount}</span>
             </button>
-            {menu.map((node) => {
-              const count = countIn(node);
-              const open = category === node.id;
-              return (
-                <Fragment key={node.id}>
-                  <button
-                    type="button"
-                    className="cat-chip"
-                    aria-pressed={open && !sub}
-                    data-open={open}
-                    data-empty={count === 0}
-                    onClick={() => pickCategory(open && !sub ? null : node.id)}
-                  >
-                    {node.title}
-                    <span className="chip-count">{count}</span>
-                  </button>
-                  {/* Bureau : sous-catégories sous la catégorie ouverte */}
-                  {open &&
-                    node.children.map((child) => {
-                      const n = countIn(child);
-                      return (
-                        <button
-                          key={child.id}
-                          type="button"
-                          className="cat-chip sub-chip sub-inline"
-                          aria-pressed={sub === child.id}
-                          data-empty={n === 0}
-                          onClick={() => pickSub(sub === child.id ? null : child.id)}
-                        >
-                          {child.title}
-                          <span className="chip-count">{n}</span>
-                        </button>
-                      );
-                    })}
-                </Fragment>
-              );
-            })}
+            {menu.map((node) => renderNode(node, 0))}
           </nav>
 
-          {/* Mobile / tablette : sous-catégories sur une seconde ligne */}
-          {catNode && catNode.children.length > 0 && (
-            <nav aria-label={`Sous-catégories : ${catNode.title}`} className="rail sub-rail">
-              <button type="button" className="cat-chip sub-chip" aria-pressed={!sub} onClick={() => pickSub(null)}>
-                Tout {catNode.title}
-              </button>
-              {catNode.children.map((child) => {
-                const n = countIn(child);
-                return (
-                  <button
-                    key={child.id}
-                    type="button"
-                    className="cat-chip sub-chip"
-                    aria-pressed={sub === child.id}
-                    data-empty={n === 0}
-                    onClick={() => pickSub(sub === child.id ? null : child.id)}
-                  >
-                    {child.title}
-                    <span className="chip-count">{n}</span>
-                  </button>
-                );
-              })}
-            </nav>
+          {/* Mobile / tablette : un rang de puces par niveau ouvert */}
+          {trail.map((node, depth) =>
+            node.children.length > 0 ? (
+              <nav key={node.id} aria-label={`Sous-catégories : ${node.title}`} className="rail sub-rail">
+                <button
+                  type="button"
+                  className="cat-chip sub-chip"
+                  aria-pressed={path.length === depth + 1}
+                  onClick={() => pickNode(depth + 1, null)}
+                >
+                  Tout {node.title}
+                </button>
+                {node.children.map((child) => {
+                  const n = countIn(child);
+                  return (
+                    <button
+                      key={child.id}
+                      type="button"
+                      className="cat-chip sub-chip"
+                      aria-pressed={path[depth + 1] === child.id}
+                      data-empty={n === 0}
+                      onClick={() => pickNode(depth + 1, path[depth + 1] === child.id ? null : child.id)}
+                    >
+                      {child.title}
+                      <span className="chip-count">{n}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            ) : null,
           )}
         </aside>
 
@@ -385,7 +370,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
           <span className="result-count">
             <strong>{results.length}</strong> produit{results.length > 1 ? "s" : ""}
             {brand && <span className="result-tag">{brand}</span>}
-            {catNode && <span className="result-tag">{subNode ? `${catNode.title} › ${subNode.title}` : catNode.title}</span>}
+            {catNode && <span className="result-tag">{trail.map((n) => n.title).join(" › ")}</span>}
           </span>
           <span className="result-actions">
             {filtered && (

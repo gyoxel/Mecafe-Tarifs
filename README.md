@@ -18,8 +18,8 @@ Shopify (Storefront API) ──► Vercel (Next.js, cache 5 min) ──► tarif
 - **Deux mots de passe** : `APP_PASSWORD` (commerciaux : lecture) et `ADMIN_PASSWORD` (modifier les prix, `/admin`).
 - **Prix commercial indépendant** : stocké dans Postgres par variant Shopify, jamais écrit dans Shopify.
 - **Une carte = un variant (format).** Marque = champ *Fournisseur* (`vendor`, ex. `Orsadrinks` → affiché `ODK`).
-- **Catégories = menu Shopify « Main menu (GX) »** (`main-menu-gx`, Contenu → Menus) : niveau 1 = catégorie,
-  niveau 2 = sous-catégorie, rattachement par collection. Modifier le menu dans Shopify suffit (mise à jour sous 5 min).
+- **Catégories = menu Shopify « Main menu (GX) »** (`main-menu-gx`, Contenu → Menus) : jusqu'à 3 niveaux
+  (ex. Café › Café en Grains › Mécafé 250g), rattachement par collection. Modifier le menu dans Shopify suffit (mise à jour sous 5 min).
   Les produits absents du menu apparaissent dans « Autres ». Sans menu accessible, repli sur les règles de
   `lib/config.ts` (`CATEGORY_RULES`). Le jeton Storefront doit avoir `unauthenticated_read_content`.
 

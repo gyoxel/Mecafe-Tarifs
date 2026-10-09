@@ -3,7 +3,7 @@ import type { CatalogItem, CatalogSource } from "./types";
 import { BRAND_ORDER, CATEGORY_ORDER, FALLBACK_CATEGORY } from "./config";
 import { fold, slug } from "./format";
 import { DEMO_ITEMS } from "./demo-data";
-import { buildMenu, inNode, type MenuNode } from "./menu";
+import { buildMenu, inNode, pruneMenu, type MenuNode } from "./menu";
 import { fetchShopifyCatalog, fetchShopifyMenu, isShopifyConfigured } from "./shopify";
 
 const brandRank = (brand: string) => {
@@ -39,9 +39,7 @@ export async function getCatalog(): Promise<{ items: CatalogItem[]; source: Cata
       const titles = new Map<string, string>();
       for (const it of shopItems) it.collections.forEach((h, i) => titles.set(h, it.collectionTitles[i]));
       // Seules les entrées qui contiennent au moins un produit sont gardées.
-      menu = buildMenu(rawMenu, titles)
-        .map((n) => ({ ...n, children: n.children.filter((c) => shopItems.some((it) => inNode(it.collections, c))) }))
-        .filter((n) => shopItems.some((it) => inNode(it.collections, n)));
+      menu = pruneMenu(buildMenu(rawMenu, titles), (n) => shopItems.some((it) => inNode(it.collections, n)));
     }
     items = shopItems.map(({ collectionTitles: _t, ...it }) => it);
   } else {

@@ -25,7 +25,7 @@ export function prettyTitle(title: string): string {
 
 /**
  * Construit l'arbre de catégories à partir du menu Shopify :
- * - niveau 1 = catégories, niveau 2 = sous-catégories, niveau 3 et plus fusionnés dans leur parent ;
+ * - jusqu'à 3 niveaux (catégorie › sous-catégorie › détail), les niveaux plus profonds fusionnés ;
  * - une entrée sans collection (ex. une page « Dosettes ») est rattachée aux collections dont le titre
  *   contient son nom ;
  * - les entrées qui ne couvrent aucune collection (Accueil, Contact…) sont ignorées.
@@ -52,18 +52,38 @@ export function buildMenu(raw: RawMenuItem[], collectionTitles: Map<string, stri
     return id;
   };
 
-  const nodes: MenuNode[] = [];
-  for (const item of raw) {
+  const MAX_DEPTH = 3;
+  const toNode = (item: RawMenuItem, depth: number): MenuNode | null => {
     const handles = handlesOf(item);
-    if (!handles.length) continue;
-    const children: MenuNode[] = [];
-    for (const child of item.items ?? []) {
-      const h = handlesOf(child);
-      if (h.length) children.push({ id: uniqueId(`${item.title} ${child.title}`), title: prettyTitle(child.title), handles: h, children: [] });
-    }
-    nodes.push({ id: uniqueId(item.title), title: prettyTitle(item.title), handles, children });
+    if (!handles.length) return null;
+    const children =
+      depth < MAX_DEPTH
+        ? (item.items ?? [])
+            .map((child) => toNode(child, depth + 1))
+            .filter((n): n is MenuNode => n !== null)
+        : [];
+    // Identifiant court (utilisé dans l'URL : ?categorie=cafe/cafe-en-grains/mecafe-1kg).
+    return { id: uniqueId(item.title), title: prettyTitle(item.title), handles, children };
+  };
+  return raw.map((item) => toNode(item, 1)).filter((n): n is MenuNode => n !== null);
+}
+
+/** Retire récursivement les entrées qui ne contiennent aucun produit. */
+export function pruneMenu(nodes: MenuNode[], has: (node: MenuNode) => boolean): MenuNode[] {
+  return nodes.filter(has).map((n) => ({ ...n, children: pruneMenu(n.children, has) }));
+}
+
+/** Suit un chemin d'identifiants (catégorie › sous-catégorie › …) ; s'arrête au premier inconnu. */
+export function resolvePath(menu: MenuNode[], path: string[]): MenuNode[] {
+  const out: MenuNode[] = [];
+  let level = menu;
+  for (const id of path) {
+    const node = level.find((n) => n.id === id);
+    if (!node) break;
+    out.push(node);
+    level = node.children;
   }
-  return nodes;
+  return out;
 }
 
 export function inNode(collections: string[], node: MenuNode): boolean {

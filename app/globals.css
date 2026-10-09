@@ -838,6 +838,15 @@ img {
     background: var(--ink-2);
     color: #fff;
   }
+  .sub-inline.depth-2 {
+    height: 30px;
+    padding-left: 42px;
+    font-size: 13px;
+  }
+  .sub-inline[data-open="true"]:not([aria-pressed="true"]) {
+    color: var(--ink);
+    font-weight: 700;
+  }
   .cat-chip[data-open="true"]:not([aria-pressed="true"]) {
     background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--line);

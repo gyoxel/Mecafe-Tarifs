@@ -27,7 +27,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       source={source}
       menu={menu}
       isAdmin={isAdmin}
-      initial={{ q: first(sp.q), brand: first(sp.marque), category: first(sp.categorie), sub: first(sp.sous) }}
+      initial={{
+        q: first(sp.q),
+        brand: first(sp.marque),
+        path: [...first(sp.categorie).split("/"), first(sp.sous)].filter(Boolean),
+      }}
     />
   );
 }
