@@ -122,17 +122,20 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
   };
   // Recherche et filtres ne se combinent pas : choisir une marque / catégorie efface la recherche,
   // et commencer une recherche efface les filtres (voir changeQuery).
-  // Choisir une marque montre toute la marque (la catégorie en cours est quittée) ;
-  // on peut ensuite affiner par catégorie à l'intérieur de la marque.
+  // Choisir une marque montre toute la marque (la catégorie en cours est quittée).
   const pickBrand = (b: string | null) => {
     setQuery("");
     setPath([]);
     setBrand(b);
     setLimit(PAGE_SIZE);
   };
-  /** Sélectionne `id` au niveau `depth` (0 = catégorie) ; `null` remonte au niveau parent. */
+  /**
+   * Sélectionne `id` au niveau `depth` (0 = catégorie) ; `null` remonte au niveau parent.
+   * Choisir une catégorie quitte la marque en cours (et inversement, voir pickBrand).
+   */
   const pickNode = (depth: number, id: string | null) => {
     setQuery("");
+    setBrand(null);
     setPath((prev) => (id ? [...prev.slice(0, depth), id] : prev.slice(0, depth)));
     setLimit(PAGE_SIZE);
   };
@@ -255,10 +258,10 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
     const counts = countBy(searched, "brand");
     return brands.map((name) => ({ name, count: counts.get(name) ?? 0 }));
   }, [searched, brands]);
-  const ofBrand = useMemo(() => searched.filter((i) => !brand || i.brand === brand), [searched, brand]);
-  const countIn = (node: MenuNode) => ofBrand.filter((i) => inNode(i.collections, node)).length;
+  // Nombre total de produits de chaque catégorie (un clic sur une catégorie quitte la marque).
+  const countIn = (node: MenuNode) => searched.filter((i) => inNode(i.collections, node)).length;
   const allCount = searched.length;
-  const allCatCount = ofBrand.length;
+  const allCatCount = searched.length;
 
   // ── Chargement progressif ─────────────────────────────────────────
   const sentinel = useRef<HTMLDivElement>(null);
