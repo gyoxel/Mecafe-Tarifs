@@ -1,7 +1,6 @@
 import "server-only";
 import type { CatalogItem } from "./types";
-import { CATEGORY_ALIASES, FALLBACK_BRAND, FALLBACK_CATEGORY } from "./config";
-import { fold } from "./format";
+import { canonicalBrand, categoryOf } from "./config";
 
 const DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const TOKEN = process.env.SHOPIFY_STOREFRONT_TOKEN;
@@ -29,6 +28,11 @@ const QUERY = /* GraphQL */ `
         productType
         featuredImage {
           url
+        }
+        collections(first: 10) {
+          nodes {
+            title
+          }
         }
         variants(first: 50) {
           nodes {
@@ -65,6 +69,7 @@ type GqlProduct = {
   vendor: string;
   productType: string;
   featuredImage: { url: string } | null;
+  collections?: { nodes: { title: string }[] };
   variants: { nodes: GqlVariant[] };
 };
 type GqlResponse = {
@@ -104,12 +109,6 @@ async function fetchPage(cursor: string | null): Promise<NonNullable<GqlResponse
 
 const numericId = (gid: string) => gid.split("/").pop() ?? gid;
 
-function categoryOf(productType: string): string {
-  const raw = productType.trim();
-  if (!raw) return FALLBACK_CATEGORY;
-  return CATEGORY_ALIASES[fold(raw)] ?? raw;
-}
-
 export async function fetchShopifyCatalog(): Promise<CatalogItem[]> {
   const items: CatalogItem[] = [];
   let cursor: string | null = null;
@@ -119,8 +118,8 @@ export async function fetchShopifyCatalog(): Promise<CatalogItem[]> {
     const products = await fetchPage(cursor);
 
     for (const p of products.nodes) {
-      const brand = p.vendor.trim() || FALLBACK_BRAND;
-      const category = categoryOf(p.productType);
+      const brand = canonicalBrand(p.vendor);
+      const category = categoryOf(p.collections?.nodes.map((c) => c.title) ?? [], p.productType);
       for (const v of p.variants.nodes) {
         const compareAt = v.compareAtPrice ? parseFloat(v.compareAtPrice.amount) : null;
         const price = parseFloat(v.price.amount);

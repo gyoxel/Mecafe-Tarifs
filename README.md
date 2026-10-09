@@ -17,7 +17,9 @@ Shopify (Storefront API) ──► Vercel (Next.js, cache 5 min) ──► tarif
   pas la sécurité.
 - **Deux mots de passe** : `APP_PASSWORD` (commerciaux : lecture) et `ADMIN_PASSWORD` (modifier les prix, `/admin`).
 - **Prix commercial indépendant** : stocké dans Postgres par variant Shopify, jamais écrit dans Shopify.
-- **Une carte = un variant (format).** Marque = champ *Fournisseur* (`vendor`), catégorie = *Type de produit*.
+- **Une carte = un variant (format).** Marque = champ *Fournisseur* (`vendor`, ex. `Orsadrinks` → affiché `ODK`) ;
+  catégorie = déduite des **collections** Shopify (« Kimbo - CAPSULES » → Capsules) puis du *Type de produit*.
+  Règles dans `lib/config.ts` (`CATEGORY_RULES`, `BRAND_ALIASES`).
 
 ## Lancer en local
 ```bash
@@ -55,7 +57,7 @@ Connexion avec le mot de passe admin → pied de page → **Administration** :
 Chaque changement est historisé dans `commercial_price_history`.
 
 ## Personnaliser
-- `lib/config.ts` : ordre des marques/catégories, regroupement de types Shopify en une catégorie (`CATEGORY_ALIASES`).
+- `lib/config.ts` : ordre des marques/catégories, alias de marques, règles collections → catégories.
 - `app/globals.css` : couleurs et animations (variables en tête de fichier).
 - Stockage des prix : `lib/prices.ts` expose seulement `getPrices` / `savePrices` ; changer de backend n'affecte pas l'UI.
 
