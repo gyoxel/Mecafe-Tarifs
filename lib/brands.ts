@@ -15,8 +15,8 @@ const BRANDS: Record<string, BrandStyle> = {
   Mécafé: { color: "#a8742a", logo: "/brands/mecafe.png" },
   Kimbo: { color: "#c8102e", logo: "/brands/kimbo.png" },
   Caffitaly: { color: "#1d7a46", logo: "/brands/caffitaly.png" },
-  ODK: { color: "#52726a", logo: "/brands/odk.png" }, // vert « chiba » (sauge)
-  Foodness: { color: "#4f9a35", logo: "/brands/foodness.png" },
+  ODK: { color: "#0279b8", logo: "/brands/odk.png" }, // bleu ciel
+  Foodness: { color: "#6b4226", logo: "/brands/foodness.png" }, // marron
   Flair: { color: "#8a1c2b", logo: "/brands/flair.png" },
 };
 
