@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { fold } from "@/lib/format";
 import { formatOffset, matchesOption, type PriceOption } from "@/lib/options";
-import { CheckIcon, ChevronIcon, SearchIcon, TagIcon } from "./Icons";
+import { CheckIcon, ChevronIcon, PinIcon, SearchIcon, TagIcon } from "./Icons";
 
 /**
  * Liste des commerciaux : recherche par nom ou ville, filtre par ville, navigation au clavier.
@@ -82,23 +82,27 @@ export function OptionList({
           enterKeyHint="done"
         />
       </label>
+      {/* Filtre par ville : liste déroulante, toutes les villes visibles d'un coup. */}
       {cities.length > 0 && (
-        <div className="opt-cities" role="group" aria-label="Filtrer par ville">
-          {[null, ...cities].map((c) => (
-            <button
-              key={c ?? "*"}
-              type="button"
-              className="opt-city"
-              aria-pressed={city === c}
-              onClick={() => {
-                setCity(city === c ? null : c);
-                setActive(0);
-              }}
-            >
-              {c ?? "Toutes les villes"}
-            </button>
-          ))}
-        </div>
+        <label className="opt-city-select" data-active={city != null}>
+          <PinIcon size={15} />
+          <select
+            value={city ?? ""}
+            onChange={(e) => {
+              setCity(e.target.value || null);
+              setActive(0);
+            }}
+            aria-label="Filtrer par ville"
+          >
+            <option value="">Toutes les villes</option>
+            {cities.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <ChevronIcon size={15} className="opt-chevron" />
+        </label>
       )}
       <ul className="opt-list" role="listbox" id={listId} aria-label={label} ref={list}>
         {shown.map((o, i) => (

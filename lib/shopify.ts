@@ -29,6 +29,7 @@ const QUERY = /* GraphQL */ `
         title
         vendor
         productType
+        onlineStoreUrl
         featuredImage {
           url
         }
@@ -74,6 +75,7 @@ type GqlProduct = {
   title: string;
   vendor: string;
   productType: string;
+  onlineStoreUrl: string | null;
   featuredImage: { url: string } | null;
   collections?: { nodes: { handle: string; title: string }[] };
   variants: { nodes: GqlVariant[] };
@@ -147,6 +149,7 @@ export async function fetchShopifyCatalog(): Promise<ShopifyItem[]> {
           price,
           compareAt: compareAt && compareAt > price ? compareAt : null,
           stock: v.quantityAvailable,
+          url: p.onlineStoreUrl ? `${p.onlineStoreUrl}?variant=${numericId(v.id)}` : null,
           collections: cols.map((c) => c.handle),
           collectionTitles: cols.map((c) => c.title),
         });

@@ -1,7 +1,8 @@
 # Mécafé — Tarifs professionnels
 
 Catalogue tarifaire : `tarifs.mecafe.ma`. Shopify reste la source des produits, images et prix publics.
-- **Commerciaux** (`/`, sans mot de passe) : le catalogue avec les **prix du site** uniquement.
+- **Commerciaux** (`/`, sans mot de passe) : le catalogue avec les **prix du site** uniquement ; l'image et le
+  nom ouvrent la page du produit sur mecafe.ma.
 - **Admin** (`/admin`, code admin) : choix d'un commercial, puis ses **prix commerciaux** (prix site − son écart,
   ou prix saisi) avec l'œil et le clic sur le prix ; stock visible. **Gestion** (`/admin/gestion`) : commerciaux,
   villes, écarts, prix.
@@ -58,8 +59,9 @@ Chaque **commercial** a un nom, une **ville** (facultative) et un **écart** app
 site (−10 = prix site moins 10 DH, suit le prix du site en direct), plus ses propres prix saisis à la main qui
 remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (−9), C (−8).
 
-- **Admin** (bouton « Admin » en haut du catalogue → code) : une fenêtre sur la page floutée demande le
-  commercial (recherche par nom ou ville, filtre par ville, « + Ajouter un commercial »). Ensuite le catalogue
+- **Admin** (bouton « Admin » en haut du catalogue → code, demandé à chaque fois ; session fermée avec le
+  navigateur, 12 h au plus) : une fenêtre sur la page floutée demande le commercial (recherche par nom ou
+  ville, liste déroulante des villes, « + Ajouter un commercial »). Ensuite le catalogue
   affiche ses prix (œil global, clic sur le prix). Le nom en haut permet d'en changer ; l'écart y apparaît en petit.
 - **Gestion** (`/admin/gestion`) :
   - *Commerciaux et villes* : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart

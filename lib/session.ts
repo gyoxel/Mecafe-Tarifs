@@ -1,11 +1,12 @@
 import { SignJWT, jwtVerify } from "jose";
 
 /** Partie "session" sans dépendance Node : utilisable aussi par proxy.ts. */
-export type Role = "commercial" | "admin";
+export type Role = "admin";
 export type Session = { role: Role };
 
 export const SESSION_COOKIE = "mecafe_session";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 jours : les commerciaux ne se reconnectent pas chaque jour
+/** Session admin : 12 h au plus (et cookie de session : fermer le navigateur déconnecte). */
+export const SESSION_MAX_AGE = 60 * 60 * 12;
 
 function secretKey(): Uint8Array {
   const secret =
@@ -29,7 +30,7 @@ export async function verifySessionToken(token: string | undefined): Promise<Ses
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
-    return payload.role === "admin" || payload.role === "commercial" ? { role: payload.role } : null;
+    return payload.role === "admin" ? { role: "admin" } : null;
   } catch {
     return null;
   }

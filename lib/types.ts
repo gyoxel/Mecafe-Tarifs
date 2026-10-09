@@ -15,6 +15,8 @@ export type CatalogItem = {
   collections: string[];
   sku: string | null;
   image: string | null;
+  /** Page du produit sur mecafe.ma (format présélectionné), ou null s'il n'est pas publié sur la boutique. */
+  url?: string | null;
   /** Prix public du site (Shopify), en DH. */
   price: number;
   /** Ancien prix barré sur le site, si promotion. */

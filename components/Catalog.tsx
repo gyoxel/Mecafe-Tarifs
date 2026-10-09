@@ -463,7 +463,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                 </button>
               </>
             ) : (
-              <a href="/admin" className="admin-btn" title="Espace admin">
+              <a href="/login" className="admin-btn" title="Espace admin (code demandé)">
                 <LockIcon size={17} />
                 <span>Admin</span>
               </a>

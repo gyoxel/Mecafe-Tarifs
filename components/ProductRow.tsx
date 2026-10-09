@@ -21,15 +21,30 @@ type Props = {
 /** Ligne de la vue « Liste » (écrans larges) : mêmes données et même logique d'affichage que la carte. */
 function ProductRowBase({ item, commercial, revealable, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
+  const link = item.url
+    ? { href: item.url, target: "_blank", rel: "noopener noreferrer", title: `Voir ${name} sur mecafe.ma` }
+    : null;
   return (
     <div className="row" role="row" data-revealed={revealed} style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
       <div className="row-thumb" role="cell">
-        <Thumb src={item.image} alt="" brand={item.brand} small />
+        {link ? (
+          <a {...link} className="card-media-link">
+            <Thumb src={item.image} alt="" brand={item.brand} small />
+          </a>
+        ) : (
+          <Thumb src={item.image} alt="" brand={item.brand} small />
+        )}
       </div>
       <div className="row-main" role="cell">
         <p className="card-brand">{item.brand}</p>
         <p className="row-title" title={item.title}>
-          {displayTitle(item.title, item.brand)}
+          {link ? (
+            <a {...link} className="card-title-link">
+              {displayTitle(item.title, item.brand)}
+            </a>
+          ) : (
+            displayTitle(item.title, item.brand)
+          )}
         </p>
       </div>
       <div className="row-variant" role="cell">

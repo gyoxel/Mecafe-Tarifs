@@ -24,6 +24,11 @@ type Props = {
 
 function ProductCardBase({ item, commercial, proLabel, revealable, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
+  // Image et nom ouvrent la page du produit sur mecafe.ma (nouvel onglet, sans référent : le site des tarifs
+  // n'apparaît pas côté boutique).
+  const link = item.url
+    ? { href: item.url, target: "_blank", rel: "noopener noreferrer", title: `Voir ${name} sur mecafe.ma` }
+    : null;
   const siteCell = (
     <span className="price-cell price-cell-site">
       <span className="price-cell-inner">
@@ -39,7 +44,13 @@ function ProductCardBase({ item, commercial, proLabel, revealable, revealed, onT
   return (
     <article className="card" data-revealed={revealed} style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
       <div className="card-media">
-        <Thumb src={item.image} alt={item.title} brand={item.brand} />
+        {link ? (
+          <a {...link} className="card-media-link">
+            <Thumb src={item.image} alt={item.title} brand={item.brand} />
+          </a>
+        ) : (
+          <Thumb src={item.image} alt={item.title} brand={item.brand} />
+        )}
         {/* Le format est posé sur l'image : toutes les cartes gardent la même hauteur. */}
         {item.variant && <span className="tag tag-variant">{displayVariant(item.variant)}</span>}
         {item.compareAt && <span className="tag tag-promo">Promo</span>}
@@ -49,7 +60,13 @@ function ProductCardBase({ item, commercial, proLabel, revealable, revealed, onT
       <div className="card-body">
         <p className="card-brand">{item.brand}</p>
         <h3 className="card-title" title={item.title}>
-          {displayTitle(item.title, item.brand)}
+          {link ? (
+            <a {...link} className="card-title-link">
+              {displayTitle(item.title, item.brand)}
+            </a>
+          ) : (
+            displayTitle(item.title, item.brand)
+          )}
         </h3>
       </div>
 

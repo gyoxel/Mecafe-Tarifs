@@ -288,33 +288,49 @@ img {
   font-weight: 600;
   color: var(--muted);
 }
-.opt-cities {
-  display: flex;
-  gap: 6px;
-  margin: 8px -8px 0;
-  padding: 0 8px 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
+.opt-city-select {
+  position: relative;
+  display: block;
+  margin-top: 8px;
 }
-.opt-cities::-webkit-scrollbar {
-  display: none;
+.opt-city-select svg {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
 }
-.opt-city {
-  flex: none;
-  height: 30px;
-  padding: 0 11px;
+.opt-city-select svg:first-child {
+  left: 12px;
+}
+.opt-city-select .opt-chevron {
+  right: 12px;
+}
+.opt-city-select select {
+  width: 100%;
+  height: 40px;
+  padding: 0 36px 0 34px;
   border: 1px solid var(--line-2);
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--surface);
-  color: var(--ink-2);
-  font-size: 12.5px;
-  font-weight: 700;
-  white-space: nowrap;
+  color: var(--ink);
+  font-size: 16px; /* pas de zoom iOS */
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
 }
-.opt-city[aria-pressed="true"] {
+.opt-city-select select:focus {
+  outline: none;
   border-color: var(--ink);
-  background: var(--ink);
-  color: #fff;
+}
+.opt-city-select[data-active="true"] select {
+  border-color: var(--pro);
+  background: var(--pro-soft);
+  color: var(--pro-ink);
+}
+.opt-city-select[data-active="true"] svg {
+  color: var(--pro);
 }
 .opt-item-check {
   flex: none;
@@ -882,6 +898,21 @@ img {
 .card-media {
   position: relative;
   border-bottom: 1px solid var(--line);
+}
+/* Image et nom : lien vers la page du produit sur mecafe.ma */
+.card-media-link {
+  display: block;
+  color: inherit;
+}
+.card-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .card-title-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 .thumb {
   position: relative;
@@ -2331,11 +2362,6 @@ body > .admin {
   flex-direction: column;
   min-height: 0;
   flex: 1;
-}
-.chooser .opt-cities {
-  margin-left: -20px;
-  margin-right: -20px;
-  padding: 0 20px 2px;
 }
 .chooser .opt-list {
   flex: 1;

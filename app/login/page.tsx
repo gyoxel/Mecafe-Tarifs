@@ -1,12 +1,10 @@
-import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/LoginForm";
 import Link from "next/link";
-import { getAdminSession } from "@/lib/auth";
 
 export const metadata = { title: "Admin — Mécafé Tarifs" };
 
-export default async function LoginPage() {
-  if (await getAdminSession()) redirect("/admin");
+/** Le code est demandé à chaque passage par le bouton « Admin », même si une session existe déjà. */
+export default function LoginPage() {
   return (
     <main className="center-screen">
       <div className="login-card">

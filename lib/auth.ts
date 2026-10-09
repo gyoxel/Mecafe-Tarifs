@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, SESSION_MAX_AGE, verifySessionToken, type Role, type Session } from "./session";
+import { SESSION_COOKIE, verifySessionToken, type Role, type Session } from "./session";
 
 /** Session courante (Server Components / Route Handlers), ou null. */
 export async function getSession(): Promise<Session | null> {
@@ -16,7 +16,8 @@ export function sessionCookieOptions() {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
-    maxAge: SESSION_MAX_AGE,
+    // Pas de maxAge : cookie de session, effacé à la fermeture du navigateur (le jeton expire de toute façon
+    // après SESSION_MAX_AGE).
   };
 }
 
