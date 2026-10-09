@@ -8,8 +8,9 @@ import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
-import { CloseIcon, EyeIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
+import { CloseIcon, EyeIcon, GridIcon, ListIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
 import { ProductCard } from "./ProductCard";
+import { ProductRow } from "./ProductRow";
 
 const PAGE_SIZE = 60;
 
@@ -32,11 +33,20 @@ function countBy(list: CatalogItem[], key: "brand" | "category"): Map<string, nu
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
 
 /** Champ de recherche. */
-function SearchField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function SearchField({
+  value,
+  onChange,
+  inputRef,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  inputRef: React.Ref<HTMLInputElement>;
+}) {
   return (
     <label className="search">
       <SearchIcon className="search-icon" size={18} />
       <input
+        ref={inputRef}
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -46,7 +56,16 @@ function SearchField({ value, onChange }: { value: string; onChange: (v: string)
         autoCapitalize="off"
         spellCheck={false}
         enterKeyHint="search"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            onChange("");
+            e.currentTarget.blur();
+          }
+        }}
       />
+      <kbd className="search-kbd" aria-hidden="true">
+        /
+      </kbd>
       {value && (
         <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => onChange("")}>
           <CloseIcon size={14} />
@@ -164,6 +183,42 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     return () => io.disconnect();
   }, [hasMore, limit]);
 
+  // ── Vue grille / liste (la liste n'existe que sur écran large) ────
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 900px)");
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    try {
+      if (localStorage.getItem("mecafe:view") === "list") setView("list");
+    } catch {}
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const changeView = (v: "grid" | "list") => {
+    setView(v);
+    try {
+      localStorage.setItem("mecafe:view", v);
+    } catch {}
+  };
+  const effectiveView = wide ? view : "grid";
+
+  // ── Raccourci « / » : aller à la recherche ────────────────────────
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        searchInput.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // ── URL partageable (?q=…&marque=…&categorie=…) ───────────────────
   useEffect(() => {
     const p = new URLSearchParams();
@@ -201,14 +256,15 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
           </a>
           <span className="appbar-title">Tarifs professionnels</span>
           <div className="appbar-search">
-            <SearchField value={query} onChange={changeQuery} />
+            <SearchField value={query} onChange={changeQuery} inputRef={searchInput} />
           </div>
           <GlobalEye on={globalOn} onToggle={toggleGlobal} />
         </div>
       </header>
 
-      <main className="container">
-        <section className="filters" aria-label="Filtres">
+      <main className="container layout">
+        <aside className="filters" aria-label="Filtres">
+          <h2 className="side-label">Marques</h2>
           <nav aria-label="Marques" className="rail brand-rail">
             <button type="button" className="brand-tile" aria-pressed={brand === null} onClick={() => pickBrand(null)}>
               <span className="brand-badge brand-badge-all" aria-hidden="true">
@@ -235,6 +291,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
             ))}
           </nav>
 
+          <h2 className="side-label">Catégories</h2>
           <nav aria-label="Catégories" className="rail cat-rail">
             <button type="button" className="cat-chip" aria-pressed={category === null} onClick={() => pickCategory(null)}>
               Toutes catégories
@@ -254,19 +311,32 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
               </button>
             ))}
           </nav>
-        </section>
+        </aside>
 
+        <section className="results" aria-label="Produits">
         <div className="result-bar" aria-live="polite">
           <span className="result-count">
             <strong>{results.length}</strong> produit{results.length > 1 ? "s" : ""}
             {brand && <span className="result-tag">{brand}</span>}
             {category && <span className="result-tag">{category}</span>}
           </span>
-          {filtered && (
-            <button type="button" className="link-btn" onClick={resetFilters}>
-              Réinitialiser
-            </button>
-          )}
+          <span className="result-actions">
+            {filtered && (
+              <button type="button" className="link-btn" onClick={resetFilters}>
+                Réinitialiser
+              </button>
+            )}
+            <span className="view-toggle" role="group" aria-label="Affichage">
+              <button type="button" aria-pressed={view === "grid"} onClick={() => changeView("grid")} title="Grille">
+                <GridIcon size={16} />
+                <span>Grille</span>
+              </button>
+              <button type="button" aria-pressed={view === "list"} onClick={() => changeView("list")} title="Liste">
+                <ListIcon size={16} />
+                <span>Liste</span>
+              </button>
+            </span>
+          </span>
         </div>
 
         {results.length === 0 ? (
@@ -276,6 +346,37 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
             <button type="button" className="btn btn-ghost" onClick={resetFilters}>
               Effacer les filtres
             </button>
+          </div>
+        ) : effectiveView === "list" ? (
+          <div className="list" role="table" aria-label="Liste des produits">
+            <div className="list-head" role="row">
+              <span role="columnheader" />
+              <span role="columnheader">Produit</span>
+              <span role="columnheader">Format</span>
+              <span role="columnheader" className="num">
+                Prix site
+              </span>
+              <span role="columnheader" className="num">
+                Prix commercial
+              </span>
+            </div>
+            {visible.map((item, i) => (
+              <Fragment key={item.id}>
+                {grouped && item.brand !== visible[i - 1]?.brand && (
+                  <div className="list-group" role="row" style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
+                    <BrandBadge brand={item.brand} className="brand-badge-xs" />
+                    <span className="group-name">{item.brand}</span>
+                    <span className="group-count">{plural(resultsByBrand.get(item.brand) ?? 0, "produit")}</span>
+                  </div>
+                )}
+                <ProductRow
+                  item={item}
+                  commercial={prices[item.id]}
+                  revealed={overrides[item.id] ?? globalOn}
+                  onToggle={toggleOne}
+                />
+              </Fragment>
+            ))}
           </div>
         ) : (
           <div className="grid">
@@ -299,6 +400,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
           </div>
         )}
         {hasMore && <div ref={sentinel} className="sentinel" aria-hidden="true" />}
+        </section>
       </main>
 
       <footer className="footer">

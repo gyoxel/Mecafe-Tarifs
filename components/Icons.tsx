@@ -53,6 +53,17 @@ export function GridIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function ListIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <circle cx="4.5" cy="6" r="1" />
+      <circle cx="4.5" cy="12" r="1" />
+      <circle cx="4.5" cy="18" r="1" />
+    </svg>
+  );
+}
+
 export function LogoutIcon({ size = 18, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

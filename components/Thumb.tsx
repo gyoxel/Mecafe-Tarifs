@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { sizedImage } from "@/lib/image";
 
-type Props = { src: string | null; alt: string; brand: string };
+type Props = { src: string | null; alt: string; brand: string; small?: boolean };
 
 /** Image produit : chargement différé, fondu à l'apparition, repère typographique si absente. */
-export function Thumb({ src, alt, brand }: Props) {
+export function Thumb({ src, alt, brand, small = false }: Props) {
   const ref = useRef<HTMLImageElement>(null);
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
 
@@ -28,9 +28,13 @@ export function Thumb({ src, alt, brand }: Props) {
       {/* eslint-disable-next-line @next/next/no-img-element -- le CDN Shopify redimensionne déjà */}
       <img
         ref={ref}
-        src={sizedImage(src, 400)}
-        srcSet={`${sizedImage(src, 260)} 260w, ${sizedImage(src, 400)} 400w, ${sizedImage(src, 640)} 640w`}
-        sizes="(min-width: 1200px) 230px, (min-width: 700px) 30vw, 46vw"
+        src={sizedImage(src, small ? 120 : 400)}
+        srcSet={
+          small
+            ? `${sizedImage(src, 120)} 1x, ${sizedImage(src, 240)} 2x`
+            : `${sizedImage(src, 260)} 260w, ${sizedImage(src, 400)} 400w, ${sizedImage(src, 640)} 640w`
+        }
+        sizes={small ? undefined : "(min-width: 1100px) 240px, (min-width: 700px) 30vw, 46vw"}
         alt={alt}
         loading="lazy"
         decoding="async"
