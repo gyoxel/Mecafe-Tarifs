@@ -8,7 +8,7 @@ import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import { OPTION_STORAGE_KEY, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
 import { CommercialChooser } from "./CommercialChooser";
-import { OptionTrigger } from "./OptionPicker";
+import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
 import { CloseIcon, EyeIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
@@ -449,8 +449,17 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               inputRef={searchInput}
               placeholder={wide ? "Rechercher un produit..." : "Rechercher"}
             />
+            {/* Changer de commercial : liste déroulante sous le bouton (la fenêtre floutée ne sert qu'à l'arrivée). */}
             {isAdmin && (
-              <OptionTrigger option={currentOption} open={chooser} onClick={() => setChooser(true)} label="Commercial" />
+              <OptionPicker
+                options={options}
+                value={option ?? ""}
+                label="Commercial"
+                onChange={(id) => {
+                  const o = options.find((x) => x.id === id);
+                  if (o) pickCommercial(o);
+                }}
+              />
             )}
           </div>
           <div className="appbar-actions">

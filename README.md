@@ -62,7 +62,8 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
 - **Admin** (bouton « Admin » en haut du catalogue → code, demandé à chaque fois ; session fermée avec le
   navigateur, 12 h au plus) : une fenêtre sur la page floutée demande le commercial (recherche par nom ou
   ville, liste déroulante des villes, « + Ajouter un commercial »). Ensuite le catalogue
-  affiche ses prix (œil global, clic sur le prix). Le nom en haut permet d'en changer ; l'écart y apparaît en petit.
+  affiche ses prix (œil global, clic sur le prix). Le nom en haut ouvre une liste déroulante pour en changer
+  (la fenêtre floutée ne sert qu'à l'arrivée) ; l'écart y apparaît en petit.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Commerciaux et villes* (`/admin/gestion`, page d'arrivée) : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente

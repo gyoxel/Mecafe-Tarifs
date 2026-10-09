@@ -258,7 +258,7 @@ export function OptionTrigger({
   );
 }
 
-/** Liste déroulante des commerciaux (page Gestion). */
+/** Liste déroulante des commerciaux (barre du haut de l'admin, page Gestion). */
 export function OptionPicker({
   options,
   value,
