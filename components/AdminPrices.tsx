@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fold, formatDH } from "@/lib/format";
 import { parsePrice } from "@/lib/csv";
 import { sizedImage } from "@/lib/image";
+import { StockBadge } from "./StockBadge";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
 
@@ -216,6 +217,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
             <tr>
               <th>Produit</th>
               <th className="hide-sm">SKU</th>
+              <th className="num hide-sm">Stock</th>
               <th className="num">Prix site</th>
               <th className="num">Prix commercial (DH)</th>
               <th className="num hide-sm">Écart</th>
@@ -246,6 +248,9 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
                     </div>
                   </td>
                   <td className="hide-sm muted small">{it.sku ?? "—"}</td>
+                  <td className="num hide-sm">
+                    <StockBadge stock={it.stock ?? null} />
+                  </td>
                   <td className="num">{formatDH(it.price)}</td>
                   <td className="num">
                     <input

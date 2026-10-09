@@ -6,6 +6,7 @@ import { formatDH } from "@/lib/format";
 import { displayTitle } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
 import { Price } from "./Price";
+import { StockBadge } from "./StockBadge";
 import { Thumb } from "./Thumb";
 
 type Props = {
@@ -27,6 +28,7 @@ function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
         {/* Le format est posé sur l'image : toutes les cartes gardent la même hauteur. */}
         {item.variant && <span className="tag tag-variant">{item.variant}</span>}
         {item.compareAt && <span className="tag tag-promo">Promo</span>}
+        {item.stock !== undefined && <StockBadge stock={item.stock} className="tag tag-stock" />}
       </div>
 
       <div className="card-body">

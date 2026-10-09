@@ -6,6 +6,7 @@ import { displayTitle } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
 import { brandStyle } from "@/lib/brands";
 import { Price } from "./Price";
+import { StockBadge } from "./StockBadge";
 import { Thumb } from "./Thumb";
 
 type Props = {
@@ -33,6 +34,11 @@ function ProductRowBase({ item, commercial, revealed, onToggle }: Props) {
         {item.variant ? <span className="row-chip">{item.variant}</span> : <span className="muted">—</span>}
         {item.compareAt && <span className="row-promo">Promo</span>}
       </div>
+      {item.stock !== undefined && (
+        <div className="row-stock" role="cell">
+          <StockBadge stock={item.stock} />
+        </div>
+      )}
       <div className="row-price" role="cell">
         <Price value={item.price} />
         {item.compareAt && <s className="compare">{formatDH(item.compareAt)}</s>}

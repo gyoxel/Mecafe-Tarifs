@@ -238,6 +238,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
   const filtered = Boolean(query.trim() || brand || category);
   const visible = results.slice(0, limit);
   const grouped = !brand; // titres de marque dans la grille quand plusieurs marques sont listées
+  const showStock = items.some((i) => i.stock !== undefined); // présent seulement pour l'administrateur
 
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
@@ -348,11 +349,12 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
             </button>
           </div>
         ) : effectiveView === "list" ? (
-          <div className="list" role="table" aria-label="Liste des produits">
+          <div className={`list ${showStock ? "with-stock" : ""}`} role="table" aria-label="Liste des produits">
             <div className="list-head" role="row">
               <span role="columnheader" />
               <span role="columnheader">Produit</span>
               <span role="columnheader">Format</span>
+              {showStock && <span role="columnheader">Stock</span>}
               <span role="columnheader" className="num">
                 Prix site
               </span>

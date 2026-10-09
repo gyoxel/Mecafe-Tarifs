@@ -16,6 +16,11 @@ export type CatalogItem = {
   price: number;
   /** Ancien prix barré sur le site, si promotion. */
   compareAt: number | null;
+  /**
+   * Quantité en stock (Shopify). Réservée à l'administrateur : le serveur retire ce champ
+   * avant d'envoyer le catalogue à un commercial. null = stock non suivi.
+   */
+  stock?: number | null;
 };
 
 /** variantId → prix commercial (DH). Absent = pas de prix commercial défini. */

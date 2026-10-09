@@ -39,6 +39,7 @@ const QUERY = /* GraphQL */ `
             id
             title
             sku
+            quantityAvailable
             price {
               amount
             }
@@ -59,6 +60,7 @@ type GqlVariant = {
   id: string;
   title: string;
   sku: string | null;
+  quantityAvailable: number | null;
   price: { amount: string };
   compareAtPrice: { amount: string } | null;
   image: { url: string } | null;
@@ -134,6 +136,7 @@ export async function fetchShopifyCatalog(): Promise<CatalogItem[]> {
           image: v.image?.url ?? p.featuredImage?.url ?? null,
           price,
           compareAt: compareAt && compareAt > price ? compareAt : null,
+          stock: v.quantityAvailable,
         });
       }
     }

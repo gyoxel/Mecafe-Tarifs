@@ -14,15 +14,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   const [{ items, source }, allPrices, sp] = await Promise.all([getCatalog(), getPrices(), searchParams]);
 
+  const isAdmin = session.role === "admin";
   const ids = new Set(items.map((i) => i.id));
   const prices = Object.fromEntries(Object.entries(allPrices).filter(([id]) => ids.has(id)));
+  // Le stock n'est envoyé qu'à l'administrateur (jamais présent dans la page d'un commercial).
+  const visibleItems = isAdmin ? items : items.map(({ stock: _stock, ...rest }) => rest);
 
   return (
     <Catalog
-      items={items}
+      items={visibleItems}
       prices={prices}
       source={source}
-      isAdmin={session.role === "admin"}
+      isAdmin={isAdmin}
       initial={{ q: first(sp.q), brand: first(sp.marque), category: first(sp.categorie) }}
     />
   );
