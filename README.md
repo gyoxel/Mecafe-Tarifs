@@ -34,19 +34,22 @@ Voir `.env.example`. En production, `APP_PASSWORD`, `ADMIN_PASSWORD` et `SESSION
 `openssl rand -base64 48`) sont **obligatoires** : sans eux, la connexion est refusée.
 
 ## Mise en production (Vercel)
-1. Importer le repo dans Vercel.
-2. **Postgres** : Storage → ajouter Neon (ou Supabase) ; `DATABASE_URL` est injectée. Les tables se créent seules
-   (cf. `db/schema.sql`).
-3. **Shopify** : créer un accès *Storefront API* en lecture sur les produits (canal *Headless* → jeton privé `shpat_…`,
-   ou app personnalisée), puis renseigner `SHOPIFY_STORE_DOMAIN` et `SHOPIFY_STOREFRONT_TOKEN`.
-   Les procédures de Shopify évoluent : vérifier la création du jeton dans leur documentation.
-4. **Domaine** : Settings → Domains → `tarifs.mecafe.ma`, puis chez le gestionnaire DNS de `mecafe.ma` un
-   `CNAME tarifs → cname.vercel-dns.com` (valeur exacte indiquée par Vercel).
-5. (Optionnel) **Mise à jour instantanée** : dans Shopify → Paramètres → Notifications → Webhooks, créer les
+Projet Vercel : `mecafe-tarifs` (déploiement automatique à chaque push sur la branche de production).
+Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
+
+1. **Variables** (Settings → Environment Variables, type *Sensitive*) :
+   `APP_PASSWORD`, `ADMIN_PASSWORD`, `SESSION_SECRET` (≥ 32 caractères, `openssl rand -base64 48`),
+   `SHOPIFY_STORE_DOMAIN` (`xxx.myshopify.com`), `SHOPIFY_STOREFRONT_TOKEN` (jeton privé `shpat_…`).
+2. **Postgres** : Storage → Neon, connecté au projet avec le préfixe `DATABASE` (→ `DATABASE_URL`).
+   Ne pas cocher « Create database branch for deployment » pour *Production* : la production doit
+   toujours utiliser la branche principale de la base. Les tables se créent seules (cf. `db/schema.sql`).
+3. **Domaine** : `tarifs.mecafe.ma` ajouté au projet ; chez l'hébergeur DNS de `mecafe.ma`, un
+   `CNAME tarifs → <valeur indiquée par Vercel>` (Settings → Domains).
+4. (Optionnel) **Mise à jour instantanée** : dans Shopify → Paramètres → Notifications → Webhooks, créer les
    événements *Création / Mise à jour / Suppression de produit* vers `https://tarifs.mecafe.ma/api/revalidate`
    et copier la clé de signature dans `SHOPIFY_WEBHOOK_SECRET`. Sans webhook, le catalogue se rafraîchit seul
    toutes les 5 minutes.
-6. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
+5. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Gérer les prix commerciaux
 Connexion avec le mot de passe admin → pied de page → **Administration** :
