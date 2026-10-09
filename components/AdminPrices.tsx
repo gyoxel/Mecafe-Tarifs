@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fold, formatDH } from "@/lib/format";
 import { parsePrice } from "@/lib/csv";
+import { sizedImage } from "@/lib/image";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
 
@@ -127,8 +128,9 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     <div className="admin">
       <header className="admin-head">
         <div>
-          <h1 className="wordmark small">MÉCAFÉ</h1>
-          <p className="tagline">Administration — prix commerciaux</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
+          <h1 className="admin-title">Prix commerciaux</h1>
         </div>
         <Link href="/" className="btn btn-ghost">
           ← Catalogue
@@ -229,10 +231,18 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
               return (
                 <tr key={it.id} data-changed={changed}>
                   <td>
-                    <div className="cell-title">{it.title}</div>
-                    <div className="muted small">
-                      {it.brand}
-                      {it.variant ? ` · ${it.variant}` : ""}
+                    <div className="cell-product">
+                      {it.image && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="cell-thumb" src={sizedImage(it.image, 96)} alt="" loading="lazy" width={44} height={44} />
+                      )}
+                      <div>
+                        <div className="cell-title">{it.title}</div>
+                        <div className="muted small">
+                          {it.brand}
+                          {it.variant ? ` · ${it.variant}` : ""}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td className="hide-sm muted small">{it.sku ?? "—"}</td>
@@ -273,7 +283,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
             <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setDrafts({})}>
               Annuler
             </button>
-            <button type="button" className="btn" disabled={busy || invalid.size > 0} onClick={save}>
+            <button type="button" className="btn btn-gold" disabled={busy || invalid.size > 0} onClick={save}>
               {busy ? "Enregistrement…" : "Enregistrer"}
             </button>
           </span>

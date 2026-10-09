@@ -4,6 +4,7 @@ import { memo } from "react";
 import { formatDH } from "@/lib/format";
 import type { CatalogItem } from "@/lib/types";
 import { EyeIcon } from "./Icons";
+import { Price } from "./Price";
 import { Thumb } from "./Thumb";
 
 type Props = {
@@ -17,23 +18,29 @@ type Props = {
 
 function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
+  const gap = commercial == null ? 0 : Math.round((commercial - item.price) * 100) / 100;
 
   return (
     <article className="card" data-revealed={revealed}>
-      <Thumb src={item.image} alt={item.title} brand={item.brand} />
+      <div className="card-media">
+        <Thumb src={item.image} alt={item.title} brand={item.brand} />
+        {item.compareAt && <span className="badge">Promo</span>}
+      </div>
 
       <div className="card-body">
         <p className="card-brand">{item.brand}</p>
-        <h3 className="card-title">{item.title}</h3>
+        <h3 className="card-title" title={item.title}>
+          {item.title}
+        </h3>
         {item.variant && <span className="card-variant">{item.variant}</span>}
 
         <div className="price-site">
           <div className="price-block">
-            <span className="amount">
+            <Price value={item.price} />
+            <span className="label">
+              Prix site
               {item.compareAt && <s className="compare">{formatDH(item.compareAt)}</s>}
-              {formatDH(item.price)}
             </span>
-            <span className="label">Prix site</span>
           </div>
           <button
             type="button"
@@ -42,7 +49,7 @@ function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
             aria-label={`${revealed ? "Masquer" : "Afficher"} le prix commercial : ${name}`}
             onClick={() => onToggle(item.id, !revealed)}
           >
-            <EyeIcon off={!revealed} size={18} />
+            <EyeIcon off={!revealed} size={19} />
           </button>
         </div>
 
@@ -50,12 +57,20 @@ function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
           {/* inert : zone fermée = ni focus clavier ni lecteur d'écran */}
           <div className="reveal-inner" inert={!revealed}>
             <div className="price-commercial">
-              {commercial == null ? (
-                <span className="amount amount-empty">Non défini</span>
-              ) : (
-                <span className="amount">{formatDH(commercial)}</span>
+              <div className="price-block">
+                {commercial == null ? (
+                  <span className="amount amount-empty">Non défini</span>
+                ) : (
+                  <Price value={commercial} />
+                )}
+                <span className="label">Prix commercial</span>
+              </div>
+              {gap !== 0 && (
+                <span className="gap" data-up={gap > 0}>
+                  {gap < 0 ? "−" : "+"}
+                  {formatDH(Math.abs(gap))}
+                </span>
               )}
-              <span className="label">Prix commercial</span>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { LockIcon } from "./Icons";
 
 export function LoginForm() {
   const [password, setPassword] = useState("");
@@ -34,14 +35,18 @@ export function LoginForm() {
     <form onSubmit={submit} className="login-form">
       <label className="field">
         <span className="field-label">Mot de passe</span>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          autoFocus
-          required
-        />
+        <span className="field-control">
+          <LockIcon size={18} />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="current-password"
+            autoFocus
+            required
+          />
+        </span>
       </label>
       <p className="form-error" role="alert">
         {error}

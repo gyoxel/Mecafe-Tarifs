@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORY_ORDER } from "@/lib/config";
 import { fold, slug } from "@/lib/format";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
-import { CloseIcon, EyeIcon, SearchIcon } from "./Icons";
+import { BrandBadge } from "./BrandLogo";
+import { CategoryIcon, CloseIcon, EyeIcon, GridIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
 import { ProductCard } from "./ProductCard";
 
 const PAGE_SIZE = 60;
@@ -27,17 +28,66 @@ function countBy(list: CatalogItem[], key: "brand" | "category"): Map<string, nu
   return m;
 }
 
-function GlobalEye({ on, onToggle, className }: { on: boolean; onToggle: () => void; className: string }) {
+const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
+
+/** Champ de recherche (rendu deux fois : dans le hero et, une fois défilé, dans la barre du haut). */
+function SearchField({
+  value,
+  onChange,
+  inputRef,
+  compact = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  inputRef?: React.Ref<HTMLInputElement>;
+  compact?: boolean;
+}) {
+  return (
+    <label className={`search ${compact ? "search-compact" : ""}`}>
+      <SearchIcon className="search-icon" size={compact ? 17 : 20} />
+      <input
+        ref={inputRef}
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Rechercher un produit..."
+        aria-label="Rechercher un produit"
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        enterKeyHint="search"
+      />
+      {value && (
+        <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => onChange("")}>
+          <CloseIcon size={14} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+/** Interrupteur de l'œil global. */
+function GlobalEye({ on, onToggle, variant }: { on: boolean; onToggle: () => void; variant: "bar" | "card" }) {
   return (
     <button
       type="button"
-      className={className}
+      className={`global-eye global-eye-${variant}`}
       aria-pressed={on}
       onClick={onToggle}
       title={on ? "Masquer tous les prix commerciaux" : "Afficher tous les prix commerciaux"}
     >
-      <EyeIcon off={!on} size={20} />
-      <span className="global-eye-label">Tarifs commerciaux</span>
+      <span className="global-eye-icon">
+        <EyeIcon off={!on} size={variant === "card" ? 22 : 19} />
+      </span>
+      <span className="global-eye-text">
+        <span className="global-eye-label">Tarifs commerciaux</span>
+        {variant === "card" && (
+          <span className="global-eye-hint">{on ? "Affichés sur tous les produits" : "Masqués — touchez pour tout afficher"}</span>
+        )}
+      </span>
+      <span className="switch" aria-hidden="true">
+        <span className="switch-thumb" />
+      </span>
     </button>
   );
 }
@@ -62,6 +112,19 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const deferredQuery = useDeferredValue(query);
 
+  const changeQuery = (v: string) => {
+    setQuery(v);
+    setLimit(PAGE_SIZE);
+  };
+  const pickBrand = (b: string | null) => {
+    setBrand(b);
+    setLimit(PAGE_SIZE);
+  };
+  const pickCategory = (c: string | null) => {
+    setCategory(c);
+    setLimit(PAGE_SIZE);
+  };
+
   // ── Yeux 👁️ ──────────────────────────────────────────────────────
   // Visible(produit) = exception individuelle si elle existe, sinon l'état de l'œil global.
   // Basculer l'œil global efface toutes les exceptions : retour à un état cohérent.
@@ -76,7 +139,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     setOverrides((prev) => ({ ...prev, [id]: next }));
   }, []);
 
-  // ── Calcul des résultats (filtres combinables + compteurs) ────────
+  // ── Résultats (filtres combinables + compteurs) ───────────────────
   const haystacks = useMemo(() => items.map(haystackOf), [items]);
   const tokens = useMemo(() => tokensOf(deferredQuery), [deferredQuery]);
 
@@ -88,6 +151,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     () => searched.filter((i) => (!brand || i.brand === brand) && (!category || i.category === category)),
     [searched, brand, category],
   );
+  const resultsByBrand = useMemo(() => countBy(results, "brand"), [results]);
 
   const brandFacets: Facet[] = useMemo(() => {
     const counts = countBy(searched.filter((i) => !category || i.category === category), "brand");
@@ -97,6 +161,11 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     const counts = countBy(searched.filter((i) => !brand || i.brand === brand), "category");
     return categories.map((name) => ({ name, count: counts.get(name) ?? 0 }));
   }, [searched, categories, brand]);
+  const allCount = useMemo(
+    () => searched.filter((i) => !category || i.category === category).length,
+    [searched, category],
+  );
+  const allCatCount = useMemo(() => searched.filter((i) => !brand || i.brand === brand).length, [searched, brand]);
 
   // ── Chargement progressif ─────────────────────────────────────────
   const sentinel = useRef<HTMLDivElement>(null);
@@ -111,6 +180,24 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     io.observe(el);
     return () => io.disconnect();
   }, [hasMore, limit]);
+
+  // ── Barre du haut : la recherche s'y « range » quand celle du hero sort de l'écran ──
+  const heroSearch = useRef<HTMLDivElement>(null);
+  const heroInput = useRef<HTMLInputElement>(null);
+  const [docked, setDocked] = useState(false);
+  useEffect(() => {
+    const el = heroSearch.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => setDocked(!entries[0]?.isIntersecting), {
+      rootMargin: "-72px 0px 0px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const jumpToSearch = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => heroInput.current?.focus({ preventScroll: true }), 350);
+  };
 
   // ── URL partageable (?q=…&marque=…&categorie=…) ───────────────────
   useEffect(() => {
@@ -130,6 +217,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
   };
   const filtered = Boolean(query.trim() || brand || category);
   const visible = results.slice(0, limit);
+  const grouped = !brand; // titres de marque dans la grille quand plusieurs marques sont listées
 
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
@@ -138,110 +226,97 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
 
   return (
     <>
-      {source === "demo" && (
-        <div className="demo-banner">Mode démonstration — données fictives</div>
-      )}
+      {source === "demo" && <div className="demo-banner">Mode démonstration — données fictives</div>}
 
-      <header className="hero">
-        <h1 className="wordmark">MÉCAFÉ</h1>
-        <p className="tagline">Tarifs professionnels</p>
-        {/* Mobile : le contrôle est libellé ici ; la barre collante n'affiche que l'œil. */}
-        <GlobalEye on={globalOn} onToggle={toggleGlobal} className="global-eye in-hero" />
+      <header className="appbar" data-docked={docked}>
+        <div className="appbar-inner">
+          <a href="/" className="appbar-logo" aria-label="Mécafé — accueil">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
+          </a>
+          <div className="appbar-search">
+            <SearchField value={query} onChange={changeQuery} compact />
+          </div>
+          <div className="appbar-actions">
+            <button type="button" className="icon-btn appbar-search-btn" aria-label="Rechercher" onClick={jumpToSearch}>
+              <SearchIcon size={19} />
+            </button>
+            <GlobalEye on={globalOn} onToggle={toggleGlobal} variant="bar" />
+          </div>
+        </div>
       </header>
 
-      <div className="toolbar">
-        <div className="toolbar-inner">
-          <label className="search">
-            <SearchIcon className="search-icon" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setLimit(PAGE_SIZE);
-              }}
-              placeholder="Rechercher un produit..."
-              aria-label="Rechercher un produit"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              enterKeyHint="search"
-            />
-            {query && (
-              <button type="button" className="search-clear" aria-label="Effacer la recherche" onClick={() => setQuery("")}>
-                <CloseIcon />
-              </button>
-            )}
-          </label>
-
-          <GlobalEye on={globalOn} onToggle={toggleGlobal} className="global-eye in-toolbar" />
+      <section className="hero">
+        <div className="hero-inner">
+          <p className="eyebrow">Espace commercial</p>
+          <h1 className="hero-title">Tarifs professionnels</h1>
+          <p className="hero-sub">
+            {plural(items.length, "référence")} · {plural(brands.length, "marque")} ·{" "}
+            {plural(categories.length, "catégorie")}
+          </p>
+          <div className="hero-search" ref={heroSearch}>
+            <SearchField value={query} onChange={changeQuery} inputRef={heroInput} />
+          </div>
+          <GlobalEye on={globalOn} onToggle={toggleGlobal} variant="card" />
         </div>
-      </div>
+      </section>
 
       <main className="container">
-        <nav aria-label="Marques" className="facet-row brands">
-          <button
-            type="button"
-            className="brand-chip"
-            aria-pressed={brand === null}
-            onClick={() => {
-              setBrand(null);
-              setLimit(PAGE_SIZE);
-            }}
-          >
-            Toutes
-          </button>
-          {brandFacets.map((f) => (
-            <button
-              key={f.name}
-              type="button"
-              className="brand-chip"
-              aria-pressed={brand === f.name}
-              data-empty={f.count === 0}
-              onClick={() => {
-                setBrand(brand === f.name ? null : f.name);
-                setLimit(PAGE_SIZE);
-              }}
-            >
-              {f.name}
-              <span className="chip-count">{f.count}</span>
+        <section className="filters" aria-label="Filtres">
+          <h2 className="section-label">Marques</h2>
+          <nav aria-label="Marques" className="rail brand-rail">
+            <button type="button" className="brand-tile" aria-pressed={brand === null} onClick={() => pickBrand(null)}>
+              <span className="brand-badge brand-badge-all" aria-hidden="true">
+                <GridIcon size={26} />
+              </span>
+              <span className="brand-tile-name">Toutes</span>
+              <span className="brand-tile-count">{allCount}</span>
             </button>
-          ))}
-        </nav>
+            {brandFacets.map((f) => (
+              <button
+                key={f.name}
+                type="button"
+                className="brand-tile"
+                aria-pressed={brand === f.name}
+                data-empty={f.count === 0}
+                onClick={() => pickBrand(brand === f.name ? null : f.name)}
+              >
+                <BrandBadge brand={f.name} />
+                <span className="brand-tile-name">{f.name}</span>
+                <span className="brand-tile-count">{f.count}</span>
+              </button>
+            ))}
+          </nav>
 
-        <nav aria-label="Catégories" className="facet-row categories">
-          <button
-            type="button"
-            className="cat-chip"
-            aria-pressed={category === null}
-            onClick={() => {
-              setCategory(null);
-              setLimit(PAGE_SIZE);
-            }}
-          >
-            Toutes catégories
-          </button>
-          {categoryFacets.map((f) => (
-            <button
-              key={f.name}
-              type="button"
-              className="cat-chip"
-              aria-pressed={category === f.name}
-              data-empty={f.count === 0}
-              onClick={() => {
-                setCategory(category === f.name ? null : f.name);
-                setLimit(PAGE_SIZE);
-              }}
-            >
-              {f.name}
-              <span className="chip-count">{f.count}</span>
+          <h2 className="section-label">Catégories</h2>
+          <nav aria-label="Catégories" className="rail cat-rail">
+            <button type="button" className="cat-chip" aria-pressed={category === null} onClick={() => pickCategory(null)}>
+              <GridIcon size={16} />
+              Toutes
+              <span className="chip-count">{allCatCount}</span>
             </button>
-          ))}
-        </nav>
+            {categoryFacets.map((f) => (
+              <button
+                key={f.name}
+                type="button"
+                className="cat-chip"
+                aria-pressed={category === f.name}
+                data-empty={f.count === 0}
+                onClick={() => pickCategory(category === f.name ? null : f.name)}
+              >
+                <CategoryIcon category={f.name} size={17} />
+                {f.name}
+                <span className="chip-count">{f.count}</span>
+              </button>
+            ))}
+          </nav>
+        </section>
 
         <div className="result-bar" aria-live="polite">
-          <span>
-            {results.length} produit{results.length > 1 ? "s" : ""}
+          <span className="result-count">
+            <strong>{results.length}</strong> produit{results.length > 1 ? "s" : ""}
+            {brand && <span className="result-tag">{brand}</span>}
+            {category && <span className="result-tag">{category}</span>}
           </span>
           {filtered && (
             <button type="button" className="link-btn" onClick={resetFilters}>
@@ -252,21 +327,30 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
 
         {results.length === 0 ? (
           <div className="empty">
+            <SearchIcon size={28} />
             <p>Aucun produit ne correspond à votre recherche.</p>
-            <button type="button" className="link-btn" onClick={resetFilters}>
+            <button type="button" className="btn btn-ghost" onClick={resetFilters}>
               Effacer les filtres
             </button>
           </div>
         ) : (
           <div className="grid">
-            {visible.map((item) => (
-              <ProductCard
-                key={item.id}
-                item={item}
-                commercial={prices[item.id]}
-                revealed={overrides[item.id] ?? globalOn}
-                onToggle={toggleOne}
-              />
+            {visible.map((item, i) => (
+              <Fragment key={item.id}>
+                {grouped && item.brand !== visible[i - 1]?.brand && (
+                  <div className="group-head">
+                    <BrandBadge brand={item.brand} className="brand-badge-sm" />
+                    <span className="group-name">{item.brand}</span>
+                    <span className="group-count">{plural(resultsByBrand.get(item.brand) ?? 0, "produit")}</span>
+                  </div>
+                )}
+                <ProductCard
+                  item={item}
+                  commercial={prices[item.id]}
+                  revealed={overrides[item.id] ?? globalOn}
+                  onToggle={toggleOne}
+                />
+              </Fragment>
             ))}
           </div>
         )}
@@ -274,13 +358,21 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
       </main>
 
       <footer className="footer">
-        <span>Prix et produits synchronisés avec mecafe.ma</span>
-        <span className="footer-links">
-          {isAdmin && <Link href="/admin">Administration</Link>}
-          <button type="button" className="link-btn" onClick={logout}>
-            Se déconnecter
-          </button>
-        </span>
+        <div className="footer-inner">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="footer-logo" src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
+          <p className="footer-note">Usage interne · prix site synchronisés avec mecafe.ma</p>
+          <div className="footer-links">
+            {isAdmin && (
+              <Link href="/admin" className="footer-link">
+                <SettingsIcon size={16} /> Administration
+              </Link>
+            )}
+            <button type="button" className="footer-link" onClick={logout}>
+              <LogoutIcon size={16} /> Se déconnecter
+            </button>
+          </div>
+        </div>
       </footer>
     </>
   );
