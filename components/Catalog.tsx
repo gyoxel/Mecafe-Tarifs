@@ -390,6 +390,11 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
 
       <main className="container layout">
         <aside className="filters" aria-label="Filtres">
+          {isAdmin && (
+            <Link href="/admin" className="admin-link">
+              <SettingsIcon size={16} /> Administration
+            </Link>
+          )}
           <h2 className="side-label">Marques</h2>
           <nav aria-label="Marques" className="rail brand-rail">
             <button type="button" className="brand-tile" aria-pressed={brand === null} onClick={() => pickBrand(null)}>
@@ -538,16 +543,8 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
         </section>
       </main>
 
-      {/* Barre du bas, toujours visible */}
       <footer className="footer">
-        <div className="footer-inner">
-          <p className="footer-note">© {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec mecafe.ma</p>
-          {isAdmin && (
-            <Link href="/admin" className="footer-link">
-              <SettingsIcon size={15} /> Administration
-            </Link>
-          )}
-        </div>
+        <p className="footer-note">© {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec mecafe.ma</p>
       </footer>
     </>
   );

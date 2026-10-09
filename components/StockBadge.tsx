@@ -11,7 +11,7 @@ export function StockBadge({ stock, className = "" }: { stock: number | null; cl
   const level = stockLevel(stock);
   return (
     <span className={`stock ${className}`} data-level={level} title="Stock Shopify (visible par l'administrateur uniquement)">
-      {level === "out" ? "Rupture" : level === "untracked" ? "Stock —" : `Stock ${stock}`}
+      {level === "out" ? "Rupture" : level === "untracked" ? "Stock : —" : `Stock : ${stock}`}
     </span>
   );
 }
