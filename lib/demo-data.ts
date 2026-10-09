@@ -54,6 +54,7 @@ export const DEMO_ITEMS: CatalogItem[] = ROWS.map(([brand, category, title, vari
   price,
   compareAt: null,
   stock: i % 7 === 3 ? 0 : (i * 37) % 140,
+  collections: [],
 }));
 
 export const DEMO_PRICES: PriceMap = Object.fromEntries(

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { CATEGORY_ORDER } from "@/lib/config";
-import { fold, slug } from "@/lib/format";
+import { slug } from "@/lib/format";
+import { inNode, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
 import { brandStyle } from "@/lib/brands";
@@ -18,8 +18,10 @@ type Props = {
   items: CatalogItem[];
   prices: PriceMap;
   source: CatalogSource;
+  /** Catégories = menu Shopify (niveau 1) et sous-catégories (niveau 2). */
+  menu: MenuNode[];
   isAdmin: boolean;
-  initial: { q: string; brand: string; category: string };
+  initial: { q: string; brand: string; category: string; sub: string };
 };
 
 type Facet = { name: string; count: number };
@@ -94,23 +96,20 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
+export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props) {
   // ── Filtres ───────────────────────────────────────────────────────
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
-  const categories = useMemo(() => {
-    const all = [...new Set(items.map((i) => i.category))];
-    const rank = (c: string) => {
-      const i = CATEGORY_ORDER.findIndex((o) => fold(o) === fold(c));
-      return i === -1 ? CATEGORY_ORDER.length : i;
-    };
-    return all.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, "fr"));
-  }, [items]);
 
   const [query, setQuery] = useState(initial.q);
   const [brand, setBrand] = useState<string | null>(() => brands.find((b) => slug(b) === initial.brand) ?? null);
   const [category, setCategory] = useState<string | null>(
-    () => categories.find((c) => slug(c) === initial.category) ?? null,
+    () => menu.find((n) => n.id === initial.category)?.id ?? null,
   );
+  const [sub, setSub] = useState<string | null>(
+    () => menu.find((n) => n.id === initial.category)?.children.find((c) => c.id === initial.sub)?.id ?? null,
+  );
+  const catNode = menu.find((n) => n.id === category) ?? null;
+  const subNode = catNode?.children.find((c) => c.id === sub) ?? null;
   const [limit, setLimit] = useState(PAGE_SIZE);
   const deferredQuery = useDeferredValue(query);
 
@@ -124,6 +123,11 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
   };
   const pickCategory = (c: string | null) => {
     setCategory(c);
+    setSub(null);
+    setLimit(PAGE_SIZE);
+  };
+  const pickSub = (c: string | null) => {
+    setSub(c);
     setLimit(PAGE_SIZE);
   };
 
@@ -149,25 +153,25 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     () => (tokens.length ? items.filter((_, i) => matchesAll(haystacks[i], tokens)) : items),
     [items, haystacks, tokens],
   );
+  const filterNode = subNode ?? catNode;
+  const inCategory = useCallback(
+    (i: CatalogItem) => !filterNode || inNode(i.collections, filterNode),
+    [filterNode],
+  );
   const results = useMemo(
-    () => searched.filter((i) => (!brand || i.brand === brand) && (!category || i.category === category)),
-    [searched, brand, category],
+    () => searched.filter((i) => (!brand || i.brand === brand) && inCategory(i)),
+    [searched, brand, inCategory],
   );
   const resultsByBrand = useMemo(() => countBy(results, "brand"), [results]);
 
   const brandFacets: Facet[] = useMemo(() => {
-    const counts = countBy(searched.filter((i) => !category || i.category === category), "brand");
+    const counts = countBy(searched.filter(inCategory), "brand");
     return brands.map((name) => ({ name, count: counts.get(name) ?? 0 }));
-  }, [searched, brands, category]);
-  const categoryFacets: Facet[] = useMemo(() => {
-    const counts = countBy(searched.filter((i) => !brand || i.brand === brand), "category");
-    return categories.map((name) => ({ name, count: counts.get(name) ?? 0 }));
-  }, [searched, categories, brand]);
-  const allCount = useMemo(
-    () => searched.filter((i) => !category || i.category === category).length,
-    [searched, category],
-  );
-  const allCatCount = useMemo(() => searched.filter((i) => !brand || i.brand === brand).length, [searched, brand]);
+  }, [searched, brands, inCategory]);
+  const ofBrand = useMemo(() => searched.filter((i) => !brand || i.brand === brand), [searched, brand]);
+  const countIn = (node: MenuNode) => ofBrand.filter((i) => inNode(i.collections, node)).length;
+  const allCount = useMemo(() => searched.filter(inCategory).length, [searched, inCategory]);
+  const allCatCount = ofBrand.length;
 
   // ── Chargement progressif ─────────────────────────────────────────
   const sentinel = useRef<HTMLDivElement>(null);
@@ -224,15 +228,17 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
     const p = new URLSearchParams();
     if (query.trim()) p.set("q", query.trim());
     if (brand) p.set("marque", slug(brand));
-    if (category) p.set("categorie", slug(category));
+    if (category) p.set("categorie", category);
+    if (sub) p.set("sous", sub);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [query, brand, category]);
+  }, [query, brand, category, sub]);
 
   const resetFilters = () => {
     setQuery("");
     setBrand(null);
     setCategory(null);
+    setSub(null);
     setLimit(PAGE_SIZE);
   };
   const filtered = Boolean(query.trim() || brand || category);
@@ -298,20 +304,69 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
               Toutes catégories
               <span className="chip-count">{allCatCount}</span>
             </button>
-            {categoryFacets.map((f) => (
-              <button
-                key={f.name}
-                type="button"
-                className="cat-chip"
-                aria-pressed={category === f.name}
-                data-empty={f.count === 0}
-                onClick={() => pickCategory(category === f.name ? null : f.name)}
-              >
-                {f.name}
-                <span className="chip-count">{f.count}</span>
-              </button>
-            ))}
+            {menu.map((node) => {
+              const count = countIn(node);
+              const open = category === node.id;
+              return (
+                <Fragment key={node.id}>
+                  <button
+                    type="button"
+                    className="cat-chip"
+                    aria-pressed={open && !sub}
+                    data-open={open}
+                    data-empty={count === 0}
+                    onClick={() => pickCategory(open && !sub ? null : node.id)}
+                  >
+                    {node.title}
+                    <span className="chip-count">{count}</span>
+                  </button>
+                  {/* Bureau : sous-catégories sous la catégorie ouverte */}
+                  {open &&
+                    node.children.map((child) => {
+                      const n = countIn(child);
+                      return (
+                        <button
+                          key={child.id}
+                          type="button"
+                          className="cat-chip sub-chip sub-inline"
+                          aria-pressed={sub === child.id}
+                          data-empty={n === 0}
+                          onClick={() => pickSub(sub === child.id ? null : child.id)}
+                        >
+                          {child.title}
+                          <span className="chip-count">{n}</span>
+                        </button>
+                      );
+                    })}
+                </Fragment>
+              );
+            })}
           </nav>
+
+          {/* Mobile / tablette : sous-catégories sur une seconde ligne */}
+          {catNode && catNode.children.length > 0 && (
+            <nav aria-label={`Sous-catégories : ${catNode.title}`} className="rail sub-rail">
+              <button type="button" className="cat-chip sub-chip" aria-pressed={!sub} onClick={() => pickSub(null)}>
+                Tout {catNode.title}
+              </button>
+              {catNode.children.map((child) => {
+                const n = countIn(child);
+                return (
+                  <button
+                    key={child.id}
+                    type="button"
+                    className="cat-chip sub-chip"
+                    aria-pressed={sub === child.id}
+                    data-empty={n === 0}
+                    onClick={() => pickSub(sub === child.id ? null : child.id)}
+                  >
+                    {child.title}
+                    <span className="chip-count">{n}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
         </aside>
 
         <section className="results" aria-label="Produits">
@@ -319,7 +374,7 @@ export function Catalog({ items, prices, source, isAdmin, initial }: Props) {
           <span className="result-count">
             <strong>{results.length}</strong> produit{results.length > 1 ? "s" : ""}
             {brand && <span className="result-tag">{brand}</span>}
-            {category && <span className="result-tag">{category}</span>}
+            {catNode && <span className="result-tag">{subNode ? `${catNode.title} › ${subNode.title}` : catNode.title}</span>}
           </span>
           <span className="result-actions">
             {filtered && (

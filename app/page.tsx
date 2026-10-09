@@ -12,7 +12,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [{ items, source }, allPrices, sp] = await Promise.all([getCatalog(), getPrices(), searchParams]);
+  const [{ items, source, menu }, allPrices, sp] = await Promise.all([getCatalog(), getPrices(), searchParams]);
 
   const isAdmin = session.role === "admin";
   const ids = new Set(items.map((i) => i.id));
@@ -25,8 +25,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       items={visibleItems}
       prices={prices}
       source={source}
+      menu={menu}
       isAdmin={isAdmin}
-      initial={{ q: first(sp.q), brand: first(sp.marque), category: first(sp.categorie) }}
+      initial={{ q: first(sp.q), brand: first(sp.marque), category: first(sp.categorie), sub: first(sp.sous) }}
     />
   );
 }

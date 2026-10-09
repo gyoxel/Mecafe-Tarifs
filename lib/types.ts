@@ -9,7 +9,10 @@ export type CatalogItem = {
   variant: string | null;
   /** Fournisseur Shopify (champ `vendor`). */
   brand: string;
+  /** Catégorie principale (libellé), utilisée pour la recherche et l'administration. */
   category: string;
+  /** Collections Shopify du produit (handles) : rattachement aux catégories du menu. */
+  collections: string[];
   sku: string | null;
   image: string | null;
   /** Prix public du site (Shopify), en DH. */
