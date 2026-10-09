@@ -163,7 +163,65 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     () => searched.filter((i) => (!brand || i.brand === brand) && inCategory(i)),
     [searched, brand, inCategory],
   );
-  const resultsByBrand = useMemo(() => countBy(results, "brand"), [results]);
+  // ── Tri par catégories, dans l'ordre du menu ──────────────────────
+  // Chaque produit est rangé dans la première « feuille » du menu (dans la catégorie affichée) qui le
+  // contient : Café en Grains › Mécafé 1kg, puis Mécafé 250g, puis Kimbo… Les promotions passent après
+  // les vraies catégories (un pack en promo reste rangé avec son café). Le reste va dans « Autres ».
+  const leaves = useMemo(() => {
+    const regular: { node: MenuNode; crumbs: MenuNode[] }[] = [];
+    const promos: typeof regular = [];
+    const walk = (nodes: MenuNode[], crumbs: MenuNode[], promo: boolean) => {
+      for (const n of nodes) {
+        const isPromo = promo || /promo/i.test(n.title);
+        if (n.children.length) walk(n.children, [...crumbs, n], isPromo);
+        else (isPromo ? promos : regular).push({ node: n, crumbs });
+      }
+    };
+    walk(filterNode ? [filterNode] : menu, [], false);
+    return [...regular, ...promos];
+  }, [menu, filterNode]);
+
+  // Comme sur le site, un produit présent dans plusieurs collections apparaît dans chacun des groupes
+  // (ex. Pack Dégustation dans Mécafé 1kg et Mécafé 250g). Les promotions ne servent de groupe
+  // qu'aux produits qui ne sont dans aucune autre catégorie.
+  const sorted = useMemo(() => {
+    const promoStart = leaves.findIndex((l) => /promo/i.test([...l.crumbs, l.node].map((n) => n.title).join(" ")));
+    const keyed: { it: CatalogItem; i: number; k: number }[] = [];
+    results.forEach((it, i) => {
+      const ks = leaves.flatMap((l, k) => (inNode(it.collections, l.node) ? [k] : []));
+      const regular = promoStart === -1 ? ks : ks.filter((k) => k < promoStart);
+      const chosen = regular.length ? regular : ks.length ? [ks[0]] : [leaves.length];
+      for (const k of chosen) keyed.push({ it, i, k });
+    });
+    keyed.sort((a, b) => a.k - b.k || a.i - b.i); // à l'intérieur d'un groupe : marque, nom, prix
+    return keyed;
+  }, [results, leaves]);
+  const groupSizes = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const { k } of sorted) m.set(k, (m.get(k) ?? 0) + 1);
+    return m;
+  }, [sorted]);
+  const groupLabel = (k: number) => {
+    const leaf = leaves[k];
+    if (!leaf) return { crumb: "", title: "Autres" };
+    // Le fil d'Ariane omet la catégorie déjà sélectionnée.
+    const crumbs = leaf.crumbs.filter((c) => c.id !== filterNode?.id);
+    return { crumb: crumbs.map((c) => c.title).join(" › "), title: leaf.node.title };
+  };
+  /** Titre de groupe : seulement s'il y a plusieurs groupes à l'écran. */
+  const showGroups = groupSizes.size > 1 || (groupSizes.size === 1 && leaves[sorted[0]?.k]?.node.id !== filterNode?.id);
+  const renderGroupHead = (k: number, list: boolean) => {
+    const { crumb, title } = groupLabel(k);
+    return (
+      <div className={list ? "list-group" : "group-head"} role={list ? "row" : undefined}>
+        <span className="group-titles">
+          {crumb && <span className="group-crumb">{crumb}</span>}
+          <span className="group-name">{title}</span>
+        </span>
+        <span className="group-count">{plural(groupSizes.get(k) ?? 0, "produit")}</span>
+      </div>
+    );
+  };
 
   const brandFacets: Facet[] = useMemo(() => {
     const counts = countBy(searched.filter(inCategory), "brand");
@@ -176,7 +234,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
 
   // ── Chargement progressif ─────────────────────────────────────────
   const sentinel = useRef<HTMLDivElement>(null);
-  const hasMore = limit < results.length;
+  const hasMore = limit < sorted.length;
   useEffect(() => {
     const el = sentinel.current;
     if (!el || !hasMore) return;
@@ -241,8 +299,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     setLimit(PAGE_SIZE);
   };
   const filtered = Boolean(query.trim() || brand || path.length);
-  const visible = results.slice(0, limit);
-  const grouped = !brand; // titres de marque dans la grille quand plusieurs marques sont listées
+  const visible = sorted.slice(0, limit);
   const showStock = items.some((i) => i.stock !== undefined); // présent seulement pour l'administrateur
 
   /**
@@ -413,15 +470,9 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
                 Prix commercial
               </span>
             </div>
-            {visible.map((item, i) => (
-              <Fragment key={item.id}>
-                {grouped && item.brand !== visible[i - 1]?.brand && (
-                  <div className="list-group" role="row" style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
-                    <BrandBadge brand={item.brand} className="brand-badge-xs" />
-                    <span className="group-name">{item.brand}</span>
-                    <span className="group-count">{plural(resultsByBrand.get(item.brand) ?? 0, "produit")}</span>
-                  </div>
-                )}
+            {visible.map(({ it: item, k }, i) => (
+              <Fragment key={`${item.id}:${k}`}>
+                {showGroups && k !== visible[i - 1]?.k && renderGroupHead(k, true)}
                 <ProductRow
                   item={item}
                   commercial={prices[item.id]}
@@ -433,15 +484,9 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
           </div>
         ) : (
           <div className="grid">
-            {visible.map((item, i) => (
-              <Fragment key={item.id}>
-                {grouped && item.brand !== visible[i - 1]?.brand && (
-                  <div className="group-head" style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
-                    <BrandBadge brand={item.brand} className="brand-badge-sm" />
-                    <span className="group-name">{item.brand}</span>
-                    <span className="group-count">{plural(resultsByBrand.get(item.brand) ?? 0, "produit")}</span>
-                  </div>
-                )}
+            {visible.map(({ it: item, k }, i) => (
+              <Fragment key={`${item.id}:${k}`}>
+                {showGroups && k !== visible[i - 1]?.k && renderGroupHead(k, false)}
                 <ProductCard
                   item={item}
                   commercial={prices[item.id]}
