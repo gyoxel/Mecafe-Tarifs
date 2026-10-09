@@ -115,7 +115,6 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
 
   const changeQuery = (v: string) => {
     // Une nouvelle recherche porte sur tout le catalogue : on quitte la catégorie / marque en cours.
-    // (On peut ensuite affiner en choisissant une catégorie ou une marque.)
     if (!query.trim() && v.trim()) {
       setBrand(null);
       setCategory(null);
@@ -124,16 +123,21 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     setQuery(v);
     setLimit(PAGE_SIZE);
   };
+  // Recherche et filtres ne se combinent pas : choisir une marque / catégorie efface la recherche,
+  // et commencer une recherche efface les filtres (voir changeQuery).
   const pickBrand = (b: string | null) => {
+    setQuery("");
     setBrand(b);
     setLimit(PAGE_SIZE);
   };
   const pickCategory = (c: string | null) => {
+    setQuery("");
     setCategory(c);
     setSub(null);
     setLimit(PAGE_SIZE);
   };
   const pickSub = (c: string | null) => {
+    setQuery("");
     setSub(c);
     setLimit(PAGE_SIZE);
   };
