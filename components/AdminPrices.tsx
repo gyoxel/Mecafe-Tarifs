@@ -115,17 +115,6 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     if (fileInput.current) fileInput.current.value = "";
   }
 
-  async function refreshShopify() {
-    setBusy(true);
-    try {
-      await post("/api/admin/refresh");
-      window.location.reload();
-    } catch (e) {
-      setStatus({ kind: "error", text: e instanceof Error ? e.message : "Échec du rafraîchissement" });
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="admin">
       <header className="admin-head">
@@ -200,9 +189,6 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
           hidden
           onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])}
         />
-        <button type="button" className="btn btn-ghost" disabled={busy} onClick={refreshShopify}>
-          Rafraîchir depuis Shopify
-        </button>
         <span className="muted">{filtered.length} ligne(s)</span>
       </div>
 

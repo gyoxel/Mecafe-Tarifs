@@ -3,7 +3,7 @@ import type { CatalogItem, CatalogSource } from "./types";
 import { BRAND_ORDER, CATEGORY_ORDER, FALLBACK_CATEGORY } from "./config";
 import { fold, slug } from "./format";
 import { DEMO_ITEMS } from "./demo-data";
-import { buildMenu, inNode, pruneMenu, type MenuNode } from "./menu";
+import { buildMenu, inNode, pruneMenu, type MenuNode, type RawMenuItem } from "./menu";
 import { fetchCollectionOrders, fetchShopifyCatalog, fetchShopifyMenu, isShopifyConfigured } from "./shopify";
 
 const brandRank = (brand: string) => {
@@ -12,6 +12,18 @@ const brandRank = (brand: string) => {
 };
 
 const OTHERS_HANDLE = "__autres";
+
+/** Collections citées directement dans le menu brut (tous niveaux). */
+function menuHandles(raw: RawMenuItem[]): string[] {
+  const out = new Set<string>();
+  const walk = (items: RawMenuItem[]) =>
+    items.forEach((it) => {
+      if (it.resource?.handle) out.add(it.resource.handle);
+      walk(it.items ?? []);
+    });
+  walk(raw);
+  return [...out];
+}
 
 /**
  * Catégories de repli (menu Shopify absent, démo) : une entrée par catégorie déduite des collections,
@@ -43,16 +55,24 @@ export async function getCatalog(): Promise<{
   let order: CollectionOrder = {};
 
   if (source === "shopify") {
-    const [shopItems, rawMenu] = await Promise.all([fetchShopifyCatalog(), fetchShopifyMenu()]);
+    // En parallèle : produits | menu puis ordre des collections du menu.
+    const menuAndOrder = fetchShopifyMenu().then(async (raw) => ({
+      raw,
+      order: raw ? await fetchCollectionOrders(menuHandles(raw)) : {},
+    }));
+    const [shopItems, { raw: rawMenu, order: menuOrder }] = await Promise.all([fetchShopifyCatalog(), menuAndOrder]);
+    order = menuOrder;
     if (rawMenu) {
       const titles = new Map<string, string>();
       for (const it of shopItems) it.collections.forEach((h, i) => titles.set(h, it.collectionTitles[i]));
       // Seules les entrées qui contiennent au moins un produit sont gardées.
       menu = pruneMenu(buildMenu(rawMenu, titles), (n) => shopItems.some((it) => inNode(it.collections, n)));
+      // Entrées sans collection rattachées par leur titre (ex. « Dosettes ») : ordre lu en complément.
       const handles = new Set<string>();
       const collect = (nodes: MenuNode[]) => nodes.forEach((n) => (n.handles.forEach((h) => handles.add(h)), collect(n.children)));
       collect(menu);
-      order = await fetchCollectionOrders([...handles]);
+      const missing = [...handles].filter((h) => !(h in order));
+      if (missing.length) order = { ...order, ...(await fetchCollectionOrders(missing)) };
     }
     items = shopItems.map(({ collectionTitles: _t, ...it }) => it);
   } else {

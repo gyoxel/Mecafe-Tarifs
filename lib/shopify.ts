@@ -7,9 +7,11 @@ const DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const TOKEN = process.env.SHOPIFY_STOREFRONT_TOKEN;
 const API_VERSION = process.env.SHOPIFY_API_VERSION ?? "2026-07";
 
-/** Cache des appels Shopify (secondes). Invalidé aussi à la demande via le tag "catalog". */
-export const CATALOG_REVALIDATE = 300;
-export const CATALOG_TAG = "catalog";
+/**
+ * Pas de cache : chaque affichage du catalogue relit Shopify, un changement sur le site (prix, produit,
+ * menu, ordre des collections) est visible au rechargement suivant. Les appels sont regroupés
+ * (2 pages produits + menu + ordre de toutes les collections en une requête) pour rester rapides.
+ */
 
 export function isShopifyConfigured(): boolean {
   return Boolean(DOMAIN && TOKEN);
@@ -101,8 +103,7 @@ async function fetchPage(cursor: string | null): Promise<NonNullable<GqlResponse
     method: "POST",
     headers: { "Content-Type": "application/json", ...tokenHeaders() },
     body: JSON.stringify({ query: QUERY, variables: { cursor } }),
-    // Une page = une entrée de cache (limite de 2 Mo par entrée respectée).
-    next: { revalidate: CATALOG_REVALIDATE, tags: [CATALOG_TAG] },
+    cache: "no-store",
   });
   if (!res.ok) throw new Error(`Shopify a répondu ${res.status}`);
   const json = (await res.json()) as GqlResponse;
@@ -202,7 +203,7 @@ export async function fetchShopifyMenu(): Promise<RawMenuItem[] | null> {
       method: "POST",
       headers: { "Content-Type": "application/json", ...tokenHeaders() },
       body: JSON.stringify({ query: MENU_QUERY, variables: { handle: MENU_HANDLE } }),
-      next: { revalidate: CATALOG_REVALIDATE, tags: [CATALOG_TAG] },
+      cache: "no-store",
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { data?: { menu: { items: RawMenuItem[] } | null }; errors?: unknown[] };
@@ -213,42 +214,37 @@ export async function fetchShopifyMenu(): Promise<RawMenuItem[] | null> {
   }
 }
 
-const ORDER_QUERY = /* GraphQL */ `
-  query CollectionOrder($handle: String!) {
-    collection(handle: $handle) {
-      products(first: 250, sortKey: COLLECTION_DEFAULT) {
-        nodes {
-          id
-        }
-      }
-    }
-  }
-`;
-
 /**
  * Ordre des produits de chaque collection, tel que réglé dans Shopify (le même que sur le site).
- * handle → ids produits (numériques) dans l'ordre. Une collection en erreur est simplement ignorée.
+ * Toutes les collections sont lues en une requête (alias c0, c1…). handle → ids produits dans l'ordre.
+ * En cas d'erreur, renvoie {} : le catalogue garde alors l'ordre marque / nom.
  */
 export async function fetchCollectionOrders(handles: string[]): Promise<Record<string, string[]>> {
-  const entries = await Promise.all(
-    handles.map(async (handle): Promise<[string, string[]] | null> => {
-      try {
-        const res = await fetch(`https://${DOMAIN}/api/${API_VERSION}/graphql.json`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...tokenHeaders() },
-          body: JSON.stringify({ query: ORDER_QUERY, variables: { handle } }),
-          next: { revalidate: CATALOG_REVALIDATE, tags: [CATALOG_TAG] },
-        });
-        if (!res.ok) return null;
-        const json = (await res.json()) as {
-          data?: { collection: { products: { nodes: { id: string }[] } } | null };
-        };
-        const nodes = json.data?.collection?.products.nodes;
-        return nodes ? [handle, nodes.map((n) => numericId(n.id))] : null;
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return Object.fromEntries(entries.filter((e): e is [string, string[]] => e !== null));
+  if (!handles.length) return {};
+  const fields = handles
+    .map(
+      (h, i) =>
+        `c${i}: collection(handle: ${JSON.stringify(h)}) { products(first: 250, sortKey: COLLECTION_DEFAULT) { nodes { id } } }`,
+    )
+    .join("\n");
+  try {
+    const res = await fetch(`https://${DOMAIN}/api/${API_VERSION}/graphql.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...tokenHeaders() },
+      body: JSON.stringify({ query: `{\n${fields}\n}` }),
+      cache: "no-store",
+    });
+    if (!res.ok) return {};
+    const json = (await res.json()) as {
+      data?: Record<string, { products: { nodes: { id: string }[] } } | null>;
+    };
+    const out: Record<string, string[]> = {};
+    handles.forEach((h, i) => {
+      const nodes = json.data?.[`c${i}`]?.products.nodes;
+      if (nodes) out[h] = nodes.map((n) => numericId(n.id));
+    });
+    return out;
+  } catch {
+    return {};
+  }
 }

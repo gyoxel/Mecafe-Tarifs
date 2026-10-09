@@ -5,12 +5,13 @@ Shopify reste la source des produits, images et prix publics ; cette application
 avec, en plus, un **prix commercial** par produit, protégé côté serveur.
 
 ```
-Shopify (Storefront API) ──► Vercel (Next.js, cache 5 min) ──► tarifs.mecafe.ma
+Shopify (Storefront API) ──► Vercel (Next.js, lecture en direct) ──► tarifs.mecafe.ma
                                    │
                                    └──► Postgres (prix commerciaux)
 ```
 
 ## Principes
+- **Toujours à jour :** pas de cache, chaque affichage relit Shopify (prix, produits, menu, ordre).
 - **Le navigateur ne parle jamais à Shopify.** Le token reste dans les variables d'environnement Vercel.
 - **Tout le site est derrière un mot de passe.** Sans session, `proxy.ts` redirige vers `/login`, et aucune donnée
   (ni catalogue, ni prix commercial) n'est envoyée. L'œil 👁️ est un confort d'affichage (discrétion devant un client),
@@ -19,7 +20,7 @@ Shopify (Storefront API) ──► Vercel (Next.js, cache 5 min) ──► tarif
 - **Prix commercial indépendant** : stocké dans Postgres par variant Shopify, jamais écrit dans Shopify.
 - **Une carte = un variant (format).** Marque = champ *Fournisseur* (`vendor`, ex. `Orsadrinks` → affiché `ODK`).
 - **Catégories = menu Shopify « Main menu (GX) »** (`main-menu-gx`, Contenu → Menus) : jusqu'à 3 niveaux
-  (ex. Café › Café en Grains › Mécafé 250g), rattachement par collection. Modifier le menu dans Shopify suffit (mise à jour sous 5 min).
+  (ex. Café › Café en Grains › Mécafé 250g), rattachement par collection. Modifier le menu dans Shopify suffit (visible au rechargement suivant).
   Les produits absents du menu apparaissent dans « Autres ». Sans menu accessible, repli sur les règles de
   `lib/config.ts` (`CATEGORY_RULES`). Le jeton Storefront doit avoir `unauthenticated_read_content`.
 
@@ -48,18 +49,13 @@ Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
    toujours utiliser la branche principale de la base. Les tables se créent seules (cf. `db/schema.sql`).
 3. **Domaine** : `tarifs.mecafe.ma` ajouté au projet ; chez l'hébergeur DNS de `mecafe.ma`, un
    `CNAME tarifs → <valeur indiquée par Vercel>` (Settings → Domains).
-4. (Optionnel) **Mise à jour instantanée** : dans Shopify → Paramètres → Notifications → Webhooks, créer les
-   événements *Création / Mise à jour / Suppression de produit* vers `https://tarifs.mecafe.ma/api/revalidate`
-   et copier la clé de signature dans `SHOPIFY_WEBHOOK_SECRET`. Sans webhook, le catalogue se rafraîchit seul
-   toutes les 5 minutes.
-5. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
+4. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Gérer les prix commerciaux
 Connexion avec le mot de passe admin → pied de page → **Administration** :
 - saisie directe dans le tableau puis *Enregistrer* (champ vidé = prix supprimé) ;
 - **Exporter CSV** → modifier dans Excel (colonne `prix_commercial`) → **Importer CSV** (rattachement par
   `variant_id`, sinon par `sku` ; cellule vide = inchangé) ;
-- *Rafraîchir depuis Shopify* force la relecture du catalogue.
 Chaque changement est historisé dans `commercial_price_history`.
 
 ## Personnaliser
@@ -72,9 +68,9 @@ Chaque changement est historisé dans `commercial_price_history`.
 proxy.ts                 garde d'accès (session obligatoire, /admin réservé à l'admin)
 app/page.tsx             catalogue (serveur : session → catalogue + prix → composant client)
 app/admin/               édition des prix
-app/api/                 login, logout, revalidate (webhook), admin/{prices,import,export,refresh}
+app/api/                 login, logout, admin/{prices,import,export}
 components/              Catalog, ProductCard (yeux + animation), AdminPrices…
-lib/shopify.ts           requêtes GraphQL paginées + cache
+lib/shopify.ts           requêtes GraphQL (sans cache : données toujours à jour)
 lib/prices.ts, db.ts     prix commerciaux (Postgres, ou mémoire en démo)
 lib/session.ts, auth.ts  JWT signé en cookie HttpOnly, mots de passe comparés en temps constant
 ```

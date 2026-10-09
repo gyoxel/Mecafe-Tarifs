@@ -5,7 +5,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
  * Porte d'entrée : tout le site exige une session, sauf la page de connexion.
  * (Les routes sensibles revérifient la session elles-mêmes : défense en profondeur.)
  */
-const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout", "/api/revalidate"]);
+const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout"]);
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
