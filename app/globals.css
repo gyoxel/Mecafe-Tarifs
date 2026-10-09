@@ -14,6 +14,7 @@
   --pro-ink: #075e41;
   --pro-soft: #e8f6ef;
   --promo: #e11d48;
+  --variant: #2563eb; /* étiquette du format (1 kg, 6 kg, couleur…) */
   --danger: #c0262d;
   --ok: #0b8a5f;
 
@@ -630,7 +631,7 @@ img {
 .tag-variant {
   left: 10px;
   bottom: 10px;
-  background: var(--ink);
+  background: var(--variant);
   color: #fff;
 }
 .tag-promo {
@@ -1176,7 +1177,7 @@ img {
   max-width: 100%;
   padding: 3px 9px;
   border-radius: 7px;
-  background: var(--ink);
+  background: var(--variant);
   color: #fff;
   font-size: 12px;
   font-weight: 800;
