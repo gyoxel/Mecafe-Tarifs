@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { fold } from "@/lib/format";
 import { formatOffset, matchesOption, type PriceOption } from "@/lib/options";
+import { keepVisible } from "./scroll";
 import { CheckIcon, ChevronIcon, PinIcon, SearchIcon, TagIcon } from "./Icons";
 
 /**
@@ -46,7 +47,7 @@ export function OptionList({
   }, [autoFocus]);
 
   useEffect(() => {
-    list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    keepVisible(list.current, list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`));
   }, [active]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -82,27 +83,16 @@ export function OptionList({
           enterKeyHint="done"
         />
       </label>
-      {/* Filtre par ville : liste déroulante, toutes les villes visibles d'un coup. */}
+      {/* Filtre par ville : liste déroulante qui s'ouvre sous le bouton, toutes les villes visibles. */}
       {cities.length > 0 && (
-        <label className="opt-city-select" data-active={city != null}>
-          <PinIcon size={15} />
-          <select
-            value={city ?? ""}
-            onChange={(e) => {
-              setCity(e.target.value || null);
-              setActive(0);
-            }}
-            aria-label="Filtrer par ville"
-          >
-            <option value="">Toutes les villes</option>
-            {cities.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <ChevronIcon size={15} className="opt-chevron" />
-        </label>
+        <CityFilter
+          cities={cities}
+          value={city}
+          onChange={(c) => {
+            setCity(c);
+            setActive(0);
+          }}
+        />
       )}
       <ul className="opt-list" role="listbox" id={listId} aria-label={label} ref={list}>
         {shown.map((o, i) => (
@@ -129,6 +119,108 @@ export function OptionList({
           </li>
         )}
       </ul>
+    </div>
+  );
+}
+
+/** Filtre par ville : bouton + menu au style du site, ouvert juste en dessous. */
+function CityFilter({
+  cities,
+  value,
+  onChange,
+}: {
+  cities: string[];
+  value: string | null;
+  onChange: (city: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const entries = [null, ...cities];
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLUListElement>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    setActive(Math.max(0, entries.indexOf(value)));
+    const onDown = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (open) keepVisible(menu.current, menu.current?.querySelector<HTMLElement>(`[data-index="${active}"]`));
+  }, [open, active]);
+
+  const pick = (c: string | null) => {
+    onChange(c);
+    setOpen(false);
+    button.current?.focus();
+  };
+
+  return (
+    <div
+      className="city-filter"
+      ref={root}
+      data-active={value != null}
+      onKeyDown={(e) => {
+        // Le menu garde ses touches pour lui (la liste des commerciaux autour ne réagit pas).
+        if (!open) {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(true);
+          }
+          return;
+        }
+        if (["Escape", "ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        if (e.key === "Escape") {
+          setOpen(false);
+          button.current?.focus();
+        } else if (e.key === "ArrowDown") setActive((i) => Math.min(i + 1, entries.length - 1));
+        else if (e.key === "ArrowUp") setActive((i) => Math.max(i - 1, 0));
+        else if (e.key === "Enter") pick(entries[active]);
+      }}
+    >
+      <button
+        ref={button}
+        type="button"
+        className="city-filter-btn"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={`Filtrer par ville : ${value ?? "toutes les villes"}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <PinIcon size={15} />
+        <span className="city-filter-value">{value ?? "Toutes les villes"}</span>
+        <ChevronIcon size={15} className="opt-chevron" />
+      </button>
+      {open && (
+        <ul className="city-menu" role="listbox" id={menuId} aria-label="Villes" ref={menu}>
+          {entries.map((c, i) => (
+            <li
+              key={c ?? "*"}
+              role="option"
+              aria-selected={c === value}
+              data-index={i}
+              data-active={i === active}
+              onPointerEnter={() => setActive(i)}
+              onClick={() => pick(c)}
+            >
+              <span className="opt-item-name">{c ?? "Toutes les villes"}</span>
+              <span className="opt-item-check">{c === value && <CheckIcon size={16} />}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

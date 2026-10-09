@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CITY_MAX } from "@/lib/cities";
 import { fold } from "@/lib/format";
+import { keepVisible } from "./scroll";
 import { CheckIcon, ChevronIcon, PinIcon, SearchIcon } from "./Icons";
 
 type Props = {
@@ -56,7 +57,8 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
   }, [open]);
 
   useEffect(() => {
-    root.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    const ul = root.current?.querySelector<HTMLElement>(".opt-list") ?? null;
+    keepVisible(ul, ul?.querySelector<HTMLElement>(`[data-index="${active}"]`));
   }, [active]);
 
   return (

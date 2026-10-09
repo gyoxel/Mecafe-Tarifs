@@ -288,49 +288,88 @@ img {
   font-weight: 600;
   color: var(--muted);
 }
-.opt-city-select {
+/* Filtre par ville : bouton + menu ouvert juste en dessous */
+.city-filter {
   position: relative;
-  display: block;
   margin-top: 8px;
 }
-.opt-city-select svg {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted);
-  pointer-events: none;
-}
-.opt-city-select svg:first-child {
-  left: 12px;
-}
-.opt-city-select .opt-chevron {
-  right: 12px;
-}
-.opt-city-select select {
+.city-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   height: 40px;
-  padding: 0 36px 0 34px;
+  padding: 0 12px;
   border: 1px solid var(--line-2);
   border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 16px; /* pas de zoom iOS */
+  font-size: 15px;
   font-weight: 600;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
 }
-.opt-city-select select:focus {
-  outline: none;
+.city-filter-btn svg:first-child {
+  flex: none;
+  color: var(--muted);
+}
+.city-filter-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.city-filter-btn:hover,
+.city-filter-btn[aria-expanded="true"] {
   border-color: var(--ink);
 }
-.opt-city-select[data-active="true"] select {
+.city-filter[data-active="true"] .city-filter-btn {
   border-color: var(--pro);
   background: var(--pro-soft);
   color: var(--pro-ink);
 }
-.opt-city-select[data-active="true"] svg {
+.city-filter[data-active="true"] .city-filter-btn svg {
   color: var(--pro);
+}
+.city-filter-btn[aria-expanded="true"] .opt-chevron {
+  transform: rotate(180deg);
+}
+.city-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 248px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: opt-pop-in 0.14s var(--ease);
+  transform-origin: top center;
+}
+.city-menu li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.city-menu li[data-active="true"] {
+  background: var(--bg);
+}
+.city-menu li[aria-selected="true"] {
+  font-weight: 800;
 }
 .opt-item-check {
   flex: none;
