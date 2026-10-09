@@ -79,9 +79,14 @@ type GqlResponse = {
 
 async function fetchPage(cursor: string | null): Promise<NonNullable<GqlResponse["data"]>["products"]> {
   // Un token privé (shpat_…) utilise un en-tête différent d'un token public.
-  const tokenHeader: Record<string, string> = TOKEN!.startsWith("shpat_")
-    ? { "Shopify-Storefront-Private-Token": TOKEN! }
-    : { "X-Shopify-Storefront-Access-Token": TOKEN! };
+  // TOKEN === "injected" : environnement de développement où un proxy ajoute lui-même l'en-tête
+  // d'authentification (le vrai token n'est alors jamais visible ici). Ne pas utiliser en production.
+  const tokenHeader: Record<string, string> =
+    TOKEN === "injected"
+      ? {}
+      : TOKEN!.startsWith("shpat_")
+        ? { "Shopify-Storefront-Private-Token": TOKEN! }
+        : { "X-Shopify-Storefront-Access-Token": TOKEN! };
 
   const res = await fetch(`https://${DOMAIN}/api/${API_VERSION}/graphql.json`, {
     method: "POST",
