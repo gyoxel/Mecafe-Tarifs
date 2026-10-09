@@ -35,6 +35,7 @@ create table if not exists option_prices (
 create table if not exists price_options (
   id           text primary key,
   name         text not null,
+  city         text,                    -- ville (filtre / recherche dans la liste des options)
   price_offset numeric(10,2) not null,  -- ajouté au prix du site : −10 = prix site moins 10 DH
   position     integer not null,
   is_default   boolean not null default false,

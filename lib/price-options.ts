@@ -15,37 +15,39 @@ export async function getOptions(): Promise<PriceOption[]> {
   if (!isDbConfigured()) return mem().map((o) => ({ ...o }));
   await ensureSchema();
   const rows = await getSql()`
-    select id, name, price_offset, is_default from price_options order by position, created_at`;
+    select id, name, city, price_offset, is_default from price_options order by position, created_at`;
   return rows.map((r) => ({
     id: r.id as string,
     name: r.name as string,
+    city: (r.city as string | null) || null,
     offset: Number(r.price_offset),
     isDefault: Boolean(r.is_default),
   }));
 }
 
-export async function createOption(name: string, offset: number): Promise<PriceOption[]> {
+export async function createOption(name: string, city: string | null, offset: number): Promise<PriceOption[]> {
   const id = randomUUID().slice(0, 8);
   if (!isDbConfigured()) {
-    mem().push({ id, name, offset, isDefault: false });
+    mem().push({ id, name, city, offset, isDefault: false });
     return getOptions();
   }
   await ensureSchema();
   await getSql()`
-    insert into price_options (id, name, price_offset, position)
-    values (${id}, ${name}, ${offset}, (select coalesce(max(position), -1) + 1 from price_options))`;
+    insert into price_options (id, name, city, price_offset, position)
+    values (${id}, ${name}, ${city}, ${offset}, (select coalesce(max(position), -1) + 1 from price_options))`;
   return getOptions();
 }
 
 export async function updateOption(
   id: string,
-  patch: { name?: string; offset?: number; isDefault?: true },
+  patch: { name?: string; city?: string | null; offset?: number; isDefault?: true },
 ): Promise<PriceOption[]> {
   if (!isDbConfigured()) {
     const list = mem();
     const o = list.find((x) => x.id === id);
     if (o) {
       if (patch.name !== undefined) o.name = patch.name;
+      if (patch.city !== undefined) o.city = patch.city;
       if (patch.offset !== undefined) o.offset = patch.offset;
       if (patch.isDefault) for (const x of list) x.isDefault = x.id === id;
     }
@@ -54,6 +56,7 @@ export async function updateOption(
   await ensureSchema();
   await getSql().begin(async (tx) => {
     if (patch.name !== undefined) await tx`update price_options set name = ${patch.name} where id = ${id}`;
+    if (patch.city !== undefined) await tx`update price_options set city = ${patch.city} where id = ${id}`;
     if (patch.offset !== undefined) await tx`update price_options set price_offset = ${patch.offset} where id = ${id}`;
     if (patch.isDefault) await tx`update price_options set is_default = (id = ${id})`;
   });

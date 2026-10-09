@@ -52,16 +52,18 @@ Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
 4. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Gérer les prix commerciaux
-Chaque **option** (A, B, C, ou le nom d'un commercial) a un **écart** appliqué automatiquement au prix du
-site (−10 = prix site moins 10 DH, suit le prix du site en direct), et ses propres prix saisis à la main qui
+Chaque **option** (A, B, C, ou le nom d'un commercial) a une **ville** (facultative) et un **écart** appliqué
+automatiquement au prix du site (−10 = prix site moins 10 DH, suit le prix du site en direct), et ses propres prix saisis à la main qui
 remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (−9), C (−8, par défaut).
 
-En haut du catalogue, une liste déroulante avec recherche par nom choisit l'option affichée (mémorisée
-par appareil ; à défaut, l'option par défaut).
+En haut du catalogue, une liste déroulante (recherche par nom ou ville, filtre par ville) choisit l'option
+affichée (mémorisée par appareil ; à défaut, l'option par défaut). L'écart n'apparaît qu'à côté de l'option
+choisie, pas dans la liste.
 
 Connexion avec le mot de passe admin → **Modifier les prix** :
-- **Gérer les options** : ajouter (nom + écart), renommer, changer l'écart, choisir l'option par défaut,
-  supprimer (avec ses prix saisis) ;
+- **Gérer les options** : ajouter (nom + ville + écart), modifier, choisir l'option par défaut, supprimer
+  (avec ses prix saisis). L'écart s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc
+  (`lib/cities.ts`), une ville absente peut être ajoutée depuis la recherche (« + Ajouter ») ;
 - **Option à modifier** → saisie directe dans le tableau puis *Enregistrer* (en gris = prix automatique ;
   champ vidé = retour au prix automatique) ;
 - **Exporter CSV** → modifier dans Excel (colonne `prix_commercial`) → **Importer CSV** dans la même option

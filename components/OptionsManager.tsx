@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { NAME_MAX, formatOffset, matchesOption, parseOffset, type PriceOption } from "@/lib/options";
+import { useMemo, useState } from "react";
+import { cityChoices } from "@/lib/cities";
+import { NAME_MAX, formatOffset, matchesOption, offsetInput, parseOffset, type PriceOption } from "@/lib/options";
+import { CityPicker } from "./CityPicker";
 import { CloseIcon, SearchIcon } from "./Icons";
 
 type Props = {
@@ -21,7 +23,24 @@ async function send(body: Record<string, unknown>): Promise<PriceOption[]> {
   return data.options;
 }
 
-const offsetText = (n: number) => String(n).replace(".", ",");
+/** Écart : le « − » est fixe, on ne saisit que le montant. */
+function OffsetField({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const parsed = parseOffset(value);
+  return (
+    <label className="offset-field" data-invalid={parsed === null || Number.isNaN(parsed)}>
+      <span className="offset-sign" aria-hidden="true">
+        −
+      </span>
+      <input
+        value={value}
+        inputMode="decimal"
+        onChange={(e) => onChange(e.target.value.replace(/[^\d.,]/g, ""))}
+        aria-label={`${label} (DH en moins sur le prix site)`}
+      />
+      <span className="offset-unit">DH</span>
+    </label>
+  );
+}
 
 /** Exemple lisible de l'écart : « 165 DH → 155 DH ». */
 function Example({ offset }: { offset: number | null }) {
@@ -34,9 +53,10 @@ function Example({ offset }: { offset: number | null }) {
   );
 }
 
-/** Une option : nom, écart, par défaut, suppression. Les changements s'enregistrent avec « Enregistrer ». */
+/** Une option : nom, ville, écart, par défaut, suppression. Les changements s'enregistrent avec « Enregistrer ». */
 function OptionRow({
   option,
+  cities,
   busy,
   canDelete,
   onSave,
@@ -44,16 +64,18 @@ function OptionRow({
   onDelete,
 }: {
   option: PriceOption;
+  cities: string[];
   busy: boolean;
   canDelete: boolean;
-  onSave: (name: string, offset: number) => void;
+  onSave: (name: string, city: string | null, offset: number) => void;
   onDefault: () => void;
   onDelete: () => void;
 }) {
   const [name, setName] = useState(option.name);
-  const [offset, setOffset] = useState(offsetText(option.offset));
+  const [city, setCity] = useState(option.city);
+  const [offset, setOffset] = useState(offsetInput(option.offset));
   const parsed = parseOffset(offset);
-  const changed = name.trim() !== option.name || parsed !== option.offset;
+  const changed = name.trim() !== option.name || city !== option.city || parsed !== option.offset;
   const valid = name.trim() !== "" && parsed !== null && !Number.isNaN(parsed);
 
   return (
@@ -65,17 +87,8 @@ function OptionRow({
         onChange={(e) => setName(e.target.value)}
         aria-label="Nom de l'option"
       />
-      <label className="opt-row-offset">
-        <input
-          className="admin-input"
-          value={offset}
-          inputMode="decimal"
-          onChange={(e) => setOffset(e.target.value)}
-          aria-label={`Écart de ${option.name} (DH)`}
-          aria-invalid={!valid}
-        />
-        <span>DH</span>
-      </label>
+      <CityPicker value={city} choices={cities} onChange={setCity} disabled={busy} />
+      <OffsetField value={offset} onChange={setOffset} label={`Écart de ${option.name}`} />
       <label className="opt-row-default" title="Option affichée à l'ouverture">
         <input type="radio" name="default-option" checked={option.isDefault} disabled={busy} onChange={onDefault} />
         Par défaut
@@ -83,7 +96,12 @@ function OptionRow({
       <span className="opt-row-actions">
         {changed && (
           <>
-            <button type="button" className="btn btn-gold btn-sm" disabled={busy || !valid} onClick={() => onSave(name, parsed!)}>
+            <button
+              type="button"
+              className="btn btn-gold btn-sm"
+              disabled={busy || !valid}
+              onClick={() => onSave(name, city, parsed!)}
+            >
               Enregistrer
             </button>
             <button
@@ -92,7 +110,8 @@ function OptionRow({
               disabled={busy}
               onClick={() => {
                 setName(option.name);
-                setOffset(offsetText(option.offset));
+                setCity(option.city);
+                setOffset(offsetInput(option.offset));
               }}
             >
               Annuler
@@ -114,14 +133,16 @@ function OptionRow({
   );
 }
 
-/** Gestion des options : ajout (nom + écart), modification, option par défaut, suppression. */
+/** Gestion des options : ajout (nom + ville + écart), modification, option par défaut, suppression. */
 export function OptionsManager({ options, onOptions, onStatus }: Props) {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
   const [newName, setNewName] = useState("");
-  const [newOffset, setNewOffset] = useState("-10");
+  const [newCity, setNewCity] = useState<string | null>(null);
+  const [newOffset, setNewOffset] = useState("10");
   const newParsed = parseOffset(newOffset);
   const canAdd = newName.trim() !== "" && newParsed !== null && !Number.isNaN(newParsed);
+  const cities = useMemo(() => cityChoices(options.map((o) => o.city)), [options]);
 
   async function run(body: Record<string, unknown>, ok: string) {
     setBusy(true);
@@ -147,7 +168,9 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           e.preventDefault();
           if (!canAdd || busy) return;
           const name = newName.trim();
-          if (await run({ action: "create", name, offset: newParsed }, `Option « ${name} » ajoutée.`)) setNewName("");
+          if (await run({ action: "create", name, city: newCity, offset: newParsed }, `Option « ${name} » ajoutée.`)) {
+            setNewName("");
+          }
         }}
       >
         <span className="opt-add-title">Nouvelle option</span>
@@ -159,17 +182,8 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           onChange={(e) => setNewName(e.target.value)}
           aria-label="Nom de la nouvelle option"
         />
-        <label className="opt-row-offset">
-          <input
-            className="admin-input"
-            value={newOffset}
-            inputMode="decimal"
-            onChange={(e) => setNewOffset(e.target.value)}
-            aria-label="Écart de la nouvelle option (DH)"
-            aria-invalid={newParsed === null || Number.isNaN(newParsed)}
-          />
-          <span>DH</span>
-        </label>
+        <CityPicker value={newCity} choices={cities} onChange={setNewCity} disabled={busy} />
+        <OffsetField value={newOffset} onChange={setNewOffset} label="Écart de la nouvelle option" />
         <button type="submit" className="btn btn-gold" disabled={!canAdd || busy}>
           Ajouter
         </button>
@@ -183,7 +197,7 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
             type="search"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Rechercher une option…"
+            placeholder="Rechercher un nom, une ville…"
             aria-label="Rechercher une option"
           />
         </label>
@@ -192,18 +206,23 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
       <div className="opt-rows">
         <div className="opt-row opt-row-head" aria-hidden="true">
           <span>Nom</span>
+          <span>Ville</span>
           <span>Écart</span>
           <span />
           <span />
         </div>
         {shown.map((o) => (
           <OptionRow
-            key={`${o.id}:${o.name}:${o.offset}`}
+            key={`${o.id}:${o.name}:${o.city}:${o.offset}`}
             option={o}
+            cities={cities}
             busy={busy}
             canDelete={options.length > 1}
-            onSave={(name, offset) =>
-              run({ action: "update", id: o.id, name: name.trim(), offset }, `Option « ${name.trim()} » : ${formatOffset(offset)}.`)
+            onSave={(name, city, offset) =>
+              run(
+                { action: "update", id: o.id, name: name.trim(), city, offset },
+                `Option « ${name.trim()} » enregistrée : ${formatOffset(offset)}${city ? `, ${city}` : ""}.`,
+              )
             }
             onDefault={() => run({ action: "update", id: o.id, isDefault: true }, `« ${o.name} » est l'option par défaut.`)}
             onDelete={() => {

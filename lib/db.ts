@@ -86,6 +86,7 @@ export function ensureSchema(): Promise<void> {
             values (${o.id}, ${o.name}, ${o.offset}, ${i}, ${o.isDefault})`;
         }
       });
+      await sql`alter table price_options add column if not exists city text`;
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel
       throw err;
