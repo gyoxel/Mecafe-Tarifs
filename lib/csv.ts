@@ -1,8 +1,13 @@
 import { fold } from "./format";
 import type { CatalogItem, PriceMap } from "./types";
+import { effectivePrice, type PriceOption } from "./options";
 
-/** Format Excel français : séparateur ";", virgule décimale, BOM UTF-8. */
-export const CSV_HEADER = ["variant_id", "sku", "marque", "produit", "format", "prix_site", "prix_commercial"];
+/**
+ * Format Excel français : séparateur ";", virgule décimale, BOM UTF-8.
+ * prix_commercial = prix saisi dans l'option (vide = automatique) ; c'est la seule colonne relue à l'import.
+ * prix_applique = ce que voit le commercial (saisi, sinon prix site + écart), pour information.
+ */
+export const CSV_HEADER = ["variant_id", "sku", "marque", "produit", "format", "prix_site", "prix_commercial", "prix_applique"];
 
 const cell = (v: string | number | null | undefined): string => {
   const s = v == null ? "" : String(v);
@@ -10,10 +15,11 @@ const cell = (v: string | number | null | undefined): string => {
 };
 const num = (n: number) => String(n).replace(".", ",");
 
-export function buildCsv(items: CatalogItem[], prices: PriceMap): string {
+export function buildCsv(items: CatalogItem[], prices: PriceMap, option: PriceOption): string {
   const lines = [CSV_HEADER.join(";")];
   for (const it of items) {
     const commercial = prices[it.id];
+    const applied = effectivePrice(option, prices, it);
     lines.push(
       [
         it.id,
@@ -23,6 +29,7 @@ export function buildCsv(items: CatalogItem[], prices: PriceMap): string {
         cell(it.variant),
         num(it.price),
         commercial == null ? "" : num(commercial),
+        applied == null ? "" : num(applied),
       ].join(";"),
     );
   }

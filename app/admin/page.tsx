@@ -13,7 +13,9 @@ export default async function AdminPage() {
 
   const [{ items, source }, prices] = await Promise.all([getCatalog(), getPrices()]);
   const ids = new Set(items.map((i) => i.id));
-  const orphans = Object.keys(prices).filter((id) => !ids.has(id)).length;
+  const orphans = Object.values(prices)
+    .flatMap((m) => Object.keys(m))
+    .filter((id) => !ids.has(id)).length;
 
   return <AdminPrices items={items} prices={prices} source={source} storage={storageMode()} orphans={orphans} />;
 }

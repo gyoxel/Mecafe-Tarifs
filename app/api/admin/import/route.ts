@@ -3,18 +3,22 @@ import { getCatalog } from "@/lib/catalog";
 import { parseCsv, parsePrice } from "@/lib/csv";
 import { requireAdmin } from "@/lib/guard";
 import { savePrices, type PriceUpdate } from "@/lib/prices";
+import { isOptionId } from "@/lib/options";
 
 const MAX_CSV_CHARS = 2_000_000;
 
 /**
  * Import CSV (export de /api/admin/export modifié dans Excel).
  * Rattachement par variant_id, sinon par sku. Cellule prix_commercial vide = aucun changement.
+ * Les prix vont dans l'option choisie sur la page de modification.
  */
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
 
-  const body = (await req.json().catch(() => null)) as { csv?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { csv?: unknown; option?: unknown } | null;
+  if (!isOptionId(body?.option)) return NextResponse.json({ error: "Option inconnue" }, { status: 400 });
+  const option = body.option;
   if (typeof body?.csv !== "string" || body.csv.length > MAX_CSV_CHARS) {
     return NextResponse.json({ error: "Fichier CSV invalide ou trop volumineux" }, { status: 400 });
   }
@@ -52,7 +56,7 @@ export async function POST(req: Request) {
     });
   });
 
-  const result = await savePrices(updates);
+  const result = await savePrices(option, updates);
   return NextResponse.json(
     { ok: true, ...result, unmatchedLines: unmatched.slice(0, 50), invalidLines: invalid.slice(0, 50) },
     { headers: { "Cache-Control": "no-store" } },

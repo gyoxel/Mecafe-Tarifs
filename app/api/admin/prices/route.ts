@@ -3,6 +3,7 @@ import { getCatalog } from "@/lib/catalog";
 import { requireAdmin } from "@/lib/guard";
 import { savePrices, type PriceUpdate } from "@/lib/prices";
 import { parsePrice } from "@/lib/csv";
+import { isOptionId } from "@/lib/options";
 
 const MAX_UPDATES = 2000;
 
@@ -10,10 +11,11 @@ export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
 
-  const body = (await req.json().catch(() => null)) as { updates?: unknown } | null;
-  if (!Array.isArray(body?.updates) || body.updates.length > MAX_UPDATES) {
+  const body = (await req.json().catch(() => null)) as { updates?: unknown; option?: unknown } | null;
+  if (!Array.isArray(body?.updates) || body.updates.length > MAX_UPDATES || !isOptionId(body.option)) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
+  const option = body.option;
 
   const { items } = await getCatalog();
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -35,6 +37,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const result = await savePrices(updates);
+  const result = await savePrices(option, updates);
   return NextResponse.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });
 }

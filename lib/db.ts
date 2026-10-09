@@ -44,6 +44,27 @@ export function ensureSchema(): Promise<void> {
       await sql`
         create index if not exists commercial_price_history_variant_idx
         on commercial_price_history (variant_id, changed_at desc)`;
+      await sql`alter table commercial_price_history add column if not exists option_id text`;
+      // Prix par option (A, B, C, Autre). À sa création, la table reprend les prix saisis avant
+      // l'arrivée des options : ils vont dans « Autre » (l'ancienne table reste intacte).
+      await sql.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(727001)`;
+        const [{ exists }] = await tx`select to_regclass('option_prices') is not null as exists`;
+        if (exists) return;
+        await tx`
+          create table option_prices (
+            option_id text not null,
+            variant_id text not null,
+            sku text,
+            label text,
+            price numeric(10,2) not null check (price >= 0),
+            updated_at timestamptz not null default now(),
+            primary key (option_id, variant_id)
+          )`;
+        await tx`
+          insert into option_prices (option_id, variant_id, sku, label, price, updated_at)
+          select 'autre', variant_id, sku, label, price, updated_at from commercial_prices`;
+      });
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel
       throw err;

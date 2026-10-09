@@ -8,11 +8,22 @@ import { sizedImage } from "@/lib/image";
 import { displayVariant } from "@/lib/title";
 import { StockBadge } from "./StockBadge";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
-import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
+import type { CatalogItem, CatalogSource } from "@/lib/types";
+import {
+  DEFAULT_OPTION,
+  OPTION_STORAGE_KEY,
+  PRICE_OPTIONS,
+  autoPrice,
+  isOptionId,
+  optionOf,
+  type OptionPrices,
+  type PriceOptionId,
+} from "@/lib/options";
 
 type Props = {
   items: CatalogItem[];
-  prices: PriceMap;
+  /** Prix saisis à la main, par option. */
+  prices: OptionPrices;
   source: CatalogSource;
   storage: "postgres" | "memory";
   orphans: number;
@@ -22,7 +33,10 @@ const ROWS_STEP = 150;
 const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
 export function AdminPrices({ items, prices, source, storage, orphans }: Props) {
-  const [saved, setSaved] = useState<PriceMap>(prices);
+  const [option, setOption] = useState<PriceOptionId>(DEFAULT_OPTION);
+  const [allSaved, setAllSaved] = useState<OptionPrices>(prices);
+  const saved = allSaved[option];
+  const current = optionOf(option);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState("");
@@ -32,6 +46,14 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // Même option que celle choisie dans le catalogue (mémorisée sur l'appareil).
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(OPTION_STORAGE_KEY);
+      if (isOptionId(stored)) setOption(stored);
+    } catch {}
+  }, []);
+
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
   const haystacks = useMemo(() => items.map(haystackOf), [items]);
 
@@ -40,16 +62,27 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     return items.filter(
       (it, i) =>
         (!brand || it.brand === brand) &&
-        (!onlyMissing || saved[it.id] == null) &&
+        (!onlyMissing || (saved[it.id] ?? autoPrice(current, it.price)) == null) &&
         (!tokens.length || matchesAll(haystacks[i], tokens)),
     );
-  }, [items, haystacks, query, brand, onlyMissing, saved]);
+  }, [items, haystacks, query, brand, onlyMissing, saved, current]);
 
   // Brouillons réellement modifiés par rapport à la valeur enregistrée.
   const dirty = useMemo(
     () => Object.entries(drafts).filter(([id, text]) => text.trim() !== asText(saved[id])),
     [drafts, saved],
   );
+  const changeOption = (id: PriceOptionId) => {
+    if (id === option) return;
+    if (dirty.length && !window.confirm("Les modifications non enregistrées de cette option seront perdues. Continuer ?")) return;
+    setDrafts({});
+    setStatus(null);
+    setOption(id);
+    try {
+      localStorage.setItem(OPTION_STORAGE_KEY, id);
+    } catch {}
+  };
+
   const invalid = useMemo(() => new Set(dirty.filter(([, t]) => Number.isNaN(parsePrice(t))).map(([id]) => id)), [dirty]);
 
   useEffect(() => {
@@ -76,17 +109,20 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     setStatus(null);
     try {
       const updates = dirty.map(([variantId, text]) => ({ variantId, price: parsePrice(text) }));
-      await post("/api/admin/prices", { updates });
-      setSaved((prev) => {
-        const next = { ...prev };
+      await post("/api/admin/prices", { option, updates });
+      setAllSaved((prev) => {
+        const next = { ...prev[option] };
         for (const u of updates) {
           if (u.price == null) delete next[u.variantId];
           else next[u.variantId] = u.price;
         }
-        return next;
+        return { ...prev, [option]: next };
       });
       setDrafts({});
-      setStatus({ kind: "ok", text: `${updates.length} prix enregistré${updates.length > 1 ? "s" : ""}.` });
+      setStatus({
+        kind: "ok",
+        text: `${updates.length} prix enregistré${updates.length > 1 ? "s" : ""} dans ${current.label}.`,
+      });
     } catch (e) {
       setStatus({ kind: "error", text: e instanceof Error ? e.message : "Échec de l'enregistrement" });
     }
@@ -97,7 +133,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     setBusy(true);
     setStatus(null);
     try {
-      const data = await post("/api/admin/import", { csv: await file.text() });
+      const data = await post("/api/admin/import", { option, csv: await file.text() });
       const lines = (k: string) => (Array.isArray(data[k]) ? (data[k] as number[]) : []);
       const problems = [
         lines("unmatchedLines").length && `lignes non reconnues : ${lines("unmatchedLines").join(", ")}`,
@@ -105,7 +141,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
       ].filter(Boolean);
       setStatus({
         kind: problems.length ? "error" : "ok",
-        text: `Import terminé : ${data.updated} modifié(s), ${data.unchanged} inchangé(s)${problems.length ? " — " + problems.join(" ; ") : "."}`,
+        text: `Import dans ${current.label} terminé : ${data.updated} modifié(s), ${data.unchanged} inchangé(s)${problems.length ? " — " + problems.join(" ; ") : "."}`,
       });
       setTimeout(() => window.location.reload(), problems.length ? 4000 : 1200);
     } catch (e) {
@@ -144,6 +180,22 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
         </p>
       )}
 
+      <div className="admin-options">
+        <span className="admin-options-label">Option à modifier</span>
+        <div className="option-switch" role="radiogroup" aria-label="Option à modifier">
+          {PRICE_OPTIONS.map((o) => (
+            <button key={o.id} type="button" role="radio" aria-checked={option === o.id} onClick={() => changeOption(o.id)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <p className="muted small admin-options-hint">
+          {current.offset == null
+            ? "Aucun prix automatique : seuls les prix saisis s'affichent."
+            : `Prix site − ${Math.abs(current.offset)} DH appliqué automatiquement (en gris). Saisissez un prix pour le remplacer, videz la case pour revenir au prix automatique.`}
+        </p>
+      </div>
+
       <div className="admin-tools">
         <input
           type="search"
@@ -178,11 +230,11 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
       </div>
 
       <div className="admin-tools">
-        <a className="btn btn-ghost" href="/api/admin/export">
-          Exporter CSV
+        <a className="btn btn-ghost" href={`/api/admin/export?option=${option}`}>
+          Exporter CSV ({current.short})
         </a>
         <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => fileInput.current?.click()}>
-          Importer CSV
+          Importer CSV ({current.short})
         </button>
         <input
           ref={fileInput}
@@ -208,7 +260,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
               <th className="hide-sm">SKU</th>
               <th className="num hide-sm">Stock</th>
               <th className="num">Prix site</th>
-              <th className="num">Prix commercial (DH)</th>
+              <th className="num">{current.label} (DH)</th>
               <th className="num hide-sm">Écart</th>
             </tr>
           </thead>
@@ -216,8 +268,10 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
             {filtered.slice(0, rows).map((it) => {
               const draft = drafts[it.id];
               const value = draft ?? asText(saved[it.id]);
+              const auto = autoPrice(current, it.price);
               const parsed = parsePrice(value);
-              const gap = typeof parsed === "number" && !Number.isNaN(parsed) ? parsed - it.price : null;
+              const applied = parsed === null ? auto : parsed;
+              const gap = typeof applied === "number" && !Number.isNaN(applied) ? applied - it.price : null;
               const changed = draft !== undefined && draft.trim() !== asText(saved[it.id]);
               return (
                 <tr key={it.id} data-changed={changed}>
@@ -246,7 +300,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
                       className="admin-input price-input"
                       inputMode="decimal"
                       value={value}
-                      placeholder="—"
+                      placeholder={auto == null ? "—" : asText(auto)}
                       aria-label={`Prix commercial : ${it.title}${it.variant ? " " + it.variant : ""}`}
                       aria-invalid={invalid.has(it.id)}
                       onChange={(e) => setDrafts((d) => ({ ...d, [it.id]: e.target.value }))}

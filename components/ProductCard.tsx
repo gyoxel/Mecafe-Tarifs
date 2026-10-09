@@ -13,12 +13,14 @@ type Props = {
   item: CatalogItem;
   /** Prix commercial défini pour ce variant, sinon undefined. */
   commercial: number | undefined;
+  /** Nom de l'option affichée sous le prix commercial (« Option A »…). */
+  proLabel: string;
   /** Le prix commercial est-il affiché ? (calculé par le parent : interrupteur global + exception individuelle) */
   revealed: boolean;
   onToggle: (id: string, next: boolean) => void;
 };
 
-function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
+function ProductCardBase({ item, commercial, proLabel, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
 
   return (
@@ -59,7 +61,7 @@ function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
         <span className="price-cell price-cell-pro" aria-hidden={!revealed}>
           <span className="price-cell-inner">
             {commercial == null ? <span className="amount amount-empty">—</span> : <Price value={commercial} />}
-            <span className="label">{commercial == null ? "Non défini" : "Commercial"}</span>
+            <span className="label">{commercial == null ? "Non défini" : proLabel}</span>
           </span>
         </span>
       </button>

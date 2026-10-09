@@ -17,3 +17,16 @@ create table if not exists commercial_price_history (
 );
 create index if not exists commercial_price_history_variant_idx
   on commercial_price_history (variant_id, changed_at desc);
+alter table commercial_price_history add column if not exists option_id text; -- null = avant les options
+
+-- Prix par option (a, b, c, autre). Sans ligne ici, A/B/C appliquent prix site + écart (lib/options.ts).
+-- À sa création, la table reprend les anciens prix de commercial_prices dans « autre ».
+create table if not exists option_prices (
+  option_id  text not null,
+  variant_id text not null,
+  sku        text,
+  label      text,
+  price      numeric(10,2) not null check (price >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (option_id, variant_id)
+);

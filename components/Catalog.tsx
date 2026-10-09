@@ -5,7 +5,17 @@ import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, us
 import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
-import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
+import type { CatalogItem, CatalogSource } from "@/lib/types";
+import {
+  DEFAULT_OPTION,
+  OPTION_STORAGE_KEY,
+  PRICE_OPTIONS,
+  isOptionId,
+  optionOf,
+  pricesFor,
+  type OptionPrices,
+  type PriceOptionId,
+} from "@/lib/options";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
 import { CloseIcon, EyeIcon, GridIcon, ListIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
@@ -16,7 +26,8 @@ const PAGE_SIZE = 60;
 
 type Props = {
   items: CatalogItem[];
-  prices: PriceMap;
+  /** Prix saisis à la main, par option (A, B, C, Autre). */
+  prices: OptionPrices;
   source: CatalogSource;
   /** Catégories = menu Shopify (niveau 1) et sous-catégories (niveau 2). */
   menu: MenuNode[];
@@ -41,7 +52,9 @@ function SearchField({
   value,
   onChange,
   inputRef,
+  placeholder,
 }: {
+  placeholder: string;
   value: string;
   onChange: (v: string) => void;
   inputRef: React.Ref<HTMLInputElement>;
@@ -54,7 +67,7 @@ function SearchField({
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Rechercher un produit..."
+        placeholder={placeholder}
         aria-label="Rechercher un produit"
         autoComplete="off"
         autoCapitalize="off"
@@ -79,6 +92,26 @@ function SearchField({
   );
 }
 
+/** Choix de la grille de prix commerciaux (Option A, B, C, Autre). */
+function OptionSwitch({ value, onChange }: { value: PriceOptionId; onChange: (id: PriceOptionId) => void }) {
+  return (
+    <div className="option-switch" role="radiogroup" aria-label="Grille de prix commerciaux">
+      {PRICE_OPTIONS.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          title={o.offset == null ? o.label : `${o.label} : prix site − ${Math.abs(o.offset)} DH`}
+          onClick={() => onChange(o.id)}
+        >
+          {o.short}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Interrupteur de l'œil global. */
 function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -98,7 +131,25 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-export function Catalog({ items, prices, source, menu, order, isAdmin, initial }: Props) {
+export function Catalog({ items, prices: optionPrices, source, menu, order, isAdmin, initial }: Props) {
+  // ── Grille de prix (option) : mémorisée sur l'appareil ────────────
+  const [option, setOption] = useState<PriceOptionId>(DEFAULT_OPTION);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(OPTION_STORAGE_KEY);
+      if (isOptionId(saved)) setOption(saved);
+    } catch {}
+  }, []);
+  const changeOption = (id: PriceOptionId) => {
+    setOption(id);
+    try {
+      localStorage.setItem(OPTION_STORAGE_KEY, id);
+    } catch {}
+  };
+  // Prix appliqués pour l'option : saisis, sinon prix site + écart.
+  const prices = useMemo(() => pricesFor(option, optionPrices[option], items), [option, optionPrices, items]);
+  const proLabel = optionOf(option).label;
+
   // ── Filtres ───────────────────────────────────────────────────────
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
 
@@ -400,7 +451,13 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
           </a>
           <span className="appbar-title">Tarifs professionnels</span>
           <div className="appbar-search">
-            <SearchField value={query} onChange={changeQuery} inputRef={searchInput} />
+            <SearchField
+              value={query}
+              onChange={changeQuery}
+              inputRef={searchInput}
+              placeholder={wide ? "Rechercher un produit..." : "Rechercher"}
+            />
+            <OptionSwitch value={option} onChange={changeOption} />
           </div>
           <div className="appbar-actions">
             <GlobalEye on={globalOn} onToggle={toggleGlobal} />
@@ -560,7 +617,7 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
                 Prix site
               </span>
               <span role="columnheader" className="num">
-                Prix commercial
+                Prix commercial · {optionOf(option).short}
               </span>
             </div>
             {visible.map(({ it: item, k }, i) => (
@@ -583,6 +640,7 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
                 <ProductCard
                   item={item}
                   commercial={prices[item.id]}
+                  proLabel={proLabel}
                   revealed={overrides[item.id] ?? globalOn}
                   onToggle={toggleOne}
                 />

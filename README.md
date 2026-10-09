@@ -52,11 +52,20 @@ Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
 4. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Gérer les prix commerciaux
-Connexion avec le mot de passe admin → pied de page → **Administration** :
-- saisie directe dans le tableau puis *Enregistrer* (champ vidé = prix supprimé) ;
-- **Exporter CSV** → modifier dans Excel (colonne `prix_commercial`) → **Importer CSV** (rattachement par
-  `variant_id`, sinon par `sku` ; cellule vide = inchangé) ;
-Chaque changement est historisé dans `commercial_price_history`.
+Quatre grilles de prix (« options »), choisies en haut du catalogue (A · B · C · Autre, mémorisé par appareil) :
+- **Option A / B / C** : prix site − 10 / − 9 / − 8 DH, calculé automatiquement (suit le prix du site) ;
+  un prix saisi dans l'option remplace ce calcul pour le produit ;
+- **Autre** : pas de calcul, seuls les prix saisis s'affichent (les prix saisis avant l'arrivée des options y
+  ont été repris).
+
+Écarts et noms des options : `lib/options.ts`.
+
+Connexion avec le mot de passe admin → **Modifier les prix** → choisir l'option à modifier :
+- saisie directe dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé = retour au
+  prix automatique, ou prix supprimé dans « Autre ») ;
+- **Exporter CSV** → modifier dans Excel (colonne `prix_commercial`) → **Importer CSV** dans la même option
+  (rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé) ;
+Les prix sont dans `option_prices`, chaque changement est historisé dans `commercial_price_history`.
 
 ## Personnaliser
 - `lib/config.ts` : ordre des marques/catégories, alias de marques, règles collections → catégories.
