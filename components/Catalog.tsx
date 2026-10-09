@@ -392,7 +392,7 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
         <aside className="filters" aria-label="Filtres">
           {isAdmin && (
             <Link href="/admin" className="admin-link">
-              <SettingsIcon size={16} /> Administration
+              <SettingsIcon size={16} /> Modifier les prix
             </Link>
           )}
           <h2 className="side-label">Marques</h2>

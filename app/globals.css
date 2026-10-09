@@ -1308,17 +1308,18 @@ img {
   gap: 8px;
   height: 40px;
   margin: 0 0 14px;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--pro);
   border-radius: 10px;
-  background: var(--surface);
-  color: var(--ink);
+  background: var(--pro);
+  color: #fff;
   font-size: 13.5px;
   font-weight: 700;
   text-decoration: none;
   transition: border-color 0.2s, background 0.2s;
 }
 .admin-link:hover {
-  border-color: var(--ink);
+  background: var(--pro-ink);
+  border-color: var(--pro-ink);
 }
 @media (min-width: 1100px) {
   .admin-link {
@@ -1479,7 +1480,7 @@ img {
 
 /* ═════════════ Administration ═════════════ */
 .admin {
-  max-width: 1120px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 20px 16px 120px;
 }
@@ -1493,6 +1494,11 @@ img {
 .admin-head img {
   height: 30px;
   width: auto;
+  display: block;
+}
+.admin-logo {
+  display: inline-block;
+  line-height: 0;
 }
 .admin-title {
   margin: 10px 0 0;

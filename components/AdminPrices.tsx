@@ -119,8 +119,10 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     <div className="admin">
       <header className="admin-head">
         <div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
+          <Link href="/" className="admin-logo" aria-label="Retour au catalogue">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
+          </Link>
           <h1 className="admin-title">Prix commerciaux</h1>
         </div>
         <Link href="/" className="btn btn-ghost">
