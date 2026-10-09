@@ -48,7 +48,7 @@ const COLORS: Record<string, string> = {
 
 /**
  * Format / variante affiché (affichage seulement) : couleurs en français et unités homogènes.
- * « Red » → « Rouge », « 1KG » → « 1 kg », « 10 CPS » → « 10 capsules », « 1bouteille » → « 1 bouteille ».
+ * « Red » → « Rouge », « 1KG » → « 1 kg », « 1bouteille » → « 1 bouteille ».
  */
 export function displayVariant(variant: string): string {
   const v = variant.trim().replace(/\s+/g, " ");
@@ -58,8 +58,6 @@ export function displayVariant(variant: string): string {
     .replace(/(\d+(?:[.,]\d+)?)\s*kg\b/gi, "$1 kg")
     .replace(/(\d+(?:[.,]\d+)?)\s*(?:gr|g)\b/gi, "$1 g")
     .replace(/(\d+(?:[.,]\d+)?)\s*cl\b/gi, "$1 cl")
-    .replace(/(\d+)\s*cps\b/gi, "$1 capsules")
     .replace(/\b1\s*bouteilles?\b/gi, "1 bouteille")
-    .replace(/(\d+)\s*bouteilles?\b/gi, (_, n) => `${n} bouteille${n === "1" ? "" : "s"}`)
-    .replace(/\bbox\b/gi, "carton");
+    .replace(/(\d+)\s*bouteilles?\b/gi, (_, n) => `${n} bouteille${n === "1" ? "" : "s"}`);
 }
