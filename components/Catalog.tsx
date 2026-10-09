@@ -378,7 +378,13 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
           <div className="appbar-search">
             <SearchField value={query} onChange={changeQuery} inputRef={searchInput} />
           </div>
-          <GlobalEye on={globalOn} onToggle={toggleGlobal} />
+          <div className="appbar-actions">
+            <GlobalEye on={globalOn} onToggle={toggleGlobal} />
+            <button type="button" className="logout-btn" onClick={logout} title="Se déconnecter">
+              <LogoutIcon size={18} />
+              <span className="logout-label">Se déconnecter</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -532,20 +538,15 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
         </section>
       </main>
 
+      {/* Barre du bas, toujours visible */}
       <footer className="footer">
         <div className="footer-inner">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <p className="footer-note">Mécafé · usage interne · prix site synchronisés avec mecafe.ma</p>
-          <div className="footer-links">
-            {isAdmin && (
-              <Link href="/admin" className="footer-link">
-                <SettingsIcon size={16} /> Administration
-              </Link>
-            )}
-            <button type="button" className="footer-link" onClick={logout}>
-              <LogoutIcon size={16} /> Se déconnecter
-            </button>
-          </div>
+          <p className="footer-note">© {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec mecafe.ma</p>
+          {isAdmin && (
+            <Link href="/admin" className="footer-link">
+              <SettingsIcon size={15} /> Administration
+            </Link>
+          )}
         </div>
       </footer>
     </>
