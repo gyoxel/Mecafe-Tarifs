@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { cityChoices } from "@/lib/cities";
 import { NAME_MAX, formatOffset, matchesOption, offsetInput, parseOffset, type PriceOption } from "@/lib/options";
 import { CityPicker } from "./CityPicker";
+import { OffsetField } from "./OffsetField";
 import { CloseIcon, SearchIcon } from "./Icons";
 
 type Props = {
@@ -23,25 +24,6 @@ async function send(body: Record<string, unknown>): Promise<PriceOption[]> {
   return data.options;
 }
 
-/** Écart : le « − » est fixe, on ne saisit que le montant. */
-function OffsetField({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
-  const parsed = parseOffset(value);
-  return (
-    <label className="offset-field" data-invalid={parsed === null || Number.isNaN(parsed)}>
-      <span className="offset-sign" aria-hidden="true">
-        −
-      </span>
-      <input
-        value={value}
-        inputMode="decimal"
-        onChange={(e) => onChange(e.target.value.replace(/[^\d.,]/g, ""))}
-        aria-label={`${label} (DH en moins sur le prix site)`}
-      />
-      <span className="offset-unit">DH</span>
-    </label>
-  );
-}
-
 /** Exemple lisible de l'écart : « 165 DH → 155 DH ». */
 function Example({ offset }: { offset: number | null }) {
   if (offset == null || Number.isNaN(offset)) return null;
@@ -53,14 +35,13 @@ function Example({ offset }: { offset: number | null }) {
   );
 }
 
-/** Une option : nom, ville, écart, par défaut, suppression. Les changements s'enregistrent avec « Enregistrer ». */
+/** Un commercial : nom, ville, écart, suppression. Les changements s'enregistrent avec « Enregistrer ». */
 function OptionRow({
   option,
   cities,
   busy,
   canDelete,
   onSave,
-  onDefault,
   onDelete,
 }: {
   option: PriceOption;
@@ -68,7 +49,6 @@ function OptionRow({
   busy: boolean;
   canDelete: boolean;
   onSave: (name: string, city: string | null, offset: number) => void;
-  onDefault: () => void;
   onDelete: () => void;
 }) {
   const [name, setName] = useState(option.name);
@@ -85,14 +65,10 @@ function OptionRow({
         value={name}
         maxLength={NAME_MAX}
         onChange={(e) => setName(e.target.value)}
-        aria-label="Nom de l'option"
+        aria-label="Nom du commercial"
       />
       <CityPicker value={city} choices={cities} onChange={setCity} disabled={busy} />
       <OffsetField value={offset} onChange={setOffset} label={`Écart de ${option.name}`} />
-      <label className="opt-row-default" title="Option affichée à l'ouverture">
-        <input type="radio" name="default-option" checked={option.isDefault} disabled={busy} onChange={onDefault} />
-        Par défaut
-      </label>
       <span className="opt-row-actions">
         {changed && (
           <>
@@ -124,7 +100,7 @@ function OptionRow({
           disabled={busy || !canDelete}
           onClick={onDelete}
           aria-label={`Supprimer ${option.name}`}
-          title={canDelete ? `Supprimer ${option.name}` : "Il faut garder au moins une option"}
+          title={canDelete ? `Supprimer ${option.name}` : "Il faut garder au moins un commercial"}
         >
           <CloseIcon size={14} />
         </button>
@@ -133,7 +109,7 @@ function OptionRow({
   );
 }
 
-/** Gestion des options : ajout (nom + ville + écart), modification, option par défaut, suppression. */
+/** Gestion des commerciaux : ajout (nom + ville + écart), modification, suppression. */
 export function OptionsManager({ options, onOptions, onStatus }: Props) {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
@@ -168,22 +144,22 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           e.preventDefault();
           if (!canAdd || busy) return;
           const name = newName.trim();
-          if (await run({ action: "create", name, city: newCity, offset: newParsed }, `Option « ${name} » ajoutée.`)) {
+          if (await run({ action: "create", name, city: newCity, offset: newParsed }, `« ${name} » ajouté.`)) {
             setNewName("");
           }
         }}
       >
-        <span className="opt-add-title">Nouvelle option</span>
+        <span className="opt-add-title">Nouveau commercial</span>
         <input
           className="admin-input opt-row-name"
           value={newName}
           maxLength={NAME_MAX}
-          placeholder="Nom : D, Youssef…"
+          placeholder="Nom du commercial"
           onChange={(e) => setNewName(e.target.value)}
-          aria-label="Nom de la nouvelle option"
+          aria-label="Nom du nouveau commercial"
         />
         <CityPicker value={newCity} choices={cities} onChange={setNewCity} disabled={busy} />
-        <OffsetField value={newOffset} onChange={setNewOffset} label="Écart de la nouvelle option" />
+        <OffsetField value={newOffset} onChange={setNewOffset} label="Écart du nouveau commercial" />
         <button type="submit" className="btn btn-gold" disabled={!canAdd || busy}>
           Ajouter
         </button>
@@ -198,7 +174,7 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Rechercher un nom, une ville…"
-            aria-label="Rechercher une option"
+            aria-label="Rechercher un commercial"
           />
         </label>
       )}
@@ -208,7 +184,6 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           <span>Nom</span>
           <span>Ville</span>
           <span>Écart</span>
-          <span />
           <span />
         </div>
         {shown.map((o) => (
@@ -221,13 +196,12 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
             onSave={(name, city, offset) =>
               run(
                 { action: "update", id: o.id, name: name.trim(), city, offset },
-                `Option « ${name.trim()} » enregistrée : ${formatOffset(offset)}${city ? `, ${city}` : ""}.`,
+                `« ${name.trim()} » enregistré : ${formatOffset(offset)}${city ? `, ${city}` : ""}.`,
               )
             }
-            onDefault={() => run({ action: "update", id: o.id, isDefault: true }, `« ${o.name} » est l'option par défaut.`)}
             onDelete={() => {
-              if (window.confirm(`Supprimer l'option « ${o.name} » et ses prix saisis ?`)) {
-                run({ action: "delete", id: o.id }, `Option « ${o.name} » supprimée.`);
+              if (window.confirm(`Supprimer « ${o.name} » et ses prix saisis ?`)) {
+                run({ action: "delete", id: o.id }, `« ${o.name} » supprimé.`);
               }
             }}
           />

@@ -1,22 +1,41 @@
 import { redirect } from "next/navigation";
-import { AdminPrices } from "@/components/AdminPrices";
-import { getSession } from "@/lib/auth";
+import { Catalog } from "@/components/Catalog";
+import { getAdminSession } from "@/lib/auth";
 import { getCatalog } from "@/lib/catalog";
-import { getPrices, storageMode } from "@/lib/prices";
+import { getPrices } from "@/lib/prices";
 import { getOptions } from "@/lib/price-options";
+import type { OptionPrices } from "@/lib/options";
+import type { PriceMap } from "@/lib/types";
+import { initialFilters } from "@/lib/url-filters";
 
-export const metadata = { title: "Administration — Mécafé Tarifs" };
+export const metadata = { title: "Admin — Mécafé Tarifs" };
 
-export default async function AdminPage() {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  if (session.role !== "admin") redirect("/");
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-  const [{ items, source }, prices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
+/** Catalogue admin : choix du commercial, puis prix commerciaux (œil, clic sur le prix) et stock. */
+export default async function AdminCatalog({ searchParams }: { searchParams: SearchParams }) {
+  // Les prix commerciaux ne sont lus (et donc envoyés) qu'après vérification de la session admin.
+  if (!(await getAdminSession())) redirect("/login");
+
+  const [{ items, source, menu, order }, allPrices, options, sp] = await Promise.all([
+    getCatalog(),
+    getPrices(),
+    getOptions(),
+    searchParams,
+  ]);
   const ids = new Set(items.map((i) => i.id));
-  const orphans = options
-    .flatMap((o) => Object.keys(prices[o.id] ?? {}))
-    .filter((id) => !ids.has(id)).length;
+  const keep = (m: PriceMap) => Object.fromEntries(Object.entries(m).filter(([id]) => ids.has(id)));
+  // Prix saisis par commercial ; le prix automatique (prix site + écart) est calculé dans la page.
+  const prices: OptionPrices = Object.fromEntries(options.map((o) => [o.id, keep(allPrices[o.id] ?? {})]));
 
-  return <AdminPrices items={items} prices={prices} options={options} source={source} storage={storageMode()} orphans={orphans} />;
+  return (
+    <Catalog
+      items={items}
+      source={source}
+      menu={menu}
+      order={order}
+      initial={initialFilters(sp)}
+      admin={{ prices, options, choose: sp.choisir != null }}
+    />
+  );
 }

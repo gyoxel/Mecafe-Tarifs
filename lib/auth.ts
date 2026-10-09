@@ -26,25 +26,24 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(digest(a), digest(b));
 }
 
-/** Les mots de passe de démo n'existent qu'en développement. */
-function configuredPasswords(): { app?: string; admin?: string } {
-  const dev = process.env.NODE_ENV !== "production";
-  return {
-    app: process.env.APP_PASSWORD || (dev ? "demo" : undefined),
-    admin: process.env.ADMIN_PASSWORD || (dev ? "admin" : undefined),
-  };
+/** Code admin. Le code de démo (« admin ») n'existe qu'en développement. */
+function adminCode(): string | undefined {
+  return process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== "production" ? "admin" : undefined);
 }
 
 export function authConfigured(): boolean {
-  const { app, admin } = configuredPasswords();
   const secretOk = Boolean(process.env.SESSION_SECRET) || process.env.NODE_ENV !== "production";
-  return Boolean(app && admin && secretOk);
+  return Boolean(adminCode() && secretOk);
 }
 
-/** Retourne le rôle correspondant au mot de passe, ou null. L'admin est testé en premier. */
+/** Rôle correspondant au code saisi (seul l'admin se connecte), ou null. */
 export function checkPassword(input: string): Role | null {
-  const { app, admin } = configuredPasswords();
-  const isAdmin = admin ? safeEqual(input, admin) : false;
-  const isApp = app ? safeEqual(input, app) : false;
-  return isAdmin ? "admin" : isApp ? "commercial" : null;
+  const code = adminCode();
+  return code && safeEqual(input, code) ? "admin" : null;
+}
+
+/** Session admin courante, ou null. */
+export async function getAdminSession(): Promise<Session | null> {
+  const session = await getSession();
+  return session?.role === "admin" ? session : null;
 }

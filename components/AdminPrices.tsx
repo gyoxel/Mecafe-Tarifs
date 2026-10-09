@@ -35,9 +35,9 @@ const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".
 
 export function AdminPrices({ items, prices, options: initialOptions, source, storage, orphans }: Props) {
   const [options, setOptions] = useState<PriceOption[]>(initialOptions);
-  const [manage, setManage] = useState(false);
+  const [manage, setManage] = useState(true);
   const [option, setOption] = useState<string>(() => defaultOption(initialOptions)?.id ?? "");
-  // Option modifiée ; si elle vient d'être supprimée, on retombe sur celle par défaut.
+  // Commercial modifié ; s'il vient d'être supprimé, on retombe sur le premier.
   const current = options.find((o) => o.id === option) ?? defaultOption(options)!;
   const [allSaved, setAllSaved] = useState<OptionPrices>(prices);
   const saved = useMemo(() => allSaved[current.id] ?? {}, [allSaved, current.id]);
@@ -50,7 +50,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, st
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Même option que celle choisie dans le catalogue (mémorisée sur l'appareil).
+  // Même commercial que celui choisi dans le catalogue admin (mémorisé sur l'appareil).
   useEffect(() => {
     try {
       const stored = localStorage.getItem(OPTION_STORAGE_KEY);
@@ -78,7 +78,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, st
   );
   const changeOption = (id: string) => {
     if (id === current.id) return;
-    if (dirty.length && !window.confirm("Les modifications non enregistrées de cette option seront perdues. Continuer ?")) return;
+    if (dirty.length && !window.confirm("Les modifications non enregistrées pour ce commercial seront perdues. Continuer ?")) return;
     setDrafts({});
     setStatus(null);
     setOption(id);
@@ -159,13 +159,13 @@ export function AdminPrices({ items, prices, options: initialOptions, source, st
     <div className="admin">
       <header className="admin-head">
         <div>
-          <Link href="/" className="admin-logo" aria-label="Retour au catalogue">
+          <Link href="/admin" className="admin-logo" aria-label="Retour au catalogue admin">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
           </Link>
-          <h1 className="admin-title">Prix commerciaux</h1>
+          <h1 className="admin-title">Gestion</h1>
         </div>
-        <Link href="/" className="btn btn-ghost">
+        <Link href="/admin" className="btn btn-ghost">
           ← Catalogue
         </Link>
       </header>
@@ -184,20 +184,31 @@ export function AdminPrices({ items, prices, options: initialOptions, source, st
         </p>
       )}
 
-      <div className="admin-options">
+      <section className="admin-options">
         <div className="admin-options-bar">
-          <span className="admin-options-label">Option à modifier</span>
-          <OptionPicker options={options} value={current.id} onChange={changeOption} label="Option à modifier" />
-          <button type="button" className="btn btn-ghost" aria-expanded={manage} onClick={() => setManage((m) => !m)}>
-            {manage ? "Fermer" : "Gérer les options"}
+          <h2 className="admin-section-title">Commerciaux et villes</h2>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm admin-section-toggle"
+            aria-expanded={manage}
+            onClick={() => setManage((m) => !m)}
+          >
+            {manage ? "Masquer" : "Afficher"}
           </button>
+        </div>
+        {manage && <OptionsManager options={options} onOptions={setOptions} onStatus={setStatus} />}
+      </section>
+
+      <section className="admin-options">
+        <div className="admin-options-bar">
+          <h2 className="admin-section-title">Prix du commercial</h2>
+          <OptionPicker options={options} value={current.id} onChange={changeOption} label="Commercial" />
         </div>
         <p className="muted small admin-options-hint">
           {current.name} : prix site {formatOffset(current.offset)} appliqué automatiquement (en gris). Saisissez un
           prix pour le remplacer, videz la case pour revenir au prix automatique.
         </p>
-        {manage && <OptionsManager options={options} onOptions={setOptions} onStatus={setStatus} />}
-      </div>
+      </section>
 
       <div className="admin-tools">
         <input

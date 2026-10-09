@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (!isSameOrigin(req)) return NextResponse.json({ error: "Origine refusée" }, { status: 403 });
   if (!authConfigured()) {
     return NextResponse.json(
-      { error: "Configuration manquante : APP_PASSWORD, ADMIN_PASSWORD et SESSION_SECRET doivent être définis." },
+      { error: "Configuration manquante : ADMIN_PASSWORD et SESSION_SECRET doivent être définis." },
       { status: 500 },
     );
   }
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   if (!role) {
     recordLoginFailure(ip);
     await new Promise((r) => setTimeout(r, 400)); // ralentit le brute-force
-    return NextResponse.json({ error: "Mot de passe incorrect" }, { status: 401 });
+    return NextResponse.json({ error: "Code incorrect" }, { status: 401 });
   }
 
   clearLoginFailures(ip);

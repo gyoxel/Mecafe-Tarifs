@@ -15,13 +15,26 @@ type Props = {
   commercial: number | undefined;
   /** Nom de l'option affichée sous le prix commercial (« Option A »…). */
   proLabel: string;
+  /** false (catalogue public) : la barre n'affiche que le prix du site et ne réagit pas au clic. */
+  revealable: boolean;
   /** Le prix commercial est-il affiché ? (calculé par le parent : interrupteur global + exception individuelle) */
   revealed: boolean;
   onToggle: (id: string, next: boolean) => void;
 };
 
-function ProductCardBase({ item, commercial, proLabel, revealed, onToggle }: Props) {
+function ProductCardBase({ item, commercial, proLabel, revealable, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
+  const siteCell = (
+    <span className="price-cell price-cell-site">
+      <span className="price-cell-inner">
+        <Price value={item.price} />
+        <span className="label">
+          Prix site
+          {item.compareAt && <s className="compare">{formatDH(item.compareAt)}</s>}
+        </span>
+      </span>
+    </span>
+  );
 
   return (
     <article className="card" data-revealed={revealed} style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
@@ -41,30 +54,26 @@ function ProductCardBase({ item, commercial, proLabel, revealed, onToggle }: Pro
       </div>
 
       {/* Barre de prix : un appui la partage en deux (prix site | prix commercial), un second la referme.
-          La carte ne change jamais de taille. */}
-      <button
-        type="button"
-        className="price-bar"
-        aria-pressed={revealed}
-        aria-label={`${revealed ? "Masquer" : "Afficher"} le prix commercial : ${name}`}
-        onClick={() => onToggle(item.id, !revealed)}
-      >
-        <span className="price-cell price-cell-site">
-          <span className="price-cell-inner">
-            <Price value={item.price} />
-            <span className="label">
-              Prix site
-              {item.compareAt && <s className="compare">{formatDH(item.compareAt)}</s>}
+          La carte ne change jamais de taille. Catalogue public : prix du site seul, sans clic. */}
+      {revealable ? (
+        <button
+          type="button"
+          className="price-bar"
+          aria-pressed={revealed}
+          aria-label={`${revealed ? "Masquer" : "Afficher"} le prix commercial : ${name}`}
+          onClick={() => onToggle(item.id, !revealed)}
+        >
+          {siteCell}
+          <span className="price-cell price-cell-pro" aria-hidden={!revealed}>
+            <span className="price-cell-inner">
+              {commercial == null ? <span className="amount amount-empty">—</span> : <Price value={commercial} />}
+              <span className="label">{commercial == null ? "Non défini" : proLabel}</span>
             </span>
           </span>
-        </span>
-        <span className="price-cell price-cell-pro" aria-hidden={!revealed}>
-          <span className="price-cell-inner">
-            {commercial == null ? <span className="amount amount-empty">—</span> : <Price value={commercial} />}
-            <span className="label">{commercial == null ? "Non défini" : proLabel}</span>
-          </span>
-        </span>
-      </button>
+        </button>
+      ) : (
+        <div className="price-bar price-bar-static">{siteCell}</div>
+      )}
     </article>
   );
 }

@@ -6,11 +6,12 @@ import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import { OPTION_STORAGE_KEY, defaultOption, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
-import { OptionPicker } from "./OptionPicker";
+import { OPTION_STORAGE_KEY, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import { CommercialChooser } from "./CommercialChooser";
+import { OptionTrigger } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
-import { CloseIcon, EyeIcon, GridIcon, ListIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
+import { CloseIcon, EyeIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
 import { ProductCard } from "./ProductCard";
 import { ProductRow } from "./ProductRow";
 
@@ -18,17 +19,22 @@ const PAGE_SIZE = 60;
 
 type Props = {
   items: CatalogItem[];
-  /** Prix saisis à la main, par option. */
-  prices: OptionPrices;
-  /** Options de prix (A, B, C, noms de commerciaux…). */
-  options: PriceOption[];
   source: CatalogSource;
   /** Catégories = menu Shopify (niveau 1) et sous-catégories (niveau 2). */
   menu: MenuNode[];
   /** Ordre des produits dans chaque collection (handle → ids produits), comme sur le site. */
   order: Record<string, string[]>;
-  isAdmin: boolean;
   initial: { q: string; brand: string; path: string[] };
+  /**
+   * Espace admin : commerciaux et leurs prix saisis (+ stock dans `items`).
+   * Absent = catalogue public : prix du site seulement, rien sur les prix commerciaux.
+   */
+  admin?: {
+    prices: OptionPrices;
+    options: PriceOption[];
+    /** Ouvrir le choix du commercial dès l'arrivée (après la connexion). */
+    choose: boolean;
+  };
 };
 
 type Facet = { name: string; count: number };
@@ -105,25 +111,33 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-export function Catalog({ items, prices: optionPrices, options, source, menu, order, isAdmin, initial }: Props) {
-  // ── Option de prix : celle par défaut, ou la dernière choisie sur cet appareil ──
-  const [option, setOption] = useState<string>(() => defaultOption(options)?.id ?? "");
+export function Catalog({ items, source, menu, order, initial, admin }: Props) {
+  // ── Admin : commercial choisi (fenêtre de choix à l'arrivée, puis mémorisé sur l'appareil) ──
+  const isAdmin = Boolean(admin);
+  const [options, setOptions] = useState<PriceOption[]>(admin?.options ?? []);
+  const [option, setOption] = useState<string | null>(null);
+  const [chooser, setChooser] = useState(Boolean(admin?.choose));
   useEffect(() => {
+    if (!admin) return;
+    let saved: string | null = null;
     try {
-      const saved = localStorage.getItem(OPTION_STORAGE_KEY);
-      if (saved && options.some((o) => o.id === saved)) setOption(saved);
+      saved = localStorage.getItem(OPTION_STORAGE_KEY);
     } catch {}
-  }, [options]);
-  const changeOption = (id: string) => {
-    setOption(id);
+    if (saved && admin.options.some((o) => o.id === saved)) setOption(saved);
+    else setChooser(true);
+  }, [admin]);
+  const pickCommercial = (o: PriceOption) => {
+    setOption(o.id);
+    setChooser(false);
     try {
-      localStorage.setItem(OPTION_STORAGE_KEY, id);
+      localStorage.setItem(OPTION_STORAGE_KEY, o.id);
     } catch {}
   };
-  // Prix appliqués pour l'option : saisis, sinon prix site + écart.
+  // Prix appliqués pour le commercial : saisis, sinon prix site + écart.
   const currentOption = options.find((o) => o.id === option);
+  const optionPrices = admin?.prices;
   const prices = useMemo(
-    () => (currentOption ? pricesFor(currentOption, optionPrices[currentOption.id] ?? {}, items) : {}),
+    () => (currentOption && optionPrices ? pricesFor(currentOption, optionPrices[currentOption.id] ?? {}, items) : {}),
     [currentOption, optionPrices, items],
   );
   const proLabel = currentOption?.name ?? "Commercial";
@@ -414,7 +428,7 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
 
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   return (
@@ -423,11 +437,11 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
 
       <header className="appbar">
         <div className="appbar-inner">
-          <a href="/" className="appbar-logo" aria-label="Mécafé — accueil">
+          <a href={isAdmin ? "/admin" : "/"} className="appbar-logo" aria-label="Mécafé — accueil">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
           </a>
-          <span className="appbar-title">Tarifs professionnels</span>
+          <span className="appbar-title">{isAdmin ? "Admin · tarifs commerciaux" : "Tarifs professionnels"}</span>
           <div className="appbar-search">
             <SearchField
               value={query}
@@ -435,16 +449,25 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
               inputRef={searchInput}
               placeholder={wide ? "Rechercher un produit..." : "Rechercher"}
             />
-            {options.length > 0 && (
-              <OptionPicker options={options} value={option} onChange={changeOption} label="Option de prix" />
+            {isAdmin && (
+              <OptionTrigger option={currentOption} open={chooser} onClick={() => setChooser(true)} label="Commercial" />
             )}
           </div>
           <div className="appbar-actions">
-            <GlobalEye on={globalOn} onToggle={toggleGlobal} />
-            <button type="button" className="logout-btn" onClick={logout} title="Se déconnecter">
-              <LogoutIcon size={18} />
-              <span className="logout-label">Se déconnecter</span>
-            </button>
+            {isAdmin ? (
+              <>
+                <GlobalEye on={globalOn} onToggle={toggleGlobal} />
+                <button type="button" className="logout-btn" onClick={logout} title="Se déconnecter">
+                  <LogoutIcon size={18} />
+                  <span className="logout-label">Se déconnecter</span>
+                </button>
+              </>
+            ) : (
+              <a href="/admin" className="admin-btn" title="Espace admin">
+                <LockIcon size={17} />
+                <span>Admin</span>
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -452,8 +475,8 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
       <main className="container layout">
         <aside className="filters" aria-label="Filtres">
           {isAdmin && (
-            <Link href="/admin" className="admin-link">
-              <SettingsIcon size={16} /> Modifier les prix
+            <Link href="/admin/gestion" className="admin-link">
+              <SettingsIcon size={16} /> Gestion
             </Link>
           )}
           <h2 className="side-label">Marques</h2>
@@ -587,7 +610,11 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
             </button>
           </div>
         ) : effectiveView === "list" ? (
-          <div className={`list ${showStock ? "with-stock" : ""}`} role="table" aria-label="Liste des produits">
+          <div
+            className={`list ${showStock ? "with-stock" : ""} ${isAdmin ? "" : "site-only"}`}
+            role="table"
+            aria-label="Liste des produits"
+          >
             <div className="list-head" role="row">
               <span role="columnheader" />
               <span role="columnheader">Produit</span>
@@ -596,9 +623,11 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
               <span role="columnheader" className="num">
                 Prix site
               </span>
-              <span role="columnheader" className="num">
-                Prix commercial · {proLabel}
-              </span>
+              {isAdmin && (
+                <span role="columnheader" className="num">
+                  Prix commercial · {proLabel}
+                </span>
+              )}
             </div>
             {visible.map(({ it: item, k }, i) => (
               <Fragment key={item.id}>
@@ -606,6 +635,7 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
                 <ProductRow
                   item={item}
                   commercial={prices[item.id]}
+                  revealable={isAdmin}
                   revealed={overrides[item.id] ?? globalOn}
                   onToggle={toggleOne}
                 />
@@ -621,6 +651,7 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
                   item={item}
                   commercial={prices[item.id]}
                   proLabel={proLabel}
+                  revealable={isAdmin}
                   revealed={overrides[item.id] ?? globalOn}
                   onToggle={toggleOne}
                 />
@@ -635,6 +666,16 @@ export function Catalog({ items, prices: optionPrices, options, source, menu, or
       <footer className="footer">
         <p className="footer-note">© {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec mecafe.ma</p>
       </footer>
+
+      {admin && chooser && (
+        <CommercialChooser
+          options={options}
+          value={option}
+          onPick={pickCommercial}
+          onOptions={setOptions}
+          onClose={currentOption ? () => setChooser(false) : undefined}
+        />
+      )}
     </>
   );
 }

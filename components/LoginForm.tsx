@@ -20,7 +20,8 @@ export function LoginForm() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
-        window.location.href = "/"; // rechargement complet : la session est lue côté serveur
+        // Rechargement complet (la session est lue côté serveur), puis choix du commercial.
+        window.location.href = "/admin?choisir=1";
         return;
       }
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -34,7 +35,7 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} className="login-form">
       <label className="field">
-        <span className="field-label">Mot de passe</span>
+        <span className="field-label">Code admin</span>
         <span className="field-control">
           <LockIcon size={18} />
           <input
@@ -52,7 +53,7 @@ export function LoginForm() {
         {error}
       </p>
       <button type="submit" className="btn" disabled={busy || !password}>
-        {busy ? "Connexion…" : "Accéder aux tarifs"}
+        {busy ? "Vérification…" : "Entrer"}
       </button>
     </form>
   );
