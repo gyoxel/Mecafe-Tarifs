@@ -268,7 +268,14 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
         data-brand={groupBrand ? "true" : undefined}
         style={groupBrand ? ({ "--brand": brandStyle(groupBrand).color } as React.CSSProperties) : undefined}
       >
-        {groupBrand && <BrandBadge brand={groupBrand} className={list ? "brand-badge-xs" : "brand-badge-sm"} />}
+        {/* Pastille toujours présente (marque, ou neutre si plusieurs marques) : titre toujours au même endroit */}
+        {groupBrand ? (
+          <BrandBadge brand={groupBrand} className={list ? "brand-badge-xs" : "brand-badge-sm"} />
+        ) : (
+          <span className={`brand-badge brand-badge-neutral ${list ? "brand-badge-xs" : "brand-badge-sm"}`} aria-hidden="true">
+            <GridIcon size={list ? 13 : 16} />
+          </span>
+        )}
         <span className="group-titles">
           {/* Ligne du fil d'Ariane toujours présente (vide au besoin) : titres de même hauteur partout */}
           <span className="group-crumb">{crumb || "\u00A0"}</span>
