@@ -3,7 +3,7 @@ import { getCatalog } from "@/lib/catalog";
 import { parseCsv, parsePrice } from "@/lib/csv";
 import { requireAdmin } from "@/lib/guard";
 import { savePrices, type PriceUpdate } from "@/lib/prices";
-import { isOptionId } from "@/lib/options";
+import { getOptions } from "@/lib/price-options";
 
 const MAX_CSV_CHARS = 2_000_000;
 
@@ -17,8 +17,8 @@ export async function POST(req: Request) {
   if (denied) return denied;
 
   const body = (await req.json().catch(() => null)) as { csv?: unknown; option?: unknown } | null;
-  if (!isOptionId(body?.option)) return NextResponse.json({ error: "Option inconnue" }, { status: 400 });
-  const option = body.option;
+  const option = (await getOptions()).find((o) => o.id === body?.option)?.id;
+  if (!option) return NextResponse.json({ error: "Option inconnue" }, { status: 400 });
   if (typeof body?.csv !== "string" || body.csv.length > MAX_CSV_CHARS) {
     return NextResponse.json({ error: "Fichier CSV invalide ou trop volumineux" }, { status: 400 });
   }

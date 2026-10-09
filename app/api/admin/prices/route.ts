@@ -3,7 +3,7 @@ import { getCatalog } from "@/lib/catalog";
 import { requireAdmin } from "@/lib/guard";
 import { savePrices, type PriceUpdate } from "@/lib/prices";
 import { parsePrice } from "@/lib/csv";
-import { isOptionId } from "@/lib/options";
+import { getOptions } from "@/lib/price-options";
 
 const MAX_UPDATES = 2000;
 
@@ -12,10 +12,11 @@ export async function POST(req: Request) {
   if (denied) return denied;
 
   const body = (await req.json().catch(() => null)) as { updates?: unknown; option?: unknown } | null;
-  if (!Array.isArray(body?.updates) || body.updates.length > MAX_UPDATES || !isOptionId(body.option)) {
+  if (!Array.isArray(body?.updates) || body.updates.length > MAX_UPDATES) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const option = body.option;
+  const option = (await getOptions()).find((o) => o.id === body.option)?.id;
+  if (!option) return NextResponse.json({ error: "Option inconnue" }, { status: 400 });
 
   const { items } = await getCatalog();
   const byId = new Map(items.map((i) => [i.id, i]));

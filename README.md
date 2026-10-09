@@ -52,20 +52,22 @@ Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
 4. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Gérer les prix commerciaux
-Quatre grilles de prix (« options »), choisies en haut du catalogue (A · B · C · Autre, mémorisé par appareil) :
-- **Option A / B / C** : prix site − 10 / − 9 / − 8 DH, calculé automatiquement (suit le prix du site) ;
-  un prix saisi dans l'option remplace ce calcul pour le produit ;
-- **Autre** : pas de calcul, seuls les prix saisis s'affichent (les prix saisis avant l'arrivée des options y
-  ont été repris).
+Chaque **option** (A, B, C, ou le nom d'un commercial) a un **écart** appliqué automatiquement au prix du
+site (−10 = prix site moins 10 DH, suit le prix du site en direct), et ses propres prix saisis à la main qui
+remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (−9), C (−8, par défaut).
 
-Écarts et noms des options : `lib/options.ts`.
+En haut du catalogue, une liste déroulante avec recherche par nom choisit l'option affichée (mémorisée
+par appareil ; à défaut, l'option par défaut).
 
-Connexion avec le mot de passe admin → **Modifier les prix** → choisir l'option à modifier :
-- saisie directe dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé = retour au
-  prix automatique, ou prix supprimé dans « Autre ») ;
+Connexion avec le mot de passe admin → **Modifier les prix** :
+- **Gérer les options** : ajouter (nom + écart), renommer, changer l'écart, choisir l'option par défaut,
+  supprimer (avec ses prix saisis) ;
+- **Option à modifier** → saisie directe dans le tableau puis *Enregistrer* (en gris = prix automatique ;
+  champ vidé = retour au prix automatique) ;
 - **Exporter CSV** → modifier dans Excel (colonne `prix_commercial`) → **Importer CSV** dans la même option
-  (rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé) ;
-Les prix sont dans `option_prices`, chaque changement est historisé dans `commercial_price_history`.
+  (rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).
+
+Tables : `price_options` (options), `option_prices` (prix saisis), historique dans `commercial_price_history`.
 
 ## Personnaliser
 - `lib/config.ts` : ordre des marques/catégories, alias de marques, règles collections → catégories.

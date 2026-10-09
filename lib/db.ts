@@ -1,5 +1,6 @@
 import "server-only";
 import postgres from "postgres";
+import { SEED_OPTIONS } from "./options";
 
 type Sql = ReturnType<typeof postgres>;
 
@@ -64,6 +65,26 @@ export function ensureSchema(): Promise<void> {
         await tx`
           insert into option_prices (option_id, variant_id, sku, label, price, updated_at)
           select 'autre', variant_id, sku, label, price, updated_at from commercial_prices`;
+      });
+      // Options de prix (nom + écart), créées avec A, B, C (C par défaut).
+      await sql.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(727002)`;
+        const [{ exists }] = await tx`select to_regclass('price_options') is not null as exists`;
+        if (exists) return;
+        await tx`
+          create table price_options (
+            id text primary key,
+            name text not null,
+            price_offset numeric(10,2) not null,
+            position integer not null,
+            is_default boolean not null default false,
+            created_at timestamptz not null default now()
+          )`;
+        for (const [i, o] of SEED_OPTIONS.entries()) {
+          await tx`
+            insert into price_options (id, name, price_offset, position, is_default)
+            values (${o.id}, ${o.name}, ${o.offset}, ${i}, ${o.isDefault})`;
+        }
       });
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel

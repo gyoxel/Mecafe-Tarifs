@@ -64,6 +64,31 @@ export function ListIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function ChevronIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+export function TagIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M3 12.6V4.5A1.5 1.5 0 0 1 4.5 3h8.1a1.5 1.5 0 0 1 1.06.44l6.9 6.9a1.5 1.5 0 0 1 0 2.12l-8.1 8.1a1.5 1.5 0 0 1-2.12 0l-6.9-6.9A1.5 1.5 0 0 1 3 12.6Z" />
+      <circle cx="8" cy="8" r="1.4" />
+    </svg>
+  );
+}
+
 export function LogoutIcon({ size = 18, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

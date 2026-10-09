@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { getCatalog } from "@/lib/catalog";
 import { getPrices } from "@/lib/prices";
 import type { OptionPrices } from "@/lib/options";
+import { getOptions } from "@/lib/price-options";
 import type { PriceMap } from "@/lib/types";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -14,18 +15,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [{ items, source, menu, order }, allPrices, sp] = await Promise.all([getCatalog(), getPrices(), searchParams]);
+  const [{ items, source, menu, order }, allPrices, options, sp] = await Promise.all([
+    getCatalog(),
+    getPrices(),
+    getOptions(),
+    searchParams,
+  ]);
 
   const isAdmin = session.role === "admin";
   const ids = new Set(items.map((i) => i.id));
   const keep = (m: PriceMap) => Object.fromEntries(Object.entries(m).filter(([id]) => ids.has(id)));
   // Prix saisis par option ; le prix automatique (prix site + écart) est calculé dans la page.
-  const prices: OptionPrices = {
-    a: keep(allPrices.a),
-    b: keep(allPrices.b),
-    c: keep(allPrices.c),
-    autre: keep(allPrices.autre),
-  };
+  const prices: OptionPrices = Object.fromEntries(options.map((o) => [o.id, keep(allPrices[o.id] ?? {})]));
   // Le stock n'est envoyé qu'à l'administrateur (jamais présent dans la page d'un commercial).
   const visibleItems = isAdmin ? items : items.map(({ stock: _stock, ...rest }) => rest);
 
@@ -33,6 +34,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     <Catalog
       items={visibleItems}
       prices={prices}
+      options={options}
       source={source}
       menu={menu}
       order={order}

@@ -6,16 +6,8 @@ import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import {
-  DEFAULT_OPTION,
-  OPTION_STORAGE_KEY,
-  PRICE_OPTIONS,
-  isOptionId,
-  optionOf,
-  pricesFor,
-  type OptionPrices,
-  type PriceOptionId,
-} from "@/lib/options";
+import { OPTION_STORAGE_KEY, defaultOption, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
 import { CloseIcon, EyeIcon, GridIcon, ListIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
@@ -26,8 +18,10 @@ const PAGE_SIZE = 60;
 
 type Props = {
   items: CatalogItem[];
-  /** Prix saisis à la main, par option (A, B, C, Autre). */
+  /** Prix saisis à la main, par option. */
   prices: OptionPrices;
+  /** Options de prix (A, B, C, noms de commerciaux…). */
+  options: PriceOption[];
   source: CatalogSource;
   /** Catégories = menu Shopify (niveau 1) et sous-catégories (niveau 2). */
   menu: MenuNode[];
@@ -92,26 +86,6 @@ function SearchField({
   );
 }
 
-/** Choix de la grille de prix commerciaux (Option A, B, C, Autre). */
-function OptionSwitch({ value, onChange }: { value: PriceOptionId; onChange: (id: PriceOptionId) => void }) {
-  return (
-    <div className="option-switch" role="radiogroup" aria-label="Grille de prix commerciaux">
-      {PRICE_OPTIONS.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          role="radio"
-          aria-checked={value === o.id}
-          title={o.offset == null ? o.label : `${o.label} : prix site − ${Math.abs(o.offset)} DH`}
-          onClick={() => onChange(o.id)}
-        >
-          {o.short}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /** Interrupteur de l'œil global. */
 function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -131,24 +105,28 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-export function Catalog({ items, prices: optionPrices, source, menu, order, isAdmin, initial }: Props) {
-  // ── Grille de prix (option) : mémorisée sur l'appareil ────────────
-  const [option, setOption] = useState<PriceOptionId>(DEFAULT_OPTION);
+export function Catalog({ items, prices: optionPrices, options, source, menu, order, isAdmin, initial }: Props) {
+  // ── Option de prix : celle par défaut, ou la dernière choisie sur cet appareil ──
+  const [option, setOption] = useState<string>(() => defaultOption(options)?.id ?? "");
   useEffect(() => {
     try {
       const saved = localStorage.getItem(OPTION_STORAGE_KEY);
-      if (isOptionId(saved)) setOption(saved);
+      if (saved && options.some((o) => o.id === saved)) setOption(saved);
     } catch {}
-  }, []);
-  const changeOption = (id: PriceOptionId) => {
+  }, [options]);
+  const changeOption = (id: string) => {
     setOption(id);
     try {
       localStorage.setItem(OPTION_STORAGE_KEY, id);
     } catch {}
   };
   // Prix appliqués pour l'option : saisis, sinon prix site + écart.
-  const prices = useMemo(() => pricesFor(option, optionPrices[option], items), [option, optionPrices, items]);
-  const proLabel = optionOf(option).label;
+  const currentOption = options.find((o) => o.id === option);
+  const prices = useMemo(
+    () => (currentOption ? pricesFor(currentOption, optionPrices[currentOption.id] ?? {}, items) : {}),
+    [currentOption, optionPrices, items],
+  );
+  const proLabel = currentOption?.name ?? "Commercial";
 
   // ── Filtres ───────────────────────────────────────────────────────
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
@@ -457,7 +435,9 @@ export function Catalog({ items, prices: optionPrices, source, menu, order, isAd
               inputRef={searchInput}
               placeholder={wide ? "Rechercher un produit..." : "Rechercher"}
             />
-            <OptionSwitch value={option} onChange={changeOption} />
+            {options.length > 0 && (
+              <OptionPicker options={options} value={option} onChange={changeOption} label="Option de prix" />
+            )}
           </div>
           <div className="appbar-actions">
             <GlobalEye on={globalOn} onToggle={toggleGlobal} />
@@ -617,7 +597,7 @@ export function Catalog({ items, prices: optionPrices, source, menu, order, isAd
                 Prix site
               </span>
               <span role="columnheader" className="num">
-                Prix commercial · {optionOf(option).short}
+                Prix commercial · {proLabel}
               </span>
             </div>
             {visible.map(({ it: item, k }, i) => (

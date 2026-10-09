@@ -1,38 +1,53 @@
+import { fold } from "./format";
 import type { CatalogItem, PriceMap } from "./types";
 
 /**
- * Grilles de prix commerciaux. Chaque option a ses propres prix enregistrés ; A, B et C se remplissent
- * automatiquement (prix site + écart) pour tout produit qui n'a pas de prix saisi à la main dans l'option.
- * L'écart suit donc le prix du site en direct. « Autre » n'a pas d'écart : elle part vide.
+ * Options de prix commerciaux (A, B, C, ou le nom d'un commercial…), gérées depuis la page de modification.
+ * Chaque option a un écart appliqué automatiquement au prix du site, et ses propres prix saisis à la main
+ * qui remplacent ce calcul produit par produit. L'écart suit donc le prix du site en direct.
  */
-export const PRICE_OPTIONS = [
-  { id: "a", label: "Option A", short: "A", offset: -10 },
-  { id: "b", label: "Option B", short: "B", offset: -9 },
-  { id: "c", label: "Option C", short: "C", offset: -8 },
-  { id: "autre", label: "Autre", short: "Autre", offset: null },
-] as const satisfies readonly { id: string; label: string; short: string; offset: number | null }[];
+export type PriceOption = {
+  id: string;
+  name: string;
+  /** Écart en DH ajouté au prix du site (−10 = prix site moins 10 DH). */
+  offset: number;
+  /** Option affichée à l'ouverture tant que l'appareil n'en a pas choisi une autre. */
+  isDefault: boolean;
+};
 
-export type PriceOptionId = (typeof PRICE_OPTIONS)[number]["id"];
-export type PriceOption = (typeof PRICE_OPTIONS)[number];
+/** Prix saisis à la main, par option (id option → variantId → prix). */
+export type OptionPrices = Record<string, PriceMap>;
 
-/** Prix saisis à la main, par option (option → variantId → prix). */
-export type OptionPrices = Record<PriceOptionId, PriceMap>;
+/** Options créées au premier lancement (C par défaut). */
+export const SEED_OPTIONS: PriceOption[] = [
+  { id: "a", name: "A", offset: -10, isDefault: false },
+  { id: "b", name: "B", offset: -9, isDefault: false },
+  { id: "c", name: "C", offset: -8, isDefault: true },
+];
 
-export const DEFAULT_OPTION: PriceOptionId = "a";
+export const NAME_MAX = 60;
+export const OFFSET_LIMIT = 100_000;
 
-export function isOptionId(v: unknown): v is PriceOptionId {
-  return PRICE_OPTIONS.some((o) => o.id === v);
+export function defaultOption(options: PriceOption[]): PriceOption | undefined {
+  return options.find((o) => o.isDefault) ?? options[0];
 }
 
-export function optionOf(id: PriceOptionId): PriceOption {
-  return PRICE_OPTIONS.find((o) => o.id === id)!;
+/** « −10 DH », « +5 DH », « 0 DH ». */
+export function formatOffset(offset: number): string {
+  const abs = String(Math.abs(offset)).replace(".", ",");
+  return `${offset < 0 ? "−" : offset > 0 ? "+" : ""}${abs} DH`;
 }
 
-export const emptyOptionPrices = (): OptionPrices => ({ a: {}, b: {}, c: {}, autre: {} });
+/** "-10", "−10", "10,5", "-8 DH" → nombre ; null si vide ; NaN si invalide. */
+export function parseOffset(raw: string): number | null {
+  const s = raw.replace(/dh|mad/gi, "").replace(/[\s  ]/g, "").replace("−", "-").replace(",", ".");
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) && Math.abs(n) <= OFFSET_LIMIT ? Math.round(n * 100) / 100 : NaN;
+}
 
-/** Prix automatique de l'option (prix site + écart), ou null (pas d'écart, ou prix ≤ 0). */
+/** Prix automatique de l'option (prix site + écart), ou null s'il serait ≤ 0. */
 export function autoPrice(option: PriceOption, sitePrice: number): number | null {
-  if (option.offset == null) return null;
   const p = Math.round((sitePrice + option.offset) * 100) / 100;
   return p > 0 ? p : null;
 }
@@ -43,14 +58,18 @@ export function effectivePrice(option: PriceOption, saved: PriceMap, item: Catal
 }
 
 /** Carte variantId → prix appliqué pour une option (ce que voit le commercial). */
-export function pricesFor(id: PriceOptionId, saved: PriceMap, items: CatalogItem[]): PriceMap {
-  const option = optionOf(id);
+export function pricesFor(option: PriceOption, saved: PriceMap, items: CatalogItem[]): PriceMap {
   const out: PriceMap = {};
   for (const it of items) {
     const p = effectivePrice(option, saved, it);
     if (p != null) out[it.id] = p;
   }
   return out;
+}
+
+export function matchesOption(option: PriceOption, query: string): boolean {
+  const q = fold(query.trim());
+  return !q || fold(option.name).includes(q);
 }
 
 /** Option choisie, mémorisée par appareil (même clé pour le catalogue et la page de modification). */

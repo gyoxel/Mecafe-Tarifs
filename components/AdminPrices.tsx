@@ -10,20 +10,21 @@ import { StockBadge } from "./StockBadge";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import {
-  DEFAULT_OPTION,
   OPTION_STORAGE_KEY,
-  PRICE_OPTIONS,
   autoPrice,
-  isOptionId,
-  optionOf,
+  defaultOption,
+  formatOffset,
   type OptionPrices,
-  type PriceOptionId,
+  type PriceOption,
 } from "@/lib/options";
+import { OptionPicker } from "./OptionPicker";
+import { OptionsManager } from "./OptionsManager";
 
 type Props = {
   items: CatalogItem[];
   /** Prix saisis à la main, par option. */
   prices: OptionPrices;
+  options: PriceOption[];
   source: CatalogSource;
   storage: "postgres" | "memory";
   orphans: number;
@@ -32,11 +33,14 @@ type Props = {
 const ROWS_STEP = 150;
 const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
-export function AdminPrices({ items, prices, source, storage, orphans }: Props) {
-  const [option, setOption] = useState<PriceOptionId>(DEFAULT_OPTION);
+export function AdminPrices({ items, prices, options: initialOptions, source, storage, orphans }: Props) {
+  const [options, setOptions] = useState<PriceOption[]>(initialOptions);
+  const [manage, setManage] = useState(false);
+  const [option, setOption] = useState<string>(() => defaultOption(initialOptions)?.id ?? "");
+  // Option modifiée ; si elle vient d'être supprimée, on retombe sur celle par défaut.
+  const current = options.find((o) => o.id === option) ?? defaultOption(options)!;
   const [allSaved, setAllSaved] = useState<OptionPrices>(prices);
-  const saved = allSaved[option];
-  const current = optionOf(option);
+  const saved = useMemo(() => allSaved[current.id] ?? {}, [allSaved, current.id]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState("");
@@ -50,9 +54,9 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(OPTION_STORAGE_KEY);
-      if (isOptionId(stored)) setOption(stored);
+      if (stored && initialOptions.some((o) => o.id === stored)) setOption(stored);
     } catch {}
-  }, []);
+  }, [initialOptions]);
 
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
   const haystacks = useMemo(() => items.map(haystackOf), [items]);
@@ -72,8 +76,8 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     () => Object.entries(drafts).filter(([id, text]) => text.trim() !== asText(saved[id])),
     [drafts, saved],
   );
-  const changeOption = (id: PriceOptionId) => {
-    if (id === option) return;
+  const changeOption = (id: string) => {
+    if (id === current.id) return;
     if (dirty.length && !window.confirm("Les modifications non enregistrées de cette option seront perdues. Continuer ?")) return;
     setDrafts({});
     setStatus(null);
@@ -109,19 +113,19 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     setStatus(null);
     try {
       const updates = dirty.map(([variantId, text]) => ({ variantId, price: parsePrice(text) }));
-      await post("/api/admin/prices", { option, updates });
+      await post("/api/admin/prices", { option: current.id, updates });
       setAllSaved((prev) => {
-        const next = { ...prev[option] };
+        const next = { ...prev[current.id] };
         for (const u of updates) {
           if (u.price == null) delete next[u.variantId];
           else next[u.variantId] = u.price;
         }
-        return { ...prev, [option]: next };
+        return { ...prev, [current.id]: next };
       });
       setDrafts({});
       setStatus({
         kind: "ok",
-        text: `${updates.length} prix enregistré${updates.length > 1 ? "s" : ""} dans ${current.label}.`,
+        text: `${updates.length} prix enregistré${updates.length > 1 ? "s" : ""} dans ${current.name}.`,
       });
     } catch (e) {
       setStatus({ kind: "error", text: e instanceof Error ? e.message : "Échec de l'enregistrement" });
@@ -133,7 +137,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
     setBusy(true);
     setStatus(null);
     try {
-      const data = await post("/api/admin/import", { option, csv: await file.text() });
+      const data = await post("/api/admin/import", { option: current.id, csv: await file.text() });
       const lines = (k: string) => (Array.isArray(data[k]) ? (data[k] as number[]) : []);
       const problems = [
         lines("unmatchedLines").length && `lignes non reconnues : ${lines("unmatchedLines").join(", ")}`,
@@ -141,7 +145,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
       ].filter(Boolean);
       setStatus({
         kind: problems.length ? "error" : "ok",
-        text: `Import dans ${current.label} terminé : ${data.updated} modifié(s), ${data.unchanged} inchangé(s)${problems.length ? " — " + problems.join(" ; ") : "."}`,
+        text: `Import dans ${current.name} terminé : ${data.updated} modifié(s), ${data.unchanged} inchangé(s)${problems.length ? " — " + problems.join(" ; ") : "."}`,
       });
       setTimeout(() => window.location.reload(), problems.length ? 4000 : 1200);
     } catch (e) {
@@ -181,19 +185,18 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
       )}
 
       <div className="admin-options">
-        <span className="admin-options-label">Option à modifier</span>
-        <div className="option-switch" role="radiogroup" aria-label="Option à modifier">
-          {PRICE_OPTIONS.map((o) => (
-            <button key={o.id} type="button" role="radio" aria-checked={option === o.id} onClick={() => changeOption(o.id)}>
-              {o.label}
-            </button>
-          ))}
+        <div className="admin-options-bar">
+          <span className="admin-options-label">Option à modifier</span>
+          <OptionPicker options={options} value={current.id} onChange={changeOption} label="Option à modifier" />
+          <button type="button" className="btn btn-ghost" aria-expanded={manage} onClick={() => setManage((m) => !m)}>
+            {manage ? "Fermer" : "Gérer les options"}
+          </button>
         </div>
         <p className="muted small admin-options-hint">
-          {current.offset == null
-            ? "Aucun prix automatique : seuls les prix saisis s'affichent."
-            : `Prix site − ${Math.abs(current.offset)} DH appliqué automatiquement (en gris). Saisissez un prix pour le remplacer, videz la case pour revenir au prix automatique.`}
+          {current.name} : prix site {formatOffset(current.offset)} appliqué automatiquement (en gris). Saisissez un
+          prix pour le remplacer, videz la case pour revenir au prix automatique.
         </p>
+        {manage && <OptionsManager options={options} onOptions={setOptions} onStatus={setStatus} />}
       </div>
 
       <div className="admin-tools">
@@ -230,11 +233,11 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
       </div>
 
       <div className="admin-tools">
-        <a className="btn btn-ghost" href={`/api/admin/export?option=${option}`}>
-          Exporter CSV ({current.short})
+        <a className="btn btn-ghost" href={`/api/admin/export?option=${current.id}`}>
+          Exporter CSV ({current.name})
         </a>
         <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => fileInput.current?.click()}>
-          Importer CSV ({current.short})
+          Importer CSV ({current.name})
         </button>
         <input
           ref={fileInput}
@@ -260,7 +263,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
               <th className="hide-sm">SKU</th>
               <th className="num hide-sm">Stock</th>
               <th className="num">Prix site</th>
-              <th className="num">{current.label} (DH)</th>
+              <th className="num">{current.name} (DH)</th>
               <th className="num hide-sm">Écart</th>
             </tr>
           </thead>

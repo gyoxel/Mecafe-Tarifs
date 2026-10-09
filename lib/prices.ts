@@ -1,18 +1,18 @@
 import "server-only";
-import { emptyOptionPrices, isOptionId, type OptionPrices, type PriceOptionId } from "./options";
+import type { OptionPrices } from "./options";
 import { DEMO_PRICES } from "./demo-data";
 import { ensureSchema, getSql, isDbConfigured } from "./db";
 import { isShopifyConfigured } from "./shopify";
 
 /**
- * Stockage des prix commerciaux saisis à la main, par option (A, B, C, Autre), derrière une interface
+ * Stockage des prix commerciaux saisis à la main, par option (voir price-options.ts), derrière une interface
  * minimale (getPrices / savePrices) : on peut changer de backend sans toucher au reste.
  *  - Postgres si DATABASE_URL est défini (production) ;
  *  - mémoire sinon (démo locale, NON persistant).
  */
 export type PriceUpdate = {
   variantId: string;
-  /** null = supprimer le prix saisi (A, B, C reviennent alors au prix automatique). */
+  /** null = supprimer le prix saisi (l'option revient alors au prix automatique). */
   price: number | null;
   sku?: string | null;
   label?: string | null;
@@ -27,26 +27,28 @@ export function storageMode(): "postgres" | "memory" {
 // ── Mémoire (démo) ──────────────────────────────────────────────────
 const g = globalThis as unknown as { __memPrices?: OptionPrices };
 function mem(): OptionPrices {
-  // En démo complète (pas de Shopify), on part des prix d'exemple (dans « Autre »).
-  return (g.__memPrices ??= { ...emptyOptionPrices(), autre: isShopifyConfigured() ? {} : { ...DEMO_PRICES } });
+  // En démo complète (pas de Shopify), on part des prix d'exemple (dans l'option C).
+  return (g.__memPrices ??= isShopifyConfigured() ? {} : { c: { ...DEMO_PRICES } });
 }
 
 // ── API publique ────────────────────────────────────────────────────
 export async function getPrices(): Promise<OptionPrices> {
   if (!isDbConfigured()) {
-    const m = mem();
-    return { a: { ...m.a }, b: { ...m.b }, c: { ...m.c }, autre: { ...m.autre } };
+    return Object.fromEntries(Object.entries(mem()).map(([id, m]) => [id, { ...m }]));
   }
   await ensureSchema();
   const rows = await getSql()`select option_id, variant_id, price from option_prices`;
-  const out = emptyOptionPrices();
-  for (const r of rows) {
-    if (isOptionId(r.option_id)) out[r.option_id][r.variant_id as string] = Number(r.price);
-  }
+  const out: OptionPrices = {};
+  for (const r of rows) (out[r.option_id as string] ??= {})[r.variant_id as string] = Number(r.price);
   return out;
 }
 
-export async function savePrices(option: PriceOptionId, updates: PriceUpdate[]): Promise<SaveResult> {
+/** Supprime les prix saisis d'une option (option supprimée). */
+export function forgetMemPrices(option: string) {
+  delete mem()[option];
+}
+
+export async function savePrices(option: string, updates: PriceUpdate[]): Promise<SaveResult> {
   // Dernière valeur gagnante si un variant apparaît deux fois.
   const byId = new Map(updates.map((u) => [u.variantId, u]));
   const list = [...byId.values()];
@@ -54,7 +56,7 @@ export async function savePrices(option: PriceOptionId, updates: PriceUpdate[]):
   if (!list.length) return result;
 
   if (!isDbConfigured()) {
-    const store = mem()[option];
+    const store = (mem()[option] ??= {});
     for (const u of list) {
       const old = store[u.variantId];
       if (u.price == null) {
