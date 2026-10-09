@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fold, formatDH } from "@/lib/format";
 import { parsePrice } from "@/lib/csv";
 import { sizedImage } from "@/lib/image";
+import { displayVariant } from "@/lib/title";
 import { StockBadge } from "./StockBadge";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource, PriceMap } from "@/lib/types";
@@ -242,7 +243,7 @@ export function AdminPrices({ items, prices, source, storage, orphans }: Props) 
                         <div className="cell-title">{it.title}</div>
                         <div className="muted small">
                           {it.brand}
-                          {it.variant ? ` · ${it.variant}` : ""}
+                          {it.variant ? ` · ${displayVariant(it.variant)}` : ""}
                         </div>
                       </div>
                     </div>

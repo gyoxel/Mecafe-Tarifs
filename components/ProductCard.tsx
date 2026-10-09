@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { brandStyle } from "@/lib/brands";
 import { formatDH } from "@/lib/format";
-import { displayTitle } from "@/lib/title";
+import { displayTitle, displayVariant } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
 import { Price } from "./Price";
 import { StockBadge } from "./StockBadge";
@@ -26,7 +26,7 @@ function ProductCardBase({ item, commercial, revealed, onToggle }: Props) {
       <div className="card-media">
         <Thumb src={item.image} alt={item.title} brand={item.brand} />
         {/* Le format est posé sur l'image : toutes les cartes gardent la même hauteur. */}
-        {item.variant && <span className="tag tag-variant">{item.variant}</span>}
+        {item.variant && <span className="tag tag-variant">{displayVariant(item.variant)}</span>}
         {item.compareAt && <span className="tag tag-promo">Promo</span>}
         {item.stock !== undefined && <StockBadge stock={item.stock} className="tag tag-stock" />}
       </div>

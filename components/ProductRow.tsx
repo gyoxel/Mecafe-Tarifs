@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { formatDH } from "@/lib/format";
-import { displayTitle } from "@/lib/title";
+import { displayTitle, displayVariant } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
 import { brandStyle } from "@/lib/brands";
 import { Price } from "./Price";
@@ -31,7 +31,7 @@ function ProductRowBase({ item, commercial, revealed, onToggle }: Props) {
         </p>
       </div>
       <div className="row-variant" role="cell">
-        {item.variant ? <span className="row-chip">{item.variant}</span> : <span className="muted">—</span>}
+        {item.variant ? <span className="row-chip">{displayVariant(item.variant)}</span> : <span className="muted">—</span>}
         {item.compareAt && <span className="row-promo">Promo</span>}
       </div>
       {item.stock !== undefined && (
