@@ -80,6 +80,16 @@ export function CheckIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function UsersIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 19.5c.6-3.2 3-5 6-5s5.4 1.8 6 5" />
+      <path d="M15.5 4.9a3.2 3.2 0 0 1 0 6.2M17.5 14.7c1.8.6 3.1 2.2 3.5 4.8" />
+    </svg>
+  );
+}
+
 export function PinIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

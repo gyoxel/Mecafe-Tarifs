@@ -63,11 +63,11 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
   navigateur, 12 h au plus) : une fenêtre sur la page floutée demande le commercial (recherche par nom ou
   ville, liste déroulante des villes, « + Ajouter un commercial »). Ensuite le catalogue
   affiche ses prix (œil global, clic sur le prix). Le nom en haut permet d'en changer ; l'écart y apparaît en petit.
-- **Gestion** (`/admin/gestion`) :
-  - *Commerciaux et villes* : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart
+- **Gestion** (barre latérale, onglets en haut sur mobile) :
+  - *Commerciaux et villes* (`/admin/gestion`, page d'arrivée) : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
-  - *Prix du commercial* : saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
+  - *Prix des produits* (`/admin/gestion/prix`) : choisir le commercial, puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
     retour au prix automatique) ; **Exporter / Importer CSV** pour ce commercial (colonne `prix_commercial`,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).
 
@@ -83,7 +83,7 @@ Tables : `price_options` (commerciaux), `option_prices` (prix saisis), historiqu
 proxy.ts                 garde d'accès (/admin et /api/admin/* réservés à l'admin)
 app/page.tsx             catalogue public (prix du site seulement)
 app/admin/page.tsx       catalogue admin (choix du commercial, prix commerciaux, stock)
-app/admin/gestion/       gestion des commerciaux, villes et prix
+app/admin/gestion/       Gestion : commerciaux et villes ; prix/ : prix des produits par commercial
 app/api/                 login, logout, admin/{options,prices,import,export}
 components/              Catalog, CommercialChooser, ProductCard (yeux + animation), AdminPrices…
 lib/shopify.ts           requêtes GraphQL (sans cache : données toujours à jour)

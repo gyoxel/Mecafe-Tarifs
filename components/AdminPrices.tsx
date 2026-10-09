@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fold, formatDH } from "@/lib/format";
 import { parsePrice } from "@/lib/csv";
@@ -18,7 +17,6 @@ import {
   type PriceOption,
 } from "@/lib/options";
 import { OptionPicker } from "./OptionPicker";
-import { OptionsManager } from "./OptionsManager";
 
 type Props = {
   items: CatalogItem[];
@@ -26,16 +24,15 @@ type Props = {
   prices: OptionPrices;
   options: PriceOption[];
   source: CatalogSource;
-  storage: "postgres" | "memory";
   orphans: number;
 };
 
 const ROWS_STEP = 150;
 const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
-export function AdminPrices({ items, prices, options: initialOptions, source, storage, orphans }: Props) {
-  const [options, setOptions] = useState<PriceOption[]>(initialOptions);
-  const [manage, setManage] = useState(true);
+/** Gestion › Prix des produits : prix d'un commercial produit par produit (automatique ou saisi). */
+export function AdminPrices({ items, prices, options: initialOptions, source, orphans }: Props) {
+  const options = initialOptions;
   const [option, setOption] = useState<string>(() => defaultOption(initialOptions)?.id ?? "");
   // Commercial modifié ; s'il vient d'être supprimé, on retombe sur le premier.
   const current = options.find((o) => o.id === option) ?? defaultOption(options)!;
@@ -156,26 +153,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, st
   }
 
   return (
-    <div className="admin">
-      <header className="admin-head">
-        <div>
-          <Link href="/admin" className="admin-logo" aria-label="Retour au catalogue admin">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
-          </Link>
-          <h1 className="admin-title">Gestion</h1>
-        </div>
-        <Link href="/admin" className="btn btn-ghost">
-          ← Catalogue
-        </Link>
-      </header>
-
-      {storage === "memory" && (
-        <p className="notice warn">
-          Base de données non connectée : les modifications sont <strong>temporaires</strong> (mode démo). Définissez
-          DATABASE_URL pour les conserver.
-        </p>
-      )}
+    <div className="gestion-prix">
       {source === "demo" && <p className="notice">Catalogue de démonstration (Shopify non connecté).</p>}
       {orphans > 0 && (
         <p className="notice">
@@ -186,22 +164,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, st
 
       <section className="admin-options">
         <div className="admin-options-bar">
-          <h2 className="admin-section-title">Commerciaux et villes</h2>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm admin-section-toggle"
-            aria-expanded={manage}
-            onClick={() => setManage((m) => !m)}
-          >
-            {manage ? "Masquer" : "Afficher"}
-          </button>
-        </div>
-        {manage && <OptionsManager options={options} onOptions={setOptions} onStatus={setStatus} />}
-      </section>
-
-      <section className="admin-options">
-        <div className="admin-options-bar">
-          <h2 className="admin-section-title">Prix du commercial</h2>
+          <h2 className="admin-section-title">Prix des produits</h2>
           <OptionPicker options={options} value={current.id} onChange={changeOption} label="Commercial" />
         </div>
         <p className="muted small admin-options-hint">
