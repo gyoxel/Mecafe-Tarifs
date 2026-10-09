@@ -15,6 +15,8 @@ export type RawMenuItem = {
 export function prettyTitle(title: string): string {
   const t = title.trim().replace(/\s+/g, " ");
   if (t !== t.toUpperCase()) return t;
+  // Sigles seuls (« 100% NFC ») : on garde tel quel.
+  if (!/\p{L}{4,}/u.test(t)) return t;
   const small = new Set(["à", "a", "de", "du", "des", "et", "en", "la", "le", "les", "d'", "pour"]);
   return t
     .toLowerCase()

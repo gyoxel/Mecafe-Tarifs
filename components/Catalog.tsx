@@ -122,8 +122,11 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
   };
   // Recherche et filtres ne se combinent pas : choisir une marque / catégorie efface la recherche,
   // et commencer une recherche efface les filtres (voir changeQuery).
+  // Choisir une marque montre toute la marque (la catégorie en cours est quittée) ;
+  // on peut ensuite affiner par catégorie à l'intérieur de la marque.
   const pickBrand = (b: string | null) => {
     setQuery("");
+    setPath([]);
     setBrand(b);
     setLimit(PAGE_SIZE);
   };
@@ -247,13 +250,14 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
     );
   };
 
+  // Nombre total de produits de chaque marque (un clic sur une marque montre toute la marque).
   const brandFacets: Facet[] = useMemo(() => {
-    const counts = countBy(searched.filter(inCategory), "brand");
+    const counts = countBy(searched, "brand");
     return brands.map((name) => ({ name, count: counts.get(name) ?? 0 }));
-  }, [searched, brands, inCategory]);
+  }, [searched, brands]);
   const ofBrand = useMemo(() => searched.filter((i) => !brand || i.brand === brand), [searched, brand]);
   const countIn = (node: MenuNode) => ofBrand.filter((i) => inNode(i.collections, node)).length;
-  const allCount = useMemo(() => searched.filter(inCategory).length, [searched, inCategory]);
+  const allCount = searched.length;
   const allCatCount = ofBrand.length;
 
   // ── Chargement progressif ─────────────────────────────────────────
