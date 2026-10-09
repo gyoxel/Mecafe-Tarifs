@@ -114,6 +114,13 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
   const deferredQuery = useDeferredValue(query);
 
   const changeQuery = (v: string) => {
+    // Une nouvelle recherche porte sur tout le catalogue : on quitte la catégorie / marque en cours.
+    // (On peut ensuite affiner en choisissant une catégorie ou une marque.)
+    if (!query.trim() && v.trim()) {
+      setBrand(null);
+      setCategory(null);
+      setSub(null);
+    }
     setQuery(v);
     setLimit(PAGE_SIZE);
   };
