@@ -108,15 +108,6 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
   const [path, setPath] = useState<string[]>(() => resolvePath(menu, initial.path).map((n) => n.id));
   const trail = resolvePath(menu, path);
   const catNode = trail[0] ?? null;
-  // Rangée mobile : enfants du dernier niveau ouvert qui en a ; sinon ses frères.
-  const levelParent =
-    trail.length === 0
-      ? null
-      : trail[trail.length - 1].children.length > 0
-        ? trail[trail.length - 1]
-        : (trail[trail.length - 2] ?? null);
-  const levelDepth = levelParent ? trail.indexOf(levelParent) + 1 : 0;
-  const levelNodes = levelParent ? levelParent.children : menu;
   const [limit, setLimit] = useState(PAGE_SIZE);
   const deferredQuery = useDeferredValue(query);
 
@@ -368,7 +359,7 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
 
   /**
    * Entrée de catégorie. Niveau 0 : puce de la rangée principale. Niveaux suivants : visibles
-   * seulement sur bureau, indentés sous l'entrée ouverte (sur mobile, voir la rangée .mobile-cats).
+   * seulement sur bureau, indentés sous l'entrée ouverte (sur mobile, voir les rangées .mobile-cats).
    */
   const renderNode = (node: MenuNode, depth: number): React.ReactNode => {
     const count = countIn(node);
@@ -464,54 +455,64 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
             {menu.map((node) => renderNode(node, 0))}
           </nav>
 
-          {/* Mobile / tablette : une seule rangée de catégories, qui descend dans le menu
-              (« ‹ » pour remonter) — la page garde la même hauteur quel que soit le niveau. */}
-          <nav aria-label="Catégories" className="rail mobile-cats">
-            {levelParent ? (
-              <>
-                <button
-                  type="button"
-                  className="cat-chip back-chip"
-                  aria-label={`Retour : ${levelDepth > 1 ? trail[levelDepth - 2].title : "toutes catégories"}`}
-                  onClick={() => pickNode(levelDepth - 1, null)}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="cat-chip"
-                  aria-pressed={path.length === levelDepth}
-                  onClick={() => pickNode(levelDepth, null)}
-                >
-                  Tout {levelParent.title}
-                  <span className="chip-count">{countIn(levelParent)}</span>
-                </button>
-              </>
-            ) : (
+          {/* Mobile / tablette : rangée des catégories toujours visible, puis une rangée par niveau
+              ouvert (Café → Grains / Moulu / Dosettes → Mécafé 1kg / 250g / Kimbo…). */}
+          <div className="mobile-cats">
+            <nav aria-label="Catégories" className="rail">
               <button type="button" className="cat-chip" aria-pressed={path.length === 0} onClick={() => pickNode(0, null)}>
                 Toutes catégories
                 <span className="chip-count">{allCatCount}</span>
               </button>
+              {menu.map((node) => {
+                const n = countIn(node);
+                const on = path[0] === node.id;
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    className="cat-chip"
+                    aria-pressed={on}
+                    data-empty={n === 0}
+                    onClick={() => pickNode(0, on && path.length === 1 ? null : node.id)}
+                  >
+                    {node.title}
+                    <span className="chip-count">{n}</span>
+                  </button>
+                );
+              })}
+            </nav>
+            {trail.map((node, depth) =>
+              node.children.length > 0 ? (
+                <nav key={node.id} aria-label={`Sous-catégories : ${node.title}`} className="rail sub-rail">
+                  <button
+                    type="button"
+                    className="cat-chip sub-chip"
+                    aria-pressed={path.length === depth + 1}
+                    onClick={() => pickNode(depth + 1, null)}
+                  >
+                    Tout {node.title}
+                  </button>
+                  {node.children.map((child) => {
+                    const n = countIn(child);
+                    const on = path[depth + 1] === child.id;
+                    return (
+                      <button
+                        key={child.id}
+                        type="button"
+                        className="cat-chip sub-chip"
+                        aria-pressed={on}
+                        data-empty={n === 0}
+                        onClick={() => pickNode(depth + 1, on && path.length === depth + 2 ? null : child.id)}
+                      >
+                        {child.title}
+                        <span className="chip-count">{n}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              ) : null,
             )}
-            {levelNodes.map((node) => {
-              const n = countIn(node);
-              const on = path[levelDepth] === node.id;
-              return (
-                <button
-                  key={node.id}
-                  type="button"
-                  className="cat-chip"
-                  aria-pressed={on}
-                  data-empty={n === 0}
-                  onClick={() => pickNode(levelDepth, on && path.length === levelDepth + 1 ? null : node.id)}
-                >
-                  {node.title}
-                  {node.children.length > 0 && <span className="chip-more">›</span>}
-                  <span className="chip-count">{n}</span>
-                </button>
-              );
-            })}
-          </nav>
+          </div>
         </aside>
 
         <section className="results" aria-label="Produits">
