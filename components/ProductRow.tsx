@@ -5,6 +5,7 @@ import { formatDH } from "@/lib/format";
 import { displayTitle, displayVariant } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
 import { brandStyle } from "@/lib/brands";
+import { CartControl } from "./Cart";
 import { Price } from "./Price";
 import { StockBadge } from "./StockBadge";
 import { Thumb } from "./Thumb";
@@ -12,6 +13,8 @@ import { Thumb } from "./Thumb";
 type Props = {
   item: CatalogItem;
   commercial: number | undefined;
+  cartQty?: number;
+  onCartQty?: (id: string, qty: number) => void;
   /** false (catalogue public) : pas de colonne prix commercial. */
   revealable: boolean;
   revealed: boolean;
@@ -19,7 +22,7 @@ type Props = {
 };
 
 /** Ligne de la vue « Liste » (écrans larges) : mêmes données et même logique d'affichage que la carte. */
-function ProductRowBase({ item, commercial, revealable, revealed, onToggle }: Props) {
+function ProductRowBase({ item, commercial, cartQty = 0, onCartQty, revealable, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
   const link = item.url
     ? { href: item.url, target: "_blank", rel: "noopener noreferrer", title: `Voir ${name} sur mecafe.ma` }
@@ -45,6 +48,11 @@ function ProductRowBase({ item, commercial, revealable, revealed, onToggle }: Pr
           ) : (
             displayTitle(item.title, item.brand)
           )}
+        </p>
+        {/* Panier ouvert (colonnes en moins) : format et stock passent sous le nom. */}
+        <p className="row-extra">
+          {item.variant && <span className="row-chip">{displayVariant(item.variant)}</span>}
+          {item.stock !== undefined && <StockBadge stock={item.stock} />}
         </p>
       </div>
       <div className="row-variant" role="cell">
@@ -77,6 +85,11 @@ function ProductRowBase({ item, commercial, revealable, revealed, onToggle }: Pr
               <Price value={commercial} />
             )}
           </button>
+        </div>
+      )}
+      {onCartQty && (
+        <div className="row-cart-cell" role="cell">
+          <CartControl inline qty={cartQty} onQty={(q) => onCartQty(item.id, q)} label={name} />
         </div>
       )}
     </div>

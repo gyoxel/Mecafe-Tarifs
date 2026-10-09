@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { QTY_MAX, invoiceNumber, readCart, resolveCart, writeCart, type CartLine } from "@/lib/cart";
 import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import { OPTION_STORAGE_KEY, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import { CartFab, CartPanel, CartSheet, Invoice, InvoiceModal, PrintInvoice, type InvoiceMeta } from "./Cart";
 import { CommercialChooser } from "./CommercialChooser";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
@@ -141,6 +144,77 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     [currentOption, optionPrices, items],
   );
   const proLabel = currentOption?.name ?? "Commercial";
+
+  // ── Panier (admin seulement), mémorisé sur l'appareil ────────────
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const cartLoaded = useRef(false);
+  useEffect(() => {
+    if (!admin) return;
+    setCart(readCart());
+    cartLoaded.current = true;
+  }, [admin]);
+  useEffect(() => {
+    if (cartLoaded.current) writeCart(cart);
+  }, [cart]);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const [bump, setBump] = useState(0); // relance l'animation du bouton panier à chaque ajout
+  const [panelHidden, setPanelHidden] = useState(false); // bureau : panneau réduit par l'utilisateur
+  const [sheetOpen, setSheetOpen] = useState(false); // mobile : grande fenêtre du panier
+  const setCartQty = useCallback((id: string, qty: number) => {
+    const q = Math.max(0, Math.min(qty, QTY_MAX));
+    const prev = cartRef.current;
+    const before = prev.find((l) => l.id === id)?.qty ?? 0;
+    if (q > before) {
+      setLastAdded(id);
+      setBump((b) => b + 1);
+      if (prev.length === 0) setPanelHidden(false); // premier article : le panneau s'ouvre (bureau)
+    }
+    setCart((cur) => {
+      const i = cur.findIndex((l) => l.id === id);
+      if (q === 0) return i < 0 ? cur : cur.filter((l) => l.id !== id);
+      if (i < 0) return [...cur, { id, qty: q }];
+      const next = cur.slice();
+      next[i] = { id, qty: q };
+      return next;
+    });
+  }, []);
+  const qtyById = useMemo(() => new Map(cart.map((l) => [l.id, l.qty])), [cart]);
+  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const cartLines = useMemo(() => resolveCart(cart, itemById, prices), [cart, itemById, prices]);
+  const cartCount = cartLines.reduce((n, l) => n + l.qty, 0);
+  useEffect(() => {
+    if (cartLines.length === 0) setSheetOpen(false);
+  }, [cartLines.length]);
+
+  // Panneau à droite sur grand écran ; bouton en bas à droite + grande fenêtre sinon.
+  const [deskCart, setDeskCart] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1100px)");
+    const sync = () => setDeskCart(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const panelVisible = isAdmin && deskCart && cartLines.length > 0 && !panelHidden;
+  const fabVisible = isAdmin && cartLines.length > 0 && !panelVisible;
+
+  // Facture : aperçu à l'écran, et copie dédiée à l'impression.
+  const [invoice, setInvoice] = useState<InvoiceMeta | null>(null);
+  const [printMeta, setPrintMeta] = useState<InvoiceMeta | null>(null);
+  const newMeta = (): InvoiceMeta => {
+    const date = new Date();
+    return { number: invoiceNumber(date), date };
+  };
+  const printInvoice = () => {
+    const meta = invoice ?? newMeta();
+    flushSync(() => setPrintMeta(meta));
+    const title = document.title;
+    document.title = `Facture ${meta.number}`; // nom proposé pour l'enregistrement en PDF
+    window.print();
+    document.title = title;
+  };
 
   // ── Filtres ───────────────────────────────────────────────────────
   const brands = useMemo(() => [...new Set(items.map((i) => i.brand))], [items]);
@@ -481,7 +555,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         </div>
       </header>
 
-      <main className="container layout">
+      <main className={`container layout ${panelVisible ? "with-cart" : ""} ${fabVisible ? "has-fab" : ""}`}>
         <aside className="filters" aria-label="Filtres">
           {isAdmin && (
             <Link href="/admin/gestion" className="admin-link">
@@ -620,7 +694,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
           </div>
         ) : effectiveView === "list" ? (
           <div
-            className={`list ${showStock ? "with-stock" : ""} ${isAdmin ? "" : "site-only"}`}
+            className={`list ${showStock ? "with-stock" : ""} ${isAdmin ? "with-cart-col" : "site-only"}`}
             role="table"
             aria-label="Liste des produits"
           >
@@ -637,6 +711,11 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                   Prix commercial · {proLabel}
                 </span>
               )}
+              {isAdmin && (
+                <span role="columnheader" className="num">
+                  Panier
+                </span>
+              )}
             </div>
             {visible.map(({ it: item, k }, i) => (
               <Fragment key={item.id}>
@@ -644,6 +723,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                 <ProductRow
                   item={item}
                   commercial={prices[item.id]}
+                  cartQty={qtyById.get(item.id) ?? 0}
+                  onCartQty={isAdmin ? setCartQty : undefined}
                   revealable={isAdmin}
                   revealed={overrides[item.id] ?? globalOn}
                   onToggle={toggleOne}
@@ -660,6 +741,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                   item={item}
                   commercial={prices[item.id]}
                   proLabel={proLabel}
+                  cartQty={qtyById.get(item.id) ?? 0}
+                  onCartQty={isAdmin ? setCartQty : undefined}
                   revealable={isAdmin}
                   revealed={overrides[item.id] ?? globalOn}
                   onToggle={toggleOne}
@@ -670,11 +753,55 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         )}
         {hasMore && <div ref={sentinel} className="sentinel" aria-hidden="true" />}
         </section>
+
+        {panelVisible && (
+          <aside className="cart-panel" aria-label="Panier">
+            <CartPanel
+              lines={cartLines}
+              commercial={proLabel}
+              lastAdded={lastAdded}
+              onQty={setCartQty}
+              onClear={() => setCart([])}
+              onInvoice={() => setInvoice(newMeta())}
+              onPrint={printInvoice}
+              onClose={() => setPanelHidden(true)}
+            />
+          </aside>
+        )}
       </main>
 
       <footer className="footer">
         <p className="footer-note">© {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec mecafe.ma</p>
       </footer>
+
+      {fabVisible && !sheetOpen && (
+        <CartFab count={cartCount} bump={bump} onClick={() => (deskCart ? setPanelHidden(false) : setSheetOpen(true))} />
+      )}
+      {isAdmin && sheetOpen && !deskCart && cartLines.length > 0 && (
+        <CartSheet onClose={() => setSheetOpen(false)}>
+          <CartPanel
+            sheet
+            lines={cartLines}
+            commercial={proLabel}
+            lastAdded={lastAdded}
+            onQty={setCartQty}
+            onClear={() => setCart([])}
+            onInvoice={() => setInvoice(newMeta())}
+            onPrint={printInvoice}
+            onClose={() => setSheetOpen(false)}
+          />
+        </CartSheet>
+      )}
+      {invoice && cartLines.length > 0 && (
+        <InvoiceModal onClose={() => setInvoice(null)} onPrint={printInvoice}>
+          <Invoice lines={cartLines} commercial={proLabel} city={currentOption?.city ?? null} meta={invoice} />
+        </InvoiceModal>
+      )}
+      {printMeta && cartLines.length > 0 && (
+        <PrintInvoice>
+          <Invoice lines={cartLines} commercial={proLabel} city={currentOption?.city ?? null} meta={printMeta} />
+        </PrintInvoice>
+      )}
 
       {admin && chooser && (
         <CommercialChooser

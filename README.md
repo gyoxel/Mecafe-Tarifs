@@ -64,6 +64,12 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
   ville, liste déroulante des villes, « + Ajouter un commercial »). Ensuite le catalogue
   affiche ses prix (œil global, clic sur le prix). Le nom en haut ouvre une liste déroulante pour en changer
   (la fenêtre floutée ne sert qu'à l'arrivée) ; l'écart y apparaît en petit.
+- **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
+  nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
+  produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
+  ouvre une grande fenêtre qu'on redescend. Prix = ceux du commercial choisi (prix du site si aucun, marqué *).
+  *Voir la facture* (aperçu) et *Imprimer la facture* (A4, seule la facture est imprimée ; « Enregistrer en PDF »
+  du navigateur pour un fichier).
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Commerciaux et villes* (`/admin/gestion`, page d'arrivée) : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente

@@ -5,6 +5,7 @@ import { brandStyle } from "@/lib/brands";
 import { formatDH } from "@/lib/format";
 import { displayTitle, displayVariant } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
+import { CartControl } from "./Cart";
 import { Price } from "./Price";
 import { StockBadge } from "./StockBadge";
 import { Thumb } from "./Thumb";
@@ -15,6 +16,9 @@ type Props = {
   commercial: number | undefined;
   /** Nom de l'option affichée sous le prix commercial (« Option A »…). */
   proLabel: string;
+  /** Admin : quantité au panier et son réglage. Absent (catalogue public) : pas de panier. */
+  cartQty?: number;
+  onCartQty?: (id: string, qty: number) => void;
   /** false (catalogue public) : la barre n'affiche que le prix du site et ne réagit pas au clic. */
   revealable: boolean;
   /** Le prix commercial est-il affiché ? (calculé par le parent : interrupteur global + exception individuelle) */
@@ -22,7 +26,7 @@ type Props = {
   onToggle: (id: string, next: boolean) => void;
 };
 
-function ProductCardBase({ item, commercial, proLabel, revealable, revealed, onToggle }: Props) {
+function ProductCardBase({ item, commercial, proLabel, cartQty = 0, onCartQty, revealable, revealed, onToggle }: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
   // Image et nom ouvrent la page du produit sur mecafe.ma (nouvel onglet, sans référent : le site des tarifs
   // n'apparaît pas côté boutique).
@@ -55,6 +59,7 @@ function ProductCardBase({ item, commercial, proLabel, revealable, revealed, onT
         {item.variant && <span className="tag tag-variant">{displayVariant(item.variant)}</span>}
         {item.compareAt && <span className="tag tag-promo">Promo</span>}
         {item.stock !== undefined && <StockBadge stock={item.stock} className="tag tag-stock" />}
+        {onCartQty && <CartControl qty={cartQty} onQty={(q) => onCartQty(item.id, q)} label={name} />}
       </div>
 
       <div className="card-body">
