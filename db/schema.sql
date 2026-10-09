@@ -41,3 +41,18 @@ create table if not exists price_options (
   is_default   boolean not null default false,
   created_at   timestamptz not null default now()
 );
+
+-- Historique des factures confirmées (lignes figées : produit, format, qté, prix unitaire, total).
+create table if not exists invoices (
+  id              bigserial primary key,
+  number          text not null unique,          -- F2026-00001
+  commercial_id   text,
+  commercial_name text not null,
+  commercial_city text,
+  lines           jsonb not null,
+  item_count      integer not null,
+  total           numeric(12,2) not null,
+  status          text not null default 'confirmee',
+  created_at      timestamptz not null default now()
+);
+create index if not exists invoices_created_idx on invoices (created_at desc);

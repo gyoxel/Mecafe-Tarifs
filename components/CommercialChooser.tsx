@@ -7,6 +7,7 @@ import { CityPicker } from "./CityPicker";
 import { CloseIcon } from "./Icons";
 import { OffsetField } from "./OffsetField";
 import { OptionList } from "./OptionPicker";
+import { lockScroll } from "./scroll";
 
 type Props = {
   options: PriceOption[];
@@ -32,14 +33,13 @@ export function CommercialChooser({ options, value, onPick, onOptions, onClose }
 
   // Page derrière figée ; Échap ferme si un commercial est déjà choisi.
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && onClose && !e.defaultPrevented) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       window.removeEventListener("keydown", onKey);
     };
   }, [onClose]);

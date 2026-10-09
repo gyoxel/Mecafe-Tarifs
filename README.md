@@ -68,17 +68,23 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
   ouvre une grande fenêtre qu'on redescend. Prix = ceux du commercial choisi (prix du site si aucun, marqué *).
-  *Voir la facture* (aperçu) et *Imprimer la facture* (A4, seule la facture est imprimée ; « Enregistrer en PDF »
-  du navigateur pour un fichier).
+  *Voir la facture* : brouillon, avec **Modifier** (retour au panier) ou **Confirmer**. Une facture confirmée est
+  numérotée (F2026-00001), figée (prix recalculés et enregistrés côté serveur), ajoutée à l'historique, et le
+  panier repart à zéro. *Imprimer la facture* = confirmer puis imprimer (A4, seule la facture sort ; « Enregistrer
+  en PDF » du navigateur pour un fichier). Seule une facture confirmée s'imprime.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Commerciaux et villes* (`/admin/gestion`, page d'arrivée) : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
+  - *Factures* (`/admin/gestion/factures`) : historique des factures confirmées ; recherche (n°, commercial,
+    ville, produit), filtre par commercial, dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir et
+    réimprimer une facture ;
   - *Prix des produits* (`/admin/gestion/prix`) : choisir le commercial, puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
     retour au prix automatique) ; **Exporter / Importer CSV** pour ce commercial (colonne `prix_commercial`,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).
 
-Tables : `price_options` (commerciaux), `option_prices` (prix saisis), historique dans `commercial_price_history`.
+Tables : `price_options` (commerciaux), `option_prices` (prix saisis), `invoices` (factures confirmées), historique
+des prix dans `commercial_price_history`.
 
 ## Personnaliser
 - `lib/config.ts` : ordre des marques/catégories, alias de marques, règles collections → catégories.

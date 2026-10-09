@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { fold } from "@/lib/format";
 import { formatOffset, matchesOption, type PriceOption } from "@/lib/options";
+import { FilterSelect } from "./FilterSelect";
 import { keepVisible } from "./scroll";
 import { CheckIcon, ChevronIcon, PinIcon, SearchIcon, TagIcon } from "./Icons";
 
@@ -132,112 +133,17 @@ export function OptionList({
   );
 }
 
-/** Filtre par ville : bouton + menu au style du site, ouvert juste en dessous. */
-function CityFilter({
-  cities,
-  value,
-  onChange,
-}: {
-  cities: string[];
-  value: string | null;
-  onChange: (city: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const entries = [null, ...cities];
-  const [active, setActive] = useState(-1);
-  const root = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLUListElement>(null);
-  const menuId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    setActive(-1);
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  useEffect(() => {
-    if (open) keepVisible(menu.current, menu.current?.querySelector<HTMLElement>(`[data-index="${active}"]`));
-  }, [open, active]);
-
-  const pick = (c: string | null) => {
-    onChange(c);
-    setOpen(false);
-    button.current?.focus();
-  };
-
+/** Filtre par ville (liste déroulante au style du site). */
+function CityFilter(props: { cities: string[]; value: string | null; onChange: (city: string | null) => void }) {
   return (
-    <div
-      className="city-filter"
-      ref={root}
-      data-filtered={value != null}
-      onKeyDown={(e) => {
-        // Le menu garde ses touches pour lui (la liste des commerciaux autour ne réagit pas).
-        if (!open) {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpen(true);
-          }
-          return;
-        }
-        if (["Escape", "ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        if (e.key === "Escape") {
-          setOpen(false);
-          button.current?.focus();
-        } else if (e.key === "ArrowDown") setActive((i) => Math.min(i + 1, entries.length - 1));
-        else if (e.key === "ArrowUp") setActive((i) => Math.max(i - 1, 0));
-        else if (e.key === "Enter" && active >= 0) pick(entries[active]);
-      }}
-    >
-      <button
-        ref={button}
-        type="button"
-        className="city-filter-btn"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={menuId}
-        aria-label={`Filtrer par ville : ${value ?? "toutes les villes"}`}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <PinIcon size={15} />
-        <span className="city-filter-value">{value ?? "Toutes les villes"}</span>
-        <ChevronIcon size={15} className="opt-chevron" />
-      </button>
-      {open && (
-        <ul
-          className="city-menu"
-          role="listbox"
-          id={menuId}
-          aria-label="Villes"
-          ref={menu}
-          onPointerLeave={() => setActive(-1)}
-        >
-          {entries.map((c, i) => (
-            <li
-              key={c ?? "*"}
-              role="option"
-              aria-selected={c === value}
-              data-index={i}
-              data-active={i === active}
-              onPointerEnter={(e) => e.pointerType === "mouse" && setActive(i)}
-              onClick={() => pick(c)}
-            >
-              <span className="opt-item-name">{c ?? "Toutes les villes"}</span>
-              <span className="opt-item-check">{c === value && <CheckIcon size={16} />}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <FilterSelect
+      values={props.cities}
+      value={props.value}
+      onChange={props.onChange}
+      allLabel="Toutes les villes"
+      label="Filtrer par ville"
+      icon={<PinIcon size={15} />}
+    />
   );
 }
 

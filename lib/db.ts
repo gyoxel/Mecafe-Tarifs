@@ -87,6 +87,21 @@ export function ensureSchema(): Promise<void> {
         }
       });
       await sql`alter table price_options add column if not exists city text`;
+      // Historique des factures confirmées (lignes figées en JSON).
+      await sql`
+        create table if not exists invoices (
+          id bigserial primary key,
+          number text not null unique,
+          commercial_id text,
+          commercial_name text not null,
+          commercial_city text,
+          lines jsonb not null,
+          item_count integer not null,
+          total numeric(12,2) not null,
+          status text not null default 'confirmee',
+          created_at timestamptz not null default now()
+        )`;
+      await sql`create index if not exists invoices_created_idx on invoices (created_at desc)`;
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel
       throw err;

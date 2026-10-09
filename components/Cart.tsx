@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { QTY_MAX, invoiceDate, parseQty, type ResolvedLine } from "@/lib/cart";
+import { QTY_MAX, parseQty, type ResolvedLine } from "@/lib/cart";
 import { formatDH } from "@/lib/format";
 import { displayTitle, displayVariant } from "@/lib/title";
 import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
 import { Price } from "./Price";
 import { Thumb } from "./Thumb";
+import { lockScroll } from "./scroll";
 
 /* ─────────────── Quantité : − [n] + (saisie directe possible) ─────────────── */
 
@@ -245,12 +245,11 @@ export function CartSheet({ onClose, children }: { onClose: () => void; children
   const start = useRef<number | null>(null);
 
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       window.removeEventListener("keydown", onKey);
     };
   }, [onClose]);
@@ -286,118 +285,4 @@ export function CartSheet({ onClose, children }: { onClose: () => void; children
       </div>
     </div>
   );
-}
-
-/* ─────────────── Facture ─────────────── */
-
-export type InvoiceMeta = { number: string; date: Date };
-
-export function Invoice({ lines, commercial, city, meta }: { lines: ResolvedLine[]; commercial: string; city: string | null; meta: InvoiceMeta }) {
-  const count = lines.reduce((n, l) => n + l.qty, 0);
-  const total = lines.reduce((s, l) => s + l.total, 0);
-  const anySite = lines.some((l) => l.sitePrice);
-  return (
-    <article className="invoice">
-      <header className="invoice-head">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="invoice-logo" src="/mecafe-logo.png" alt="Mécafé 1988" width={1126} height={366} />
-        <div className="invoice-id">
-          <h2>Facture</h2>
-          <p>
-            N° <strong>{meta.number}</strong>
-          </p>
-          <p>Date : {invoiceDate(meta.date)}</p>
-        </div>
-      </header>
-
-      <div className="invoice-party">
-        <span className="invoice-label">Commercial</span>
-        <strong>{commercial}</strong>
-        {city && <span>{city}</span>}
-      </div>
-
-      <table className="invoice-table">
-        <thead>
-          <tr>
-            <th className="num">#</th>
-            <th>Produit</th>
-            <th className="invoice-format">Format</th>
-            <th className="num">Qté</th>
-            <th className="num">
-              <span className="invoice-pu-long">Prix unitaire</span>
-              <span className="invoice-pu-short">P.U.</span>
-            </th>
-            <th className="num">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((l, i) => (
-            <tr key={l.item.id}>
-              <td className="num">{i + 1}</td>
-              <td>
-                <span className="invoice-brand">{l.item.brand}</span> {displayTitle(l.item.title, l.item.brand)}
-                {l.item.sku && <span className="invoice-sku"> · {l.item.sku}</span>}
-                {l.item.variant && <span className="invoice-format-inline">{displayVariant(l.item.variant)}</span>}
-              </td>
-              <td className="invoice-format">{l.item.variant ? displayVariant(l.item.variant) : "—"}</td>
-              <td className="num">{l.qty}</td>
-              <td className="num">
-                {formatDH(l.unit)}
-                {l.sitePrice && "*"}
-              </td>
-              <td className="num">{formatDH(l.total)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="invoice-sum">
-        <span>
-          {count} article{count > 1 ? "s" : ""}
-        </span>
-        <span className="invoice-sum-total">
-          <span className="invoice-total-label">Total</span>
-          <span className="invoice-total">{formatDH(total)}</span>
-        </span>
-      </div>
-      {anySite && <p className="invoice-note">* Prix du site (pas de prix commercial pour ce produit).</p>}
-      <footer className="invoice-foot">Mécafé · mecafe.ma</footer>
-    </article>
-  );
-}
-
-/** Aperçu de la facture à l'écran. */
-export function InvoiceModal({ onClose, onPrint, children }: { onClose: () => void; onPrint: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-
-  return (
-    <div className="invoice-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="invoice-modal" role="dialog" aria-modal="true" aria-label="Facture">
-        <div className="invoice-bar">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-            Fermer
-          </button>
-          <button type="button" className="btn btn-gold btn-sm" onClick={onPrint}>
-            <PrinterIcon size={16} /> Imprimer
-          </button>
-        </div>
-        <div className="invoice-paper">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-/** Copie de la facture réservée à l'impression (seul élément imprimé, voir @media print). */
-export function PrintInvoice({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  return mounted ? createPortal(<div className="print-root">{children}</div>, document.body) : null;
 }

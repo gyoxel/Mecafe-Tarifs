@@ -90,6 +90,15 @@ export function UsersIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function CalendarIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
 export function PinIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { TagIcon, UsersIcon } from "./Icons";
+import { FileTextIcon, TagIcon, UsersIcon } from "./Icons";
 
-type Section = "commerciaux" | "prix";
+type Section = "commerciaux" | "prix" | "factures";
 
 const SECTIONS: { id: Section; href: string; label: string; hint: string; Icon: typeof TagIcon }[] = [
   { id: "commerciaux", href: "/admin/gestion", label: "Commerciaux et villes", hint: "Noms, villes, écarts", Icon: UsersIcon },
   { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", hint: "Par commercial", Icon: TagIcon },
+  { id: "factures", href: "/admin/gestion/factures", label: "Factures", hint: "Historique", Icon: FileTextIcon },
 ];
 
 /** Cadre des pages Gestion : en-tête + barre latérale (onglets en haut sur mobile). */

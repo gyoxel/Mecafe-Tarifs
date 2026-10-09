@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { QTY_MAX, invoiceNumber, readCart, resolveCart, writeCart, type CartLine } from "@/lib/cart";
+import { QTY_MAX, readCart, resolveCart, toInvoiceRows, writeCart, type CartLine } from "@/lib/cart";
+import type { SavedInvoice } from "@/lib/invoice-types";
 import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import { OPTION_STORAGE_KEY, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
-import { CartFab, CartPanel, CartSheet, Invoice, InvoiceModal, PrintInvoice, type InvoiceMeta } from "./Cart";
+import { CartFab, CartPanel, CartSheet } from "./Cart";
+import { InvoiceModal, PrintInvoice, printDoc, type InvoiceDoc } from "./Invoice";
 import { CommercialChooser } from "./CommercialChooser";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
@@ -200,20 +202,49 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   const panelVisible = isAdmin && deskCart && cartLines.length > 0 && !panelHidden;
   const fabVisible = isAdmin && cartLines.length > 0 && !panelVisible;
 
-  // Facture : aperçu à l'écran, et copie dédiée à l'impression.
-  const [invoice, setInvoice] = useState<InvoiceMeta | null>(null);
-  const [printMeta, setPrintMeta] = useState<InvoiceMeta | null>(null);
-  const newMeta = (): InvoiceMeta => {
-    const date = new Date();
-    return { number: invoiceNumber(date), date };
+  // Facture : brouillon à l'écran (Modifier / Confirmer) ; une fois confirmée, enregistrée dans l'historique,
+  // numérotée, et seule une facture confirmée s'imprime. La copie d'impression est toujours montée.
+  const [invoiceView, setInvoiceView] = useState<{ doc: InvoiceDoc; printAfter: boolean } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [invoiceError, setInvoiceError] = useState("");
+  const [printing, setPrinting] = useState<InvoiceDoc | null>(null);
+  const openInvoice = (printAfter: boolean) => {
+    setInvoiceError("");
+    setInvoiceView({
+      printAfter,
+      doc: { rows: toInvoiceRows(cartLines), commercial: proLabel, city: currentOption?.city ?? null, number: null, date: new Date() },
+    });
   };
-  const printInvoice = () => {
-    const meta = invoice ?? newMeta();
-    flushSync(() => setPrintMeta(meta));
-    const title = document.title;
-    document.title = `Facture ${meta.number}`; // nom proposé pour l'enregistrement en PDF
-    window.print();
-    document.title = title;
+  const print = (doc: InvoiceDoc) => printDoc(setPrinting, doc, flushSync);
+  const confirmInvoice = async () => {
+    if (!invoiceView || confirming) return;
+    if (!currentOption) return setInvoiceError("Choisissez d'abord un commercial.");
+    setConfirming(true);
+    setInvoiceError("");
+    try {
+      const res = await fetch("/api/admin/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commercialId: currentOption.id, lines: cart }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; invoice?: SavedInvoice };
+      if (!res.ok || !data.invoice) throw new Error(data.error ?? `Erreur ${res.status}`);
+      const inv = data.invoice;
+      const doc: InvoiceDoc = {
+        rows: inv.rows,
+        commercial: inv.commercial,
+        city: inv.city,
+        number: inv.number,
+        date: new Date(inv.createdAt),
+      };
+      const printAfter = invoiceView.printAfter;
+      setInvoiceView({ doc, printAfter: false });
+      setCart([]); // facture enregistrée : le panier repart à zéro
+      if (printAfter) print(doc);
+    } catch (e) {
+      setInvoiceError(e instanceof Error ? e.message : "Échec de la confirmation");
+    }
+    setConfirming(false);
   };
 
   // ── Filtres ───────────────────────────────────────────────────────
@@ -762,8 +793,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               lastAdded={lastAdded}
               onQty={setCartQty}
               onClear={() => setCart([])}
-              onInvoice={() => setInvoice(newMeta())}
-              onPrint={printInvoice}
+              onInvoice={() => openInvoice(false)}
+              onPrint={() => openInvoice(true)}
               onClose={() => setPanelHidden(true)}
             />
           </aside>
@@ -786,22 +817,25 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             lastAdded={lastAdded}
             onQty={setCartQty}
             onClear={() => setCart([])}
-            onInvoice={() => setInvoice(newMeta())}
-            onPrint={printInvoice}
+            onInvoice={() => openInvoice(false)}
+            onPrint={() => openInvoice(true)}
             onClose={() => setSheetOpen(false)}
           />
         </CartSheet>
       )}
-      {invoice && cartLines.length > 0 && (
-        <InvoiceModal onClose={() => setInvoice(null)} onPrint={printInvoice}>
-          <Invoice lines={cartLines} commercial={proLabel} city={currentOption?.city ?? null} meta={invoice} />
-        </InvoiceModal>
+      {invoiceView && (
+        <InvoiceModal
+          doc={invoiceView.doc}
+          busy={confirming}
+          error={invoiceError}
+          confirmLabel={invoiceView.printAfter ? "Confirmer et imprimer" : "Confirmer"}
+          onConfirm={confirmInvoice}
+          onModify={() => setInvoiceView(null)}
+          onClose={() => setInvoiceView(null)}
+          onPrint={() => print(invoiceView.doc)}
+        />
       )}
-      {printMeta && cartLines.length > 0 && (
-        <PrintInvoice>
-          <Invoice lines={cartLines} commercial={proLabel} city={currentOption?.city ?? null} meta={printMeta} />
-        </PrintInvoice>
-      )}
+      {isAdmin && <PrintInvoice doc={printing} />}
 
       {admin && chooser && (
         <CommercialChooser
