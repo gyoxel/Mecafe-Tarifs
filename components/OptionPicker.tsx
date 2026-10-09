@@ -25,7 +25,8 @@ export function OptionList({
 }) {
   const [query, setQuery] = useState("");
   const [city, setCity] = useState<string | null>(null);
-  const [active, setActive] = useState(() => Math.max(0, options.findIndex((o) => o.id === value)));
+  // Ligne en surbrillance (souris ou clavier) ; -1 = aucune : le gris suit le curseur et disparaît quand il sort.
+  const [active, setActive] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const listId = useId();
@@ -90,11 +91,18 @@ export function OptionList({
           value={city}
           onChange={(c) => {
             setCity(c);
-            setActive(0);
+            setActive(-1);
           }}
         />
       )}
-      <ul className="opt-list" role="listbox" id={listId} aria-label={label} ref={list}>
+      <ul
+        className="opt-list"
+        role="listbox"
+        id={listId}
+        aria-label={label}
+        ref={list}
+        onPointerLeave={() => setActive(-1)}
+      >
         {shown.map((o, i) => (
           <li
             key={o.id}
@@ -135,7 +143,7 @@ function CityFilter({
 }) {
   const [open, setOpen] = useState(false);
   const entries = [null, ...cities];
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLUListElement>(null);
@@ -143,7 +151,7 @@ function CityFilter({
 
   useEffect(() => {
     if (!open) return;
-    setActive(Math.max(0, entries.indexOf(value)));
+    setActive(-1);
     const onDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -186,7 +194,7 @@ function CityFilter({
           button.current?.focus();
         } else if (e.key === "ArrowDown") setActive((i) => Math.min(i + 1, entries.length - 1));
         else if (e.key === "ArrowUp") setActive((i) => Math.max(i - 1, 0));
-        else if (e.key === "Enter") pick(entries[active]);
+        else if (e.key === "Enter" && active >= 0) pick(entries[active]);
       }}
     >
       <button
@@ -204,7 +212,14 @@ function CityFilter({
         <ChevronIcon size={15} className="opt-chevron" />
       </button>
       {open && (
-        <ul className="city-menu" role="listbox" id={menuId} aria-label="Villes" ref={menu}>
+        <ul
+          className="city-menu"
+          role="listbox"
+          id={menuId}
+          aria-label="Villes"
+          ref={menu}
+          onPointerLeave={() => setActive(-1)}
+        >
           {entries.map((c, i) => (
             <li
               key={c ?? "*"}

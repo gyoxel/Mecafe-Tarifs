@@ -18,7 +18,7 @@ type Props = {
 export function CityPicker({ value, choices, onChange, disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -47,7 +47,7 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setActive(0);
+    setActive(-1);
     input.current?.focus();
     const onDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) close();
@@ -112,7 +112,7 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
               spellCheck={false}
             />
           </label>
-          <ul className="opt-list" role="listbox" aria-label="Villes">
+          <ul className="opt-list" role="listbox" aria-label="Villes" onPointerLeave={() => setActive(-1)}>
             {entries.map((e, i) => (
               <li
                 key={e.add ? "+" : (e.city ?? "-")}
