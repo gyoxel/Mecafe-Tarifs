@@ -231,6 +231,15 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
     for (const { k } of sorted) m.set(k, (m.get(k) ?? 0) + 1);
     return m;
   }, [sorted]);
+  /** Marque d'un groupe quand tous ses produits sont de la même marque (couleur + logo du titre). */
+  const groupBrands = useMemo(() => {
+    const m = new Map<number, string | null>();
+    for (const { k, it } of sorted) {
+      const prev = m.get(k);
+      m.set(k, prev === undefined ? it.brand : prev === it.brand ? prev : null);
+    }
+    return m;
+  }, [sorted]);
   const groupLabel = (k: number) => {
     const leaf = leaves[k];
     if (!leaf) return { crumb: "", title: "Autres" };
@@ -242,8 +251,15 @@ export function Catalog({ items, prices, source, menu, order, isAdmin, initial }
   const showGroups = groupSizes.size > 1 || (groupSizes.size === 1 && leaves[sorted[0]?.k]?.node.id !== filterNode?.id);
   const renderGroupHead = (k: number, list: boolean) => {
     const { crumb, title } = groupLabel(k);
+    const groupBrand = groupBrands.get(k) ?? null;
     return (
-      <div className={list ? "list-group" : "group-head"} role={list ? "row" : undefined}>
+      <div
+        className={list ? "list-group" : "group-head"}
+        role={list ? "row" : undefined}
+        data-brand={groupBrand ? "true" : undefined}
+        style={groupBrand ? ({ "--brand": brandStyle(groupBrand).color } as React.CSSProperties) : undefined}
+      >
+        {groupBrand && <BrandBadge brand={groupBrand} className={list ? "brand-badge-xs" : "brand-badge-sm"} />}
         <span className="group-titles">
           {crumb && <span className="group-crumb">{crumb}</span>}
           <span className="group-name">{title}</span>
