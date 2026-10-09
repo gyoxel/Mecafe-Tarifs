@@ -181,21 +181,25 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
     return [...regular, ...promos];
   }, [menu, filterNode]);
 
-  // Comme sur le site, un produit présent dans plusieurs collections apparaît dans chacun des groupes
-  // (ex. Pack Dégustation dans Mécafé 1kg et Mécafé 250g). Les promotions ne servent de groupe
-  // qu'aux produits qui ne sont dans aucune autre catégorie.
+  // Un produit n'apparaît qu'une fois. S'il est dans plusieurs groupes, il va dans le plus précis
+  // (celui qui contient le moins de produits) : Pack Dégustation → Mécafé 250g, sauces → Sauces.
+  // Les promotions ne servent de groupe qu'aux produits qui ne sont dans aucune autre catégorie.
+  const leafSizes = useMemo(
+    () => leaves.map((l) => items.filter((it) => inNode(it.collections, l.node)).length),
+    [leaves, items],
+  );
   const sorted = useMemo(() => {
     const promoStart = leaves.findIndex((l) => /promo/i.test([...l.crumbs, l.node].map((n) => n.title).join(" ")));
-    const keyed: { it: CatalogItem; i: number; k: number }[] = [];
-    results.forEach((it, i) => {
+    const keyed = results.map((it, i) => {
       const ks = leaves.flatMap((l, k) => (inNode(it.collections, l.node) ? [k] : []));
       const regular = promoStart === -1 ? ks : ks.filter((k) => k < promoStart);
-      const chosen = regular.length ? regular : ks.length ? [ks[0]] : [leaves.length];
-      for (const k of chosen) keyed.push({ it, i, k });
+      const pool = regular.length ? regular : ks;
+      const k = pool.length ? pool.reduce((best, k) => (leafSizes[k] < leafSizes[best] ? k : best)) : leaves.length;
+      return { it, i, k };
     });
     keyed.sort((a, b) => a.k - b.k || a.i - b.i); // à l'intérieur d'un groupe : marque, nom, prix
     return keyed;
-  }, [results, leaves]);
+  }, [results, leaves, leafSizes]);
   const groupSizes = useMemo(() => {
     const m = new Map<number, number>();
     for (const { k } of sorted) m.set(k, (m.get(k) ?? 0) + 1);
@@ -471,7 +475,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
               </span>
             </div>
             {visible.map(({ it: item, k }, i) => (
-              <Fragment key={`${item.id}:${k}`}>
+              <Fragment key={item.id}>
                 {showGroups && k !== visible[i - 1]?.k && renderGroupHead(k, true)}
                 <ProductRow
                   item={item}
@@ -485,7 +489,7 @@ export function Catalog({ items, prices, source, menu, isAdmin, initial }: Props
         ) : (
           <div className="grid">
             {visible.map(({ it: item, k }, i) => (
-              <Fragment key={`${item.id}:${k}`}>
+              <Fragment key={item.id}>
                 {showGroups && k !== visible[i - 1]?.k && renderGroupHead(k, false)}
                 <ProductCard
                   item={item}
