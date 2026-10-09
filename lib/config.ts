@@ -10,6 +10,7 @@ export const BRAND_ORDER = ["Mécafé", "Kimbo", "Caffitaly", "ODK", "Foodness",
 /** Fournisseur Shopify (minuscules, sans accents) → nom de marque affiché. */
 export const BRAND_ALIASES: Record<string, string> = {
   orsadrinks: "ODK",
+  orsadrink: "ODK",
 };
 
 export const CATEGORY_ORDER = [
