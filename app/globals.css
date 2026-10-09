@@ -324,12 +324,12 @@ img {
 .city-filter-btn[aria-expanded="true"] {
   border-color: var(--ink);
 }
-.city-filter[data-active="true"] .city-filter-btn {
+.city-filter[data-filtered="true"] .city-filter-btn {
   border-color: var(--pro);
   background: var(--pro-soft);
   color: var(--pro-ink);
 }
-.city-filter[data-active="true"] .city-filter-btn svg {
+.city-filter[data-filtered="true"] .city-filter-btn svg {
   color: var(--pro);
 }
 .city-filter-btn[aria-expanded="true"] .opt-chevron {

@@ -104,7 +104,7 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
               maxLength={CITY_MAX}
               onChange={(e) => {
                 setQuery(e.target.value);
-                setActive(0);
+                setActive(-1);
               }}
               placeholder="Chercher ou ajouter une ville…"
               aria-label="Chercher ou ajouter une ville"
@@ -121,7 +121,7 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
                 data-index={i}
                 data-active={i === active}
                 className={e.add ? "city-add" : e.city == null ? "city-none" : undefined}
-                onPointerEnter={() => setActive(i)}
+                onPointerEnter={(e) => e.pointerType === "mouse" && setActive(i)}
                 onClick={() => pick(e.city)}
               >
                 <span className="opt-item-name">

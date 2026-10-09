@@ -25,7 +25,8 @@ export function OptionList({
 }) {
   const [query, setQuery] = useState("");
   const [city, setCity] = useState<string | null>(null);
-  // Ligne en surbrillance (souris ou clavier) ; -1 = aucune : le gris suit le curseur et disparaît quand il sort.
+  // Ligne en gris : seulement sous la souris ou choisie avec les flèches ; -1 = aucune (à l'ouverture, en tapant,
+  // sur écran tactile). Entrée ne choisit que la ligne en gris.
   const [active, setActive] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLUListElement>(null);
@@ -74,7 +75,7 @@ export function OptionList({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            setActive(0);
+            setActive(-1);
           }}
           placeholder={cities.length ? "Rechercher un nom, une ville…" : "Rechercher un nom…"}
           aria-label="Rechercher un commercial"
@@ -110,7 +111,7 @@ export function OptionList({
             aria-selected={o.id === value}
             data-index={i}
             data-active={i === active}
-            onPointerEnter={() => setActive(i)}
+            onPointerEnter={(e) => e.pointerType === "mouse" && setActive(i)}
             onClick={() => onPick(o)}
           >
             <span className="opt-item-text">
@@ -174,7 +175,7 @@ function CityFilter({
     <div
       className="city-filter"
       ref={root}
-      data-active={value != null}
+      data-filtered={value != null}
       onKeyDown={(e) => {
         // Le menu garde ses touches pour lui (la liste des commerciaux autour ne réagit pas).
         if (!open) {
@@ -227,7 +228,7 @@ function CityFilter({
               aria-selected={c === value}
               data-index={i}
               data-active={i === active}
-              onPointerEnter={() => setActive(i)}
+              onPointerEnter={(e) => e.pointerType === "mouse" && setActive(i)}
               onClick={() => pick(c)}
             >
               <span className="opt-item-name">{c ?? "Toutes les villes"}</span>
