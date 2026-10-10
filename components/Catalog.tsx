@@ -50,6 +50,8 @@ type Props = {
     choose: boolean;
     /** Facture à modifier (lien « Modifier » de l'historique) : remise dans le panier à l'arrivée. */
     edit?: SavedInvoice | null;
+    /** Production sans base de données : rien ne peut être enregistré. */
+    storageDown?: boolean;
   };
 };
 
@@ -671,6 +673,13 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
           </div>
         </div>
       </header>
+
+      {admin?.storageDown && (
+        <div className="storage-down-banner" role="alert">
+          Base de données non connectée : les factures ne peuvent pas être enregistrées. Vérifiez DATABASE_URL dans
+          Vercel.
+        </div>
+      )}
 
       <main className={`container layout ${panelVisible ? "with-cart" : ""} ${fabVisible ? "has-fab" : ""}`}>
         <aside className="filters" aria-label="Filtres">

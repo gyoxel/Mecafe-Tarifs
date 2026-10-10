@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/guard";
+import { requireAdmin, requireStorage } from "@/lib/guard";
 import { computeDraft, getInvoice, parseInvoiceBody } from "@/lib/invoices";
 
 /**
@@ -9,6 +9,8 @@ import { computeDraft, getInvoice, parseInvoiceBody } from "@/lib/invoices";
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
 
   const body = (await req.json().catch(() => null)) as { editId?: unknown } | null;
   const parsed = parseInvoiceBody(body);

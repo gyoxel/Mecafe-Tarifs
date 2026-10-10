@@ -1,7 +1,7 @@
 import "server-only";
 import { QTY_MAX } from "./cart";
 import { getCatalog } from "./catalog";
-import { ensureSchema, getSql, isDbConfigured } from "./db";
+import { assertDurableStorage, ensureSchema, getSql, isDbConfigured } from "./db";
 import { sumRows, type Draft, type InvoiceRow, type SavedInvoice } from "./invoice-types";
 
 export type { Draft };
@@ -132,6 +132,7 @@ export async function saveInvoice(input: {
   city: string | null;
   rows: InvoiceRow[];
 }): Promise<SavedInvoice> {
+  assertDurableStorage();
   const { count, total } = sumRows(input.rows);
   const now = new Date();
 
@@ -179,6 +180,7 @@ export async function updateInvoice(
   id: number,
   input: { commercialId: string; commercial: string; city: string | null; rows: InvoiceRow[] },
 ): Promise<SavedInvoice | null> {
+  assertDurableStorage();
   const { count, total } = sumRows(input.rows);
   if (!isDbConfigured()) {
     const inv = mem().find((i) => i.id === id);

@@ -3755,3 +3755,16 @@ button.facture-row:hover {
   gap: 8px;
   margin: 0 0 12px;
 }
+
+/* Production sans base de données */
+.storage-down-banner {
+  padding: 10px 16px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.storage-down {
+  border-color: var(--danger) !important;
+}

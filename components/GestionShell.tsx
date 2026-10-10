@@ -16,7 +16,8 @@ export function GestionShell({
   children,
 }: {
   active: Section;
-  storage: "postgres" | "memory";
+  /** down = production sans base : enregistrements refusés. */
+  storage: "postgres" | "memory" | "down";
   children: React.ReactNode;
 }) {
   return (
@@ -34,11 +35,18 @@ export function GestionShell({
         </Link>
       </header>
 
-      {storage === "memory" && (
-        <p className="notice warn">
-          Base de données non connectée : les modifications sont <strong>temporaires</strong> (mode démo). Définissez
-          DATABASE_URL pour les conserver.
+      {storage === "down" ? (
+        <p className="notice warn storage-down" role="alert">
+          <strong>Base de données non connectée.</strong> Rien ne peut être enregistré (factures, prix, commerciaux) tant
+          qu&apos;elle n&apos;est pas rétablie : vérifiez DATABASE_URL dans Vercel (Settings → Environment Variables).
         </p>
+      ) : (
+        storage === "memory" && (
+          <p className="notice warn">
+            Base de données non connectée : les modifications sont <strong>temporaires</strong> (mode démo local).
+            Définissez DATABASE_URL pour les conserver.
+          </p>
+        )
       )}
 
       <div className="gestion">

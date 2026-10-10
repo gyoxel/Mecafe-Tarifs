@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { getSession } from "./auth";
+import { STORAGE_DOWN_MESSAGE, storageDown } from "./db";
 
 /** Refuse les requêtes d'écriture venant d'une autre origine (défense CSRF en plus de SameSite=Lax). */
 export function isSameOrigin(req: Request): boolean {
@@ -20,4 +21,12 @@ export async function requireAdmin(req: Request, opts: { write: boolean }): Prom
   if (!session) return NextResponse.json({ error: "Non connecté" }, { status: 401 });
   if (session.role !== "admin") return NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 });
   return null;
+}
+
+/**
+ * Garde des routes qui enregistrent : sans base de données en production, refus net (503) avec un message clair,
+ * plutôt qu'un enregistrement en mémoire perdu en silence. Retourne une réponse d'erreur, ou null si OK.
+ */
+export function requireStorage(): NextResponse | null {
+  return storageDown() ? NextResponse.json({ error: STORAGE_DOWN_MESSAGE }, { status: 503 }) : null;
 }

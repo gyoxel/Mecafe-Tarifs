@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { ensureSchema, getSql, isDbConfigured } from "./db";
+import { assertDurableStorage, ensureSchema, getSql, isDbConfigured } from "./db";
 import { forgetMemPrices } from "./prices";
 import { SEED_OPTIONS, type PriceOption } from "./options";
 
@@ -26,6 +26,7 @@ export async function getOptions(): Promise<PriceOption[]> {
 }
 
 export async function createOption(name: string, city: string | null, offset: number): Promise<PriceOption[]> {
+  assertDurableStorage();
   const id = randomUUID().slice(0, 8);
   if (!isDbConfigured()) {
     mem().push({ id, name, city, offset, isDefault: false });
@@ -42,6 +43,7 @@ export async function updateOption(
   id: string,
   patch: { name?: string; city?: string | null; offset?: number; isDefault?: true },
 ): Promise<PriceOption[]> {
+  assertDurableStorage();
   if (!isDbConfigured()) {
     const list = mem();
     const o = list.find((x) => x.id === id);
@@ -65,6 +67,7 @@ export async function updateOption(
 
 /** Supprime une option et ses prix saisis. Si c'était l'option par défaut, la première devient par défaut. */
 export async function deleteOption(id: string): Promise<PriceOption[]> {
+  assertDurableStorage();
   if (!isDbConfigured()) {
     const list = mem();
     const i = list.findIndex((x) => x.id === id);

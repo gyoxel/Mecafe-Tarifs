@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCatalog } from "@/lib/catalog";
-import { requireAdmin } from "@/lib/guard";
+import { requireAdmin, requireStorage } from "@/lib/guard";
 import { savePrices, type PriceUpdate } from "@/lib/prices";
 import { parsePrice } from "@/lib/csv";
 import { getOptions } from "@/lib/price-options";
@@ -10,6 +10,8 @@ const MAX_UPDATES = 2000;
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
 
   const body = (await req.json().catch(() => null)) as { updates?: unknown; option?: unknown } | null;
   if (!Array.isArray(body?.updates) || body.updates.length > MAX_UPDATES) {

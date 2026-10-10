@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Catalog } from "@/components/Catalog";
 import { getAdminSession } from "@/lib/auth";
 import { getCatalog } from "@/lib/catalog";
-import { getPrices } from "@/lib/prices";
+import { getPrices, storageMode } from "@/lib/prices";
 import { getOptions } from "@/lib/price-options";
 import { getInvoice } from "@/lib/invoices";
 import type { OptionPrices } from "@/lib/options";
@@ -39,7 +39,7 @@ export default async function AdminCatalog({ searchParams }: { searchParams: Sea
       menu={menu}
       order={order}
       initial={initialFilters(sp)}
-      admin={{ prices, options, choose: sp.choisir != null && !edit, edit }}
+      admin={{ prices, options, choose: sp.choisir != null && !edit, edit, storageDown: storageMode() === "down" }}
     />
   );
 }

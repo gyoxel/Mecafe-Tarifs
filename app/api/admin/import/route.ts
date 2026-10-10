@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCatalog } from "@/lib/catalog";
 import { parseCsv, parsePrice } from "@/lib/csv";
-import { requireAdmin } from "@/lib/guard";
+import { requireAdmin, requireStorage } from "@/lib/guard";
 import { savePrices, type PriceUpdate } from "@/lib/prices";
 import { getOptions } from "@/lib/price-options";
 
@@ -15,6 +15,8 @@ const MAX_CSV_CHARS = 2_000_000;
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
 
   const body = (await req.json().catch(() => null)) as { csv?: unknown; option?: unknown } | null;
   const option = (await getOptions()).find((o) => o.id === body?.option)?.id;

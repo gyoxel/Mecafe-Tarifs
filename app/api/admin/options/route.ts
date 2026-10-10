@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fold } from "@/lib/format";
-import { requireAdmin } from "@/lib/guard";
+import { requireAdmin, requireStorage } from "@/lib/guard";
 import { NAME_MAX, OFFSET_LIMIT } from "@/lib/options";
 import { CITY_MAX, cityChoices, normalizeCity } from "@/lib/cities";
 import { createOption, deleteOption, getOptions, updateOption } from "@/lib/price-options";
@@ -18,6 +18,8 @@ const fail = (error: string) => NextResponse.json({ error }, { status: 400 });
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
 
   const body = (await req.json().catch(() => null)) as Body | null;
   if (!body) return fail("Requête invalide");

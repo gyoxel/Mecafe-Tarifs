@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/guard";
+import { requireAdmin, requireStorage } from "@/lib/guard";
 import { computeDraft, getInvoice, matchesExpected, parseInvoiceBody, updateInvoice } from "@/lib/invoices";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -11,6 +11,8 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function PUT(req: Request, { params }: Ctx) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
 
   const original = await getInvoice(Number((await params).id));
   if (!original) return NextResponse.json({ error: "Facture introuvable" }, { status: 404 });

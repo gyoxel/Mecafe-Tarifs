@@ -1,7 +1,7 @@
 import "server-only";
 import type { OptionPrices } from "./options";
 import { DEMO_PRICES } from "./demo-data";
-import { ensureSchema, getSql, isDbConfigured } from "./db";
+import { assertDurableStorage, ensureSchema, getSql, isDbConfigured, storageDown } from "./db";
 import { isShopifyConfigured } from "./shopify";
 
 /**
@@ -20,8 +20,9 @@ export type PriceUpdate = {
 
 export type SaveResult = { updated: number; deleted: number; unchanged: number };
 
-export function storageMode(): "postgres" | "memory" {
-  return isDbConfigured() ? "postgres" : "memory";
+/** postgres ; memory = démo locale ; down = production sans base (enregistrements refusés). */
+export function storageMode(): "postgres" | "memory" | "down" {
+  return isDbConfigured() ? "postgres" : storageDown() ? "down" : "memory";
 }
 
 // ── Mémoire (démo) ──────────────────────────────────────────────────
@@ -49,6 +50,7 @@ export function forgetMemPrices(option: string) {
 }
 
 export async function savePrices(option: string, updates: PriceUpdate[]): Promise<SaveResult> {
+  assertDurableStorage();
   // Dernière valeur gagnante si un variant apparaît deux fois.
   const byId = new Map(updates.map((u) => [u.variantId, u]));
   const list = [...byId.values()];

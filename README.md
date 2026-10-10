@@ -35,6 +35,11 @@ npm run dev        # http://localhost:3000
 Sans variables d'environnement : catalogue de **démonstration**, code admin `admin`, prix commerciaux en mémoire
 (non persistants).
 
+## Sans base de données = rien n'est enregistré (production)
+En production, si `DATABASE_URL` manque, **toutes les écritures sont refusées** (factures, modifications, prix,
+commerciaux : erreur 503 « Base de données non connectée… ») et un bandeau rouge s'affiche dans l'admin. Rien n'est
+gardé en mémoire puis perdu en silence. Le stockage en mémoire n'existe qu'en développement local (démo).
+
 ## Variables d'environnement
 Voir `.env.example`. En production, `ADMIN_PASSWORD` et `SESSION_SECRET` (≥ 32 caractères,
 `openssl rand -base64 48`) sont **obligatoires** : sans eux, la connexion admin est refusée.

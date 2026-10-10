@@ -110,3 +110,27 @@ export function ensureSchema(): Promise<void> {
   }
   return g.__schema;
 }
+
+/**
+ * En production, rien ne s'enregistre sans base de données : sans DATABASE_URL, les écritures sont
+ * refusées (au lieu d'être gardées en mémoire et perdues au redémarrage, sans que personne le sache).
+ * Le stockage en mémoire reste possible en développement local (démo).
+ */
+export const STORAGE_DOWN_MESSAGE =
+  "Base de données non connectée : rien n'a été enregistré. Vérifiez DATABASE_URL dans Vercel (Settings → Environment Variables).";
+
+export function storageDown(): boolean {
+  return !isDbConfigured() && process.env.NODE_ENV === "production";
+}
+
+export class StorageDownError extends Error {
+  constructor() {
+    super(STORAGE_DOWN_MESSAGE);
+    this.name = "StorageDownError";
+  }
+}
+
+/** À appeler avant toute écriture : lève StorageDownError si les données seraient perdues. */
+export function assertDurableStorage(): void {
+  if (storageDown()) throw new StorageDownError();
+}

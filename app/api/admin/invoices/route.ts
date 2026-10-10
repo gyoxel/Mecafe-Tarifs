@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/guard";
+import { requireAdmin, requireStorage } from "@/lib/guard";
 import { computeDraft, matchesExpected, parseInvoiceBody, saveInvoice } from "@/lib/invoices";
 
 /**
@@ -10,6 +10,8 @@ import { computeDraft, matchesExpected, parseInvoiceBody, saveInvoice } from "@/
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: true });
   if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
 
   const parsed = parseInvoiceBody(await req.json().catch(() => null));
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
