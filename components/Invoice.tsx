@@ -182,6 +182,7 @@ export function InvoiceModal({
   confirmLabel = "Confirmer",
   busy,
   error,
+  changes,
 }: {
   doc: InvoiceDoc;
   onClose: () => void;
@@ -194,6 +195,8 @@ export function InvoiceModal({
   confirmLabel?: string;
   busy?: boolean;
   error?: string;
+  /** Modification : prix unitaires qui ont changé depuis la facture d'origine. */
+  changes?: { name: string; variant: string | null; before: number; after: number }[];
 }) {
   const draft = doc.number == null;
   const pdf = usePdf(doc.id, doc.number);
@@ -253,6 +256,21 @@ export function InvoiceModal({
           </span>
         </div>
         {error && <p className="notice warn invoice-error">{error}</p>}
+        {draft && changes && changes.length > 0 && (
+          <div className="invoice-changes">
+            <strong>
+              Prix changé{changes.length > 1 ? "s" : ""} depuis la facture d&apos;origine ({changes.length}) :
+            </strong>
+            <ul>
+              {changes.map((c) => (
+                <li key={`${c.name}${c.variant}`}>
+                  {c.name}
+                  {c.variant ? ` · ${c.variant}` : ""} : <s>{formatDH(c.before)}</s> → <strong>{formatDH(c.after)}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="invoice-paper">
           <Invoice doc={doc} />
         </div>

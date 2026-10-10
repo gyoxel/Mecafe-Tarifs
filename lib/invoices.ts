@@ -2,7 +2,10 @@ import "server-only";
 import { QTY_MAX } from "./cart";
 import { getCatalog } from "./catalog";
 import { ensureSchema, getSql, isDbConfigured } from "./db";
-import { sumRows, type InvoiceRow, type SavedInvoice } from "./invoice-types";
+import { sumRows, type Draft, type InvoiceRow, type SavedInvoice } from "./invoice-types";
+
+export type { Draft };
+import { lineTotal, sameMoney } from "./money";
 import { pricesFor } from "./options";
 import { getOptions } from "./price-options";
 import { getPrices } from "./prices";
@@ -19,9 +22,14 @@ const numberOf = (id: number, d: Date) => `F${d.getFullYear()}-${String(id).padS
 
 export const MAX_LINES = 500;
 
-/** Corps { commercialId, lines: [{ id, qty }] } validé, ou { error }. */
-export function parseInvoiceBody(body: unknown): { commercialId: string; lines: { id: string; qty: number }[] } | { error: string } {
-  const b = body as { commercialId?: unknown; lines?: unknown } | null;
+/**
+ * Corps { commercialId, lines: [{ id, qty }], expected? } validé, ou { error }.
+ * expected = le brouillon affiché ({ total, rows: [{ id, qty, unit }] }), obligatoire pour confirmer.
+ */
+export function parseInvoiceBody(
+  body: unknown,
+): { commercialId: string; lines: { id: string; qty: number }[]; expected: Expected | null } | { error: string } {
+  const b = body as { commercialId?: unknown; lines?: unknown; expected?: unknown } | null;
   const lines = Array.isArray(b?.lines) ? b.lines : null;
   if (typeof b?.commercialId !== "string" || !lines || !lines.length || lines.length > MAX_LINES) {
     return { error: "Requête invalide" };
@@ -34,43 +42,89 @@ export function parseInvoiceBody(body: unknown): { commercialId: string; lines: 
     }
     clean.push({ id: l.id, qty });
   }
-  return { commercialId: b.commercialId, lines: clean };
+  let expected: Expected | null = null;
+  const e = b.expected as { total?: unknown; rows?: unknown } | undefined;
+  if (e != null) {
+    if (typeof e.total !== "number" || !Array.isArray(e.rows) || e.rows.length > MAX_LINES) return { error: "Aperçu invalide" };
+    const rows: Expected["rows"] = [];
+    for (const r of e.rows as { id?: unknown; qty?: unknown; unit?: unknown }[]) {
+      if (typeof r?.id !== "string" || typeof r.qty !== "number" || typeof r.unit !== "number") return { error: "Aperçu invalide" };
+      rows.push({ id: r.id, qty: r.qty, unit: r.unit });
+    }
+    expected = { total: e.total, rows };
+  }
+  return { commercialId: b.commercialId, lines: clean, expected };
 }
 
 /**
- * Construit les lignes côté serveur à partir du catalogue et des prix du commercial :
- * le navigateur n'envoie que les variants et les quantités.
+ * Calcule les lignes côté serveur à partir du catalogue et des prix du commercial (le navigateur n'envoie
+ * que les variants et les quantités). Toujours le prix du commercial : un produit sans prix commercial
+ * bloque la facture (pas de repli sur le prix du site).
  */
-export async function buildRows(
+export async function computeDraft(
   commercialId: string,
   lines: { id: string; qty: number }[],
-): Promise<{ rows: InvoiceRow[]; commercial: { id: string; name: string; city: string | null } } | null> {
+  original?: SavedInvoice | null,
+): Promise<{ draft: Draft } | { error: string }> {
   const [{ items }, allPrices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const option = options.find((o) => o.id === commercialId);
-  if (!option) return null;
+  if (!option) return { error: "Commercial inconnu : choisissez un commercial." };
   const byId = new Map(items.map((i) => [i.id, i]));
   const prices = pricesFor(option, allPrices[option.id] ?? {}, items);
 
+  // Même produit en double : quantités additionnées.
+  const merged = new Map<string, number>();
+  for (const l of lines) merged.set(l.id, (merged.get(l.id) ?? 0) + l.qty);
+
   const rows: InvoiceRow[] = [];
-  for (const l of lines) {
-    const item = byId.get(l.id);
-    if (!item) continue; // produit retiré de la boutique entre-temps
-    const commercial = prices[item.id];
-    const unit = commercial ?? item.price;
-    rows.push({
-      variantId: item.id,
-      brand: item.brand,
-      name: displayTitle(item.title, item.brand),
-      variant: item.variant ? displayVariant(item.variant) : null,
-      sku: item.sku,
-      qty: l.qty,
-      unit,
-      total: Math.round(unit * l.qty * 100) / 100,
-      sitePrice: commercial == null,
-    });
+  const missing: string[] = [];
+  const gone: string[] = [];
+  for (const [id, qty] of merged) {
+    const item = byId.get(id);
+    if (!item) {
+      gone.push(id);
+      continue;
+    }
+    const name = displayTitle(item.title, item.brand);
+    const variant = item.variant ? displayVariant(item.variant) : null;
+    const unit = prices[item.id];
+    if (unit == null) {
+      missing.push(variant ? `${name} (${variant})` : name);
+      continue;
+    }
+    rows.push({ variantId: item.id, brand: item.brand, name, variant, sku: item.sku, qty, unit, total: lineTotal(unit, qty), sitePrice: false });
   }
-  return { rows, commercial: { id: option.id, name: option.name, city: option.city } };
+  if (missing.length) {
+    return {
+      error: `Pas de prix commercial pour ${option.name} : ${missing.join(", ")}. Définissez-le dans Gestion › Prix des produits.`,
+    };
+  }
+  if (gone.length) return { error: `${gone.length} produit(s) ne sont plus sur la boutique : retirez-les du panier.` };
+  if (!rows.length) return { error: "Le panier est vide." };
+
+  const before = new Map((original?.rows ?? []).map((r) => [r.variantId, r.unit]));
+  const changes = rows
+    .filter((r) => before.has(r.variantId) && !sameMoney(before.get(r.variantId)!, r.unit))
+    .map((r) => ({ name: r.name, variant: r.variant, before: before.get(r.variantId)!, after: r.unit }));
+
+  const { count, total } = sumRows(rows);
+  return { draft: { rows, count, total, commercial: { id: option.id, name: option.name, city: option.city }, changes } };
 }
+
+/**
+ * Ce que l'admin a vu à l'écran (brouillon) correspond-il exactement au calcul du serveur ?
+ * Sinon (prix changé entre-temps sur la boutique ou dans la gestion), on refuse et on renvoie le nouveau calcul.
+ */
+export function matchesExpected(draft: Draft, expected: Expected): boolean {
+  if (!sameMoney(draft.total, expected.total) || draft.rows.length !== expected.rows.length) return false;
+  const seen = new Map(expected.rows.map((r) => [r.id, r]));
+  return draft.rows.every((r) => {
+    const e = seen.get(r.variantId);
+    return e != null && e.qty === r.qty && sameMoney(e.unit, r.unit);
+  });
+}
+
+export type Expected = { total: number; rows: { id: string; qty: number; unit: number }[] };
 
 export async function saveInvoice(input: {
   commercialId: string;

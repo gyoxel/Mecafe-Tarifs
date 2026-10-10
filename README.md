@@ -67,8 +67,14 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
 - **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
-  ouvre une grande fenêtre qu'on redescend. Prix = ceux du commercial choisi (prix du site si aucun, marqué *).
-  *Voir la facture* : brouillon, avec **Modifier** (retour au panier) ou **Confirmer**. Une facture confirmée est
+  ouvre une grande fenêtre qu'on redescend. Prix = **toujours** ceux du commercial choisi : un produit sans prix
+  commercial est signalé dans le panier et bloque la facture (jamais de repli sur le prix du site).
+  Calculs en centimes entiers (`lib/money.ts`) : prix × quantité et totaux exacts au centime.
+  *Voir la facture* : brouillon **calculé par le serveur** (`/api/admin/invoices/preview`, le même calcul que
+  l'enregistrement), avec **Modifier** (retour au panier) ou **Confirmer**. À la confirmation, le serveur refait le
+  calcul et le compare au brouillon affiché : s'il diffère (prix changé entre-temps), rien n'est enregistré et le
+  nouveau brouillon est affiché pour vérification. En modification, les prix qui ont changé depuis la facture
+  d'origine sont listés (ancien → nouveau) avant d'enregistrer. Une facture confirmée est
   numérotée (F2026-00001), figée (prix recalculés et enregistrés côté serveur), ajoutée à l'historique, et le
   panier repart à zéro. *Imprimer la facture* = confirmer puis imprimer (A4, seule la facture sort ; « Enregistrer
   en PDF » du navigateur pour un fichier). Seule une facture confirmée s'imprime.
@@ -82,7 +88,8 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Factures* (`/admin/gestion/factures`) : historique des factures confirmées ; recherche (n°, commercial,
     ville, produit), filtre par commercial (liste avec recherche par nom ou ville, y compris les commerciaux supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
-    réimprimer, partager en PDF ou **modifier** une facture (retour au catalogue avec la facture dans le panier) ;
+    réimprimer, partager en PDF ou **modifier** une facture ; **exporter** (Excel / CSV, selon les filtres) les
+    factures (une ligne par facture) ou le détail (une ligne par produit) (retour au catalogue avec la facture dans le panier) ;
   - *Prix des produits* (`/admin/gestion/prix`) : choisir le commercial, puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
     retour au prix automatique) ; **Exporter / Importer CSV** pour ce commercial (colonne `prix_commercial`,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).

@@ -117,6 +117,15 @@ export function ShareIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function DownloadIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 3.5V15M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M5 16.5v2A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-2" />
+    </svg>
+  );
+}
+
 export function PinIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { QTY_MAX, parseQty, type ResolvedLine } from "@/lib/cart";
+import { QTY_MAX, cartTotal, parseQty, type ResolvedLine } from "@/lib/cart";
 import { formatDH } from "@/lib/format";
 import { displayTitle, displayVariant } from "@/lib/title";
 import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PencilIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
@@ -128,6 +128,10 @@ type PanelProps = {
   sheet?: boolean;
   /** N° de la facture confirmée en cours de modification, ou null. */
   editing?: string | null;
+  /** Message d'erreur (aperçu de la facture refusé…). */
+  error?: string;
+  /** Aperçu de la facture en cours de calcul. */
+  busy?: boolean;
 };
 
 export function CartPanel({
@@ -141,10 +145,13 @@ export function CartPanel({
   onClose,
   sheet,
   editing,
+  error,
+  busy,
 }: PanelProps) {
   const count = lines.reduce((n, l) => n + l.qty, 0);
-  const total = lines.reduce((s, l) => s + l.total, 0);
-  const anySite = lines.some((l) => l.sitePrice);
+  const total = cartTotal(lines);
+  // Toujours le prix du commercial : un produit sans prix commercial bloque la facture.
+  const missing = lines.filter((l) => l.unit == null);
 
   return (
     <div className="cart-panel-inner">
@@ -210,10 +217,11 @@ export function CartPanel({
                 </span>
                 <span className="cart-line-meta">
                   {l.item.variant && <span className="cart-line-variant">{displayVariant(l.item.variant)}</span>}
-                  <span className="cart-line-unit">
-                    {formatDH(l.unit)}
-                    {l.sitePrice && <abbr title="Pas de prix commercial : prix du site">*</abbr>}
-                  </span>
+                  {l.unit == null ? (
+                    <span className="cart-line-missing">Pas de prix commercial</span>
+                  ) : (
+                    <span className="cart-line-unit">{formatDH(l.unit)}</span>
+                  )}
                 </span>
               </span>
               <span className="cart-line-side">
@@ -227,7 +235,7 @@ export function CartPanel({
                   <TrashIcon size={15} />
                 </button>
                 <QtyStepper qty={l.qty} onQty={(q) => onQty(l.item.id, q)} label={name} trashAtOne={false} />
-                <span className="cart-line-total">{formatDH(l.total)}</span>
+                <span className="cart-line-total">{l.unit == null ? "—" : formatDH(l.total)}</span>
               </span>
             </li>
           );
@@ -235,7 +243,13 @@ export function CartPanel({
       </ul>
 
       <div className="cart-foot">
-        {anySite && <p className="cart-note">* Pas de prix commercial : prix du site.</p>}
+        {missing.length > 0 && (
+          <p className="cart-warn">
+            {missing.length} produit{missing.length > 1 ? "s" : ""} sans prix commercial pour {commercial} : retirez-
+            {missing.length > 1 ? "les" : "le"} ou définissez le prix dans Gestion › Prix des produits.
+          </p>
+        )}
+        {error && <p className="cart-warn">{error}</p>}
         <div className="cart-total">
           <span>
             Total <span className="cart-total-count">· {count} article{count > 1 ? "s" : ""}</span>
@@ -243,10 +257,10 @@ export function CartPanel({
           <Price value={total} />
         </div>
         <div className="cart-actions">
-          <button type="button" className="btn cart-btn" onClick={onInvoice}>
-            <FileTextIcon size={17} /> Voir la facture
+          <button type="button" className="btn cart-btn" onClick={onInvoice} disabled={busy || missing.length > 0}>
+            <FileTextIcon size={17} /> {busy ? "Calcul…" : "Voir la facture"}
           </button>
-          <button type="button" className="btn btn-gold cart-btn" onClick={onPrint}>
+          <button type="button" className="btn btn-gold cart-btn" onClick={onPrint} disabled={busy || missing.length > 0}>
             <PrinterIcon size={17} /> Imprimer la facture
           </button>
         </div>

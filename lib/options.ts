@@ -1,4 +1,5 @@
 import { fold } from "./format";
+import { fromCents, toCents } from "./money";
 import type { CatalogItem, PriceMap } from "./types";
 
 /**
@@ -56,8 +57,8 @@ export const offsetInput = (offset: number) => String(Math.abs(offset)).replace(
 
 /** Prix automatique de l'option (prix site + écart), ou null s'il serait ≤ 0. */
 export function autoPrice(option: PriceOption, sitePrice: number): number | null {
-  const p = Math.round((sitePrice + option.offset) * 100) / 100;
-  return p > 0 ? p : null;
+  const cents = toCents(sitePrice) + toCents(option.offset);
+  return cents > 0 ? fromCents(cents) : null;
 }
 
 /** Prix commercial appliqué : prix saisi dans l'option, sinon prix automatique. */

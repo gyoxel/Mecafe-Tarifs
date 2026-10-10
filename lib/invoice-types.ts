@@ -1,3 +1,5 @@
+import { sumMoney } from "./money";
+
 /** Ligne de facture telle qu'imprimée (figée à la confirmation : les prix ne bougent plus ensuite). */
 export type InvoiceRow = {
   variantId: string;
@@ -33,5 +35,15 @@ export type SavedInvoice = {
 
 export const sumRows = (rows: InvoiceRow[]) => ({
   count: rows.reduce((n, r) => n + r.qty, 0),
-  total: Math.round(rows.reduce((s, r) => s + r.total, 0) * 100) / 100,
+  total: sumMoney(rows.map((r) => r.total)),
 });
+
+/** Brouillon calculé par le serveur : exactement ce qui sera enregistré à la confirmation. */
+export type Draft = {
+  rows: InvoiceRow[];
+  count: number;
+  total: number;
+  commercial: { id: string; name: string; city: string | null };
+  /** Modification : produits dont le prix unitaire a changé par rapport à la facture d'origine. */
+  changes: { name: string; variant: string | null; before: number; after: number }[];
+};

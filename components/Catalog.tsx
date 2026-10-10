@@ -8,13 +8,12 @@ import {
   readCart,
   readEditing,
   resolveCart,
-  toInvoiceRows,
   writeCart,
   writeEditing,
   type CartEditing,
   type CartLine,
 } from "@/lib/cart";
-import type { SavedInvoice } from "@/lib/invoice-types";
+import type { Draft, SavedInvoice } from "@/lib/invoice-types";
 import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
@@ -249,28 +248,47 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
 
   // Facture : brouillon à l'écran (Modifier / Confirmer) ; une fois confirmée, enregistrée dans l'historique,
   // numérotée, et seule une facture confirmée s'imprime. La copie d'impression est toujours montée.
-  const [invoiceView, setInvoiceView] = useState<{ doc: InvoiceDoc; printAfter: boolean } | null>(null);
+  // Le brouillon affiché est calculé par le serveur (même calcul que la confirmation) : ce qu'on voit est
+  // exactement ce qui sera enregistré. À la confirmation, il est renvoyé comme « attendu » et revérifié.
+  const [invoiceView, setInvoiceView] = useState<{ doc: InvoiceDoc; printAfter: boolean; draft?: Draft } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [invoiceError, setInvoiceError] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const [cartError, setCartError] = useState("");
   const [printing, setPrinting] = useState<InvoiceDoc | null>(null);
-  const openInvoice = (printAfter: boolean) => {
+  const draftDoc = (d: Draft): InvoiceDoc => ({
+    rows: d.rows,
+    commercial: d.commercial.name,
+    city: d.commercial.city,
+    number: null,
+    date: new Date(),
+    editing: editing?.number,
+  });
+  const openInvoice = async (printAfter: boolean) => {
+    if (previewing) return;
+    if (!currentOption) return setCartError("Choisissez d'abord un commercial.");
+    setCartError("");
     setInvoiceError("");
-    setInvoiceView({
-      printAfter,
-      doc: {
-        rows: toInvoiceRows(cartLines),
-        commercial: proLabel,
-        city: currentOption?.city ?? null,
-        number: null,
-        date: new Date(),
-        editing: editing?.number,
-      },
-    });
+    setPreviewing(true);
+    try {
+      const res = await fetch("/api/admin/invoices/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commercialId: currentOption.id, lines: cart, editId: editing?.id }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; draft?: Draft };
+      if (!res.ok || !data.draft) throw new Error(data.error ?? `Erreur ${res.status}`);
+      setInvoiceView({ printAfter, draft: data.draft, doc: draftDoc(data.draft) });
+    } catch (e) {
+      setCartError(e instanceof Error ? e.message : "Impossible de calculer la facture");
+    }
+    setPreviewing(false);
   };
+  useEffect(() => setCartError(""), [cart, option]); // message périmé dès que le panier ou le commercial change
   const print = (doc: InvoiceDoc) => printDoc(setPrinting, doc, flushSync);
   const confirmInvoice = async () => {
-    if (!invoiceView || confirming) return;
-    if (!currentOption) return setInvoiceError("Choisissez d'abord un commercial.");
+    const draft = invoiceView?.draft;
+    if (!invoiceView || !draft || confirming) return;
     setConfirming(true);
     setInvoiceError("");
     try {
@@ -278,9 +296,18 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       const res = await fetch(editing ? `/api/admin/invoices/${editing.id}` : "/api/admin/invoices", {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commercialId: currentOption.id, lines: cart }),
+        body: JSON.stringify({
+          commercialId: draft.commercial.id,
+          lines: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty })),
+          expected: { total: draft.total, rows: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, unit: r.unit })) },
+        }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; invoice?: SavedInvoice };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; invoice?: SavedInvoice; draft?: Draft };
+      if (res.status === 409 && data.draft) {
+        // Prix changés entre l'aperçu et la confirmation : nouveau brouillon à vérifier, rien d'enregistré.
+        setInvoiceView({ ...invoiceView, draft: data.draft, doc: draftDoc(data.draft) });
+        throw new Error(data.error ?? "Les prix ont changé : vérifiez puis confirmez.");
+      }
       if (!res.ok || !data.invoice) throw new Error(data.error ?? `Erreur ${res.status}`);
       const doc = docOf(data.invoice);
       const printAfter = invoiceView.printAfter;
@@ -853,6 +880,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               onQty={setCartQty}
               onClear={clearCart}
               editing={editing?.number ?? null}
+              error={cartError}
+              busy={previewing}
               onInvoice={() => openInvoice(false)}
               onPrint={() => openInvoice(true)}
               onClose={() => setPanelHidden(true)}
@@ -878,6 +907,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             onQty={setCartQty}
             onClear={clearCart}
             editing={editing?.number ?? null}
+            error={cartError}
+            busy={previewing}
             onInvoice={() => openInvoice(false)}
             onPrint={() => openInvoice(true)}
             onClose={() => setSheetOpen(false)}
@@ -900,6 +931,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
           }
           onConfirm={confirmInvoice}
           onEdit={() => startEdit(invoiceView.doc)}
+          changes={invoiceView.draft?.changes}
           onModify={() => setInvoiceView(null)}
           onClose={() => setInvoiceView(null)}
           onPrint={() => print(invoiceView.doc)}

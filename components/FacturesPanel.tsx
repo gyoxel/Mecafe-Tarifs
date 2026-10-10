@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { fold, formatDH } from "@/lib/format";
+import { sumMoney } from "@/lib/money";
 import type { SavedInvoice } from "@/lib/invoice-types";
 import type { PriceOption } from "@/lib/options";
 import { CommercialFilter } from "./CommercialFilter";
-import { CalendarIcon, CheckIcon, FileTextIcon, SearchIcon } from "./Icons";
+import { invoicesDetailCsv, invoicesSummaryCsv, downloadText } from "@/lib/invoice-csv";
+import { CalendarIcon, CheckIcon, DownloadIcon, FileTextIcon, SearchIcon } from "./Icons";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -95,7 +97,7 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
       );
     });
   }, [invoices, haystacks, query, commercial, from, to]);
-  const sum = shown.reduce((s, i) => s + i.total, 0);
+  const sum = sumMoney(shown.map((i) => i.total));
   const filtered = Boolean(query.trim() || commercial || from || to);
 
   return (
@@ -148,6 +150,27 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
         <span>
           Total <strong>{formatDH(sum)}</strong>
         </span>
+      </div>
+
+      {/* Export Excel des factures affichées (filtres appliqués). */}
+      <div className="factures-export">
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={!shown.length}
+          onClick={() => downloadText(`factures-${dayKey(new Date())}.csv`, invoicesSummaryCsv(shown))}
+        >
+          <DownloadIcon size={15} /> Exporter les factures
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={!shown.length}
+          onClick={() => downloadText(`factures-detail-${dayKey(new Date())}.csv`, invoicesDetailCsv(shown))}
+        >
+          <DownloadIcon size={15} /> Exporter le détail (produits)
+        </button>
+        <span className="muted small">Fichiers Excel (CSV), selon les filtres.</span>
       </div>
 
       {shown.length === 0 ? (
