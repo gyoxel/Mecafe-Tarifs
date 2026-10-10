@@ -228,8 +228,11 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const cartLines = useMemo(() => resolveCart(cart, itemById, prices), [cart, itemById, prices]);
   const cartCount = cartLines.reduce((n, l) => n + l.qty, 0);
+  // Panier qui vient de se vider : la grande fenêtre se ferme (pas au chargement, quand il est encore vide).
+  const prevLines = useRef(0);
   useEffect(() => {
-    if (cartLines.length === 0) setSheetOpen(false);
+    if (prevLines.current > 0 && cartLines.length === 0) setSheetOpen(false);
+    prevLines.current = cartLines.length;
   }, [cartLines.length]);
 
   // Panneau à droite sur grand écran ; bouton en bas à droite + grande fenêtre sinon.
