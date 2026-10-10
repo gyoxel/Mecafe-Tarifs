@@ -82,7 +82,7 @@ function ProductCardBase({ item, commercial, proLabel, cartQty = 0, onCartQty, r
           type="button"
           className="price-bar"
           aria-pressed={revealed}
-          aria-label={`${revealed ? "Masquer" : "Afficher"} le prix commercial : ${name}`}
+          aria-label={`${revealed ? "Masquer" : "Afficher"} le prix revendeur : ${name}`}
           onClick={() => onToggle(item.id, !revealed)}
         >
           {siteCell}

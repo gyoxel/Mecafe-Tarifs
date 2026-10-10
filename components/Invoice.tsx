@@ -61,7 +61,7 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
       </header>
 
       <div className="invoice-party">
-        <span className="invoice-label">Commercial</span>
+        <span className="invoice-label">Revendeur</span>
         <strong>{doc.commercial}</strong>
         {doc.city && <span>{doc.city}</span>}
       </div>
@@ -109,7 +109,7 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
           <span className="invoice-total">{formatDH(total)}</span>
         </span>
       </div>
-      {anySite && <p className="invoice-note">* Prix du site (pas de prix commercial pour ce produit).</p>}
+      {anySite && <p className="invoice-note">* Prix du site (pas de prix revendeur pour ce produit).</p>}
       <footer className="invoice-foot">Mécafé · mecafe.ma</footer>
     </article>
   );

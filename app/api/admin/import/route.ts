@@ -9,7 +9,7 @@ const MAX_CSV_CHARS = 2_000_000;
 
 /**
  * Import CSV (export de /api/admin/export modifié dans Excel).
- * Rattachement par variant_id, sinon par sku. Cellule prix_commercial vide = aucun changement.
+ * Rattachement par variant_id, sinon par sku. Cellule prix_revendeur (ou prix_commercial, anciens fichiers) vide = aucun changement.
  * Les prix vont dans l'option choisie sur la page de modification.
  */
 export async function POST(req: Request) {
@@ -27,8 +27,10 @@ export async function POST(req: Request) {
 
   const records = parseCsv(body.csv);
   if (!records.length) return NextResponse.json({ error: "Aucune ligne trouvée dans le CSV" }, { status: 400 });
-  if (!("prix_commercial" in records[0])) {
-    return NextResponse.json({ error: "Colonne « prix_commercial » introuvable" }, { status: 400 });
+  // « prix_commercial » : nom de la colonne dans les fichiers exportés avant le passage aux revendeurs.
+  const column = ["prix_revendeur", "prix_commercial"].find((c) => c in records[0]);
+  if (!column) {
+    return NextResponse.json({ error: "Colonne « prix_revendeur » introuvable" }, { status: 400 });
   }
 
   const { items } = await getCatalog();
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
 
   records.forEach((rec, idx) => {
     const line = idx + 2; // numéro de ligne dans le fichier (en-tête = 1)
-    const price = parsePrice(rec.prix_commercial);
+    const price = parsePrice(rec[column]);
     if (price === null) return; // vide = ignoré
     const item = (rec.variant_id && byId.get(rec.variant_id)) || (rec.sku ? bySku.get(rec.sku) : undefined);
     if (!item) return void unmatched.push(line);

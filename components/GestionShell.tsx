@@ -4,8 +4,8 @@ import { FileTextIcon, TagIcon, UsersIcon } from "./Icons";
 type Section = "commerciaux" | "prix" | "factures";
 
 const SECTIONS: { id: Section; href: string; label: string; hint: string; Icon: typeof TagIcon }[] = [
-  { id: "commerciaux", href: "/admin/gestion", label: "Commerciaux et villes", hint: "Noms, villes, écarts", Icon: UsersIcon },
-  { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", hint: "Par commercial", Icon: TagIcon },
+  { id: "commerciaux", href: "/admin/gestion", label: "Revendeurs et villes", hint: "Noms, villes, écarts", Icon: UsersIcon },
+  { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", hint: "Par revendeur", Icon: TagIcon },
   { id: "factures", href: "/admin/gestion/factures", label: "Factures", hint: "Historique", Icon: FileTextIcon },
 ];
 
@@ -37,7 +37,7 @@ export function GestionShell({
 
       {storage === "down" ? (
         <p className="notice warn storage-down" role="alert">
-          <strong>Base de données non connectée.</strong> Rien ne peut être enregistré (factures, prix, commerciaux) tant
+          <strong>Base de données non connectée.</strong> Rien ne peut être enregistré (factures, prix, revendeurs) tant
           qu&apos;elle n&apos;est pas rétablie : vérifiez DATABASE_URL dans Vercel (Settings → Environment Variables).
         </p>
       ) : (

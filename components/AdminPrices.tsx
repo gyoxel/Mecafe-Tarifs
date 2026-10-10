@@ -13,6 +13,7 @@ import {
   autoPrice,
   defaultOption,
   formatOffset,
+  isBase,
   type OptionPrices,
   type PriceOption,
 } from "@/lib/options";
@@ -30,7 +31,7 @@ type Props = {
 const ROWS_STEP = 150;
 const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
-/** Gestion › Prix des produits : prix d'un commercial produit par produit (automatique ou saisi). */
+/** Gestion › Prix des produits : prix d'un revendeur produit par produit (automatique ou saisi). */
 export function AdminPrices({ items, prices, options: initialOptions, source, orphans }: Props) {
   const options = initialOptions;
   const [option, setOption] = useState<string>(() => defaultOption(initialOptions)?.id ?? "");
@@ -75,7 +76,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
   );
   const changeOption = (id: string) => {
     if (id === current.id) return;
-    if (dirty.length && !window.confirm("Les modifications non enregistrées pour ce commercial seront perdues. Continuer ?")) return;
+    if (dirty.length && !window.confirm("Les modifications non enregistrées pour ce revendeur seront perdues. Continuer ?")) return;
     setDrafts({});
     setStatus(null);
     setOption(id);
@@ -165,12 +166,18 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
       <section className="admin-options">
         <div className="admin-options-bar">
           <h2 className="admin-section-title">Prix des produits</h2>
-          <OptionPicker options={options} value={current.id} onChange={changeOption} label="Commercial" />
+          <OptionPicker options={options} value={current.id} onChange={changeOption} label="Revendeur" />
         </div>
         <p className="muted small admin-options-hint">
           {current.name} : prix site {formatOffset(current.offset)} appliqué automatiquement (en gris). Saisissez un
           prix pour le remplacer, videz la case pour revenir au prix automatique.
         </p>
+        {isBase(current) && (
+          <p className="admin-options-hint base-hint">
+            Tarif de base : son écart et ses prix saisis sont repris par chaque <strong>nouveau</strong> revendeur
+            (les revendeurs existants gardent les leurs).
+          </p>
+        )}
       </section>
 
       <div className="admin-tools">
@@ -202,7 +209,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
         </select>
         <label className="check">
           <input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} />
-          Sans prix commercial
+          Sans prix revendeur
         </label>
       </div>
 
@@ -278,7 +285,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
                       inputMode="decimal"
                       value={value}
                       placeholder={auto == null ? "—" : asText(auto)}
-                      aria-label={`Prix commercial : ${it.title}${it.variant ? " " + it.variant : ""}`}
+                      aria-label={`Prix revendeur : ${it.title}${it.variant ? " " + it.variant : ""}`}
                       aria-invalid={invalid.has(it.id)}
                       onChange={(e) => setDrafts((d) => ({ ...d, [it.id]: e.target.value }))}
                     />

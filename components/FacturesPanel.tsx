@@ -114,7 +114,7 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher : n°, commercial, ville, produit…"
+            placeholder="Rechercher : n°, revendeur, ville, produit…"
             aria-label="Rechercher une facture"
           />
         </label>
@@ -183,7 +183,7 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
           <div className="facture-row facture-head" role="row">
             <span role="columnheader">N°</span>
             <span role="columnheader">Date</span>
-            <span role="columnheader">Commercial</span>
+            <span role="columnheader">Revendeur</span>
             <span role="columnheader" className="num">
               Articles
             </span>

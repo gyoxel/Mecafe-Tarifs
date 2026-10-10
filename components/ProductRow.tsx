@@ -74,7 +74,7 @@ function ProductRowBase({ item, commercial, cartQty = 0, onCartQty, revealable, 
             type="button"
             className="row-pro"
             aria-pressed={revealed}
-            aria-label={`${revealed ? "Masquer" : "Afficher"} le prix commercial : ${name}`}
+            aria-label={`${revealed ? "Masquer" : "Afficher"} le prix revendeur : ${name}`}
             onClick={() => onToggle(item.id, !revealed)}
           >
             {!revealed ? (

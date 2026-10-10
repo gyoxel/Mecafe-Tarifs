@@ -44,6 +44,12 @@ export async function getPrices(): Promise<OptionPrices> {
   return out;
 }
 
+/** Copie les prix saisis d'une option vers une autre (nouveau revendeur créé depuis la base). */
+export function copyMemPrices(from: string, to: string) {
+  const m = mem();
+  m[to] = { ...(m[from] ?? {}) };
+}
+
 /** Supprime les prix saisis d'une option (option supprimée). */
 export function forgetMemPrices(option: string) {
   delete mem()[option];

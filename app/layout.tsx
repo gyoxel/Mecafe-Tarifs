@@ -6,7 +6,7 @@ const sans = Manrope({ subsets: ["latin"], variable: "--font-sans", display: "sw
 
 export const metadata: Metadata = {
   title: "Mécafé — Tarifs professionnels",
-  description: "Catalogue tarifaire réservé aux commerciaux Mécafé.",
+  description: "Catalogue tarifaire des revendeurs Mécafé.",
   robots: { index: false, follow: false },
 };
 

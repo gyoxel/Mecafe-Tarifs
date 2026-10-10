@@ -39,7 +39,7 @@ export default async function AdminCatalog({ searchParams }: { searchParams: Sea
       menu={menu}
       order={order}
       initial={initialFilters(sp)}
-      admin={{ prices, options, choose: sp.choisir != null && !edit, edit, storageDown: storageMode() === "down" }}
+      admin={{ prices, options, edit, storageDown: storageMode() === "down" }}
     />
   );
 }

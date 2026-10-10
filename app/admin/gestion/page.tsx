@@ -5,7 +5,7 @@ import { getAdminSession } from "@/lib/auth";
 import { getOptions } from "@/lib/price-options";
 import { storageMode } from "@/lib/prices";
 
-export const metadata = { title: "Commerciaux et villes — Gestion — Mécafé Tarifs" };
+export const metadata = { title: "Revendeurs et villes — Gestion — Mécafé Tarifs" };
 
 export default async function GestionCommerciaux() {
   if (!(await getAdminSession())) redirect("/login");

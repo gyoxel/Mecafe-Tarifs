@@ -96,7 +96,7 @@ export async function invoicePdf(inv: SavedInvoice, logoPng: Uint8Array | null):
   y -= 24;
 
   // Commercial
-  page.drawText("COMMERCIAL", { x: M, y, size: 8, font: bold, color: MUTED });
+  page.drawText("REVENDEUR", { x: M, y, size: 8, font: bold, color: MUTED });
   y -= 15;
   page.drawText(T(inv.commercial, bold), { x: M, y, size: 12, font: bold, color: INK });
   if (inv.city) {
@@ -152,7 +152,7 @@ export async function invoicePdf(inv: SavedInvoice, logoPng: Uint8Array | null):
   right(page, "TOTAL", col.totalEnd - totalW - 16, y, 10.5, bold);
   if (inv.rows.some((r) => r.sitePrice)) {
     y -= 22;
-    page.drawText("* Prix du site (pas de prix commercial pour ce produit).", { x: M, y, size: 8.5, font, color: MUTED });
+    page.drawText("* Prix du site (pas de prix revendeur pour ce produit).", { x: M, y, size: 8.5, font, color: MUTED });
   }
 
   // Pied de page sur chaque page

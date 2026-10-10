@@ -31,7 +31,8 @@ create table if not exists option_prices (
   primary key (option_id, variant_id)
 );
 
--- Options de prix (gérées depuis la page de modification). Créée avec A (−10), B (−9), C (−8, par défaut).
+-- Revendeurs (Gestion › Revendeurs et villes). « base » = tarif de base « Revendeur » (par défaut, position −1),
+-- dont l'écart et les prix saisis sont copiés dans chaque nouveau revendeur.
 create table if not exists price_options (
   id           text primary key,
   name         text not null,

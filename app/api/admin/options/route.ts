@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { fold } from "@/lib/format";
 import { requireAdmin, requireStorage } from "@/lib/guard";
-import { NAME_MAX, OFFSET_LIMIT } from "@/lib/options";
+import { BASE_ID, NAME_MAX, OFFSET_LIMIT } from "@/lib/options";
 import { CITY_MAX, cityChoices, normalizeCity } from "@/lib/cities";
-import { createOption, deleteOption, getOptions, updateOption } from "@/lib/price-options";
+import { createOption, deleteOption, getOptions, reorderOptions, updateOption } from "@/lib/price-options";
 
 /**
- * Gestion des options de prix (page de modification).
- * Corps : { action: "create", name, city?, offset } | { action: "update", id, name?, city?, offset?, isDefault? }
- *       | { action: "delete", id }   (city : texte, ou null / "" pour aucune ville)
- * Réponse : la liste complète des options.
+ * Gestion des revendeurs.
+ * Corps : { action: "create", name, city?, offset } | { action: "update", id, name?, city?, offset? }
+ *       | { action: "delete", id } | { action: "reorder", ids }   (city : texte, ou null / "" pour aucune ville)
+ * La base (« Revendeur ») : seul son écart se modifie ; elle ne se supprime pas.
+ * Réponse : la liste complète des revendeurs.
  */
-type Body = { action?: unknown; id?: unknown; name?: unknown; city?: unknown; offset?: unknown; isDefault?: unknown };
+type Body = { action?: unknown; id?: unknown; ids?: unknown; name?: unknown; city?: unknown; offset?: unknown };
 
 const fail = (error: string) => NextResponse.json({ error }, { status: 400 });
 
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
   if (name !== undefined) {
     if (!name || name.length > NAME_MAX) return fail(`Nom requis (${NAME_MAX} caractères au plus)`);
     if (options.some((o) => o.id !== target?.id && fold(o.name) === fold(name))) {
-      return fail(`L'option « ${name} » existe déjà`);
+      return fail(`Le revendeur « ${name} » existe déjà`);
     }
   }
   let city: string | null | undefined;
@@ -52,19 +53,28 @@ export async function POST(req: Request) {
       list = await createOption(name, city ?? null, Math.round(offset * 100) / 100);
       break;
     case "update":
-      if (!target) return fail("Option inconnue");
+      if (!target) return fail("Revendeur inconnu");
+      if (target.id === BASE_ID && (name !== undefined || city !== undefined)) {
+        return fail("Le revendeur de base garde son nom : seul son écart se modifie.");
+      }
       list = await updateOption(target.id, {
         name,
         city,
         offset: offset === undefined ? undefined : Math.round(offset * 100) / 100,
-        isDefault: body.isDefault === true ? true : undefined,
       });
       break;
     case "delete":
-      if (!target) return fail("Option inconnue");
-      if (options.length <= 1) return fail("Il faut garder au moins une option");
+      if (!target) return fail("Revendeur inconnu");
+      if (target.id === BASE_ID) return fail("Le revendeur de base ne peut pas être supprimé.");
       list = await deleteOption(target.id);
       break;
+    case "reorder": {
+      const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string") : null;
+      const known = new Set(options.map((o) => o.id));
+      if (!ids || ids.length > options.length || ids.some((id) => !known.has(id))) return fail("Ordre invalide");
+      list = await reorderOptions(ids);
+      break;
+    }
     default:
       return fail("Action inconnue");
   }

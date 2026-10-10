@@ -4,10 +4,10 @@ import { effectivePrice, type PriceOption } from "./options";
 
 /**
  * Format Excel français : séparateur ";", virgule décimale, BOM UTF-8.
- * prix_commercial = prix saisi dans l'option (vide = automatique) ; c'est la seule colonne relue à l'import.
+ * prix_revendeur = prix saisi dans l'option (vide = automatique) ; c'est la seule colonne relue à l'import.
  * prix_applique = ce que voit le commercial (saisi, sinon prix site + écart), pour information.
  */
-export const CSV_HEADER = ["variant_id", "sku", "marque", "produit", "format", "prix_site", "prix_commercial", "prix_applique"];
+export const CSV_HEADER = ["variant_id", "sku", "marque", "produit", "format", "prix_site", "prix_revendeur", "prix_applique"];
 
 const cell = (v: string | number | null | undefined): string => {
   const s = v == null ? "" : String(v);

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   return new Response(buildCsv(items, prices[option.id] ?? {}, option), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="prix-commerciaux-${slug(option.name) || option.id}-${day}.csv"`,
+      "Content-Disposition": `attachment; filename="prix-revendeurs-${slug(option.name) || option.id}-${day}.csv"`,
       "Cache-Control": "no-store",
     },
   });

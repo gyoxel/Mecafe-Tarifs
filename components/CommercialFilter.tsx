@@ -46,12 +46,12 @@ export function CommercialFilter({
         className="city-filter-btn"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`Filtrer par commercial : ${current?.name ?? "tous"}`}
+        aria-label={`Filtrer par revendeur : ${current?.name ?? "tous"}`}
         onClick={() => setOpen((o) => !o)}
       >
         <UsersIcon size={15} />
         <span className="city-filter-value">
-          {current ? current.name : "Tous les commerciaux"}
+          {current ? current.name : "Tous les revendeurs"}
           {current?.city && <span className="commercial-filter-city"> · {current.city}</span>}
         </span>
         {current ? (
@@ -83,9 +83,9 @@ export function CommercialFilter({
           }}
         >
           <button type="button" className="commercial-filter-all" aria-pressed={value == null} onClick={() => pick(null)}>
-            Tous les commerciaux
+            Tous les revendeurs
           </button>
-          <OptionList options={options} value={value} onPick={(o) => pick(o.id)} label="Commerciaux" autoFocus />
+          <OptionList options={options} value={value} onPick={(o) => pick(o.id)} label="Revendeurs" autoFocus />
         </div>
       )}
     </div>

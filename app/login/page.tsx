@@ -11,7 +11,7 @@ export default function LoginPage() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="login-logo" src="/mecafe-logo.png" alt="Mécafé 1988" width={1126} height={366} />
         <h1>Espace admin</h1>
-        <p className="muted">Entrez le code admin pour afficher les prix commerciaux.</p>
+        <p className="muted">Entrez le code admin pour afficher les prix revendeurs.</p>
         <LoginForm />
         <Link href="/" className="login-back">
           ← Retour au catalogue

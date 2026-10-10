@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { fold } from "@/lib/format";
-import { formatOffset, matchesOption, type PriceOption } from "@/lib/options";
+import { formatOffset, isBase, matchesOption, type PriceOption } from "@/lib/options";
 import { FilterSelect } from "./FilterSelect";
 import { keepVisible } from "./scroll";
 import { CheckIcon, ChevronIcon, PinIcon, SearchIcon, TagIcon } from "./Icons";
@@ -79,7 +79,7 @@ export function OptionList({
             setActive(-1);
           }}
           placeholder={cities.length ? "Rechercher un nom, une ville…" : "Rechercher un nom…"}
-          aria-label="Rechercher un commercial"
+          aria-label="Rechercher un revendeur"
           aria-controls={listId}
           autoComplete="off"
           spellCheck={false}
@@ -118,13 +118,14 @@ export function OptionList({
             <span className="opt-item-text">
               <span className="opt-item-name">{o.name}</span>
               {o.city && <span className="opt-item-city">{o.city}</span>}
+              {isBase(o) && <span className="opt-item-city">Tarif par défaut</span>}
             </span>
             <span className="opt-item-check">{o.id === value && <CheckIcon size={16} />}</span>
           </li>
         ))}
         {shown.length === 0 && (
           <li className="opt-empty">
-            Aucun commercial{query.trim() ? ` « ${query.trim()} »` : ""}
+            Aucun revendeur{query.trim() ? ` « ${query.trim()} »` : ""}
             {city ? ` à ${city}` : ""}
           </li>
         )}

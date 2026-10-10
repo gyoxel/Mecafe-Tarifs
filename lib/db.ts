@@ -1,6 +1,6 @@
 import "server-only";
 import postgres from "postgres";
-import { SEED_OPTIONS } from "./options";
+import { BASE_ID, BASE_NAME, SEED_OPTIONS } from "./options";
 
 type Sql = ReturnType<typeof postgres>;
 
@@ -83,10 +83,29 @@ export function ensureSchema(): Promise<void> {
         for (const [i, o] of SEED_OPTIONS.entries()) {
           await tx`
             insert into price_options (id, name, price_offset, position, is_default)
-            values (${o.id}, ${o.name}, ${o.offset}, ${i}, ${o.isDefault})`;
+            values (${o.id}, ${o.name}, ${o.offset}, ${o.id === BASE_ID ? -1 : i}, ${o.isDefault})`;
         }
       });
       await sql`alter table price_options add column if not exists city text`;
+      // « Revendeur » de base : créé s'il n'existe pas, en tête de liste, avec l'écart et les prix saisis de
+      // l'ancienne option par défaut (le tarif affiché à l'ouverture ne change pas).
+      await sql.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(727003)`;
+        const [{ exists }] = await tx`select exists (select 1 from price_options where id = ${BASE_ID}) as exists`;
+        if (!exists) {
+          const [old] = await tx`select id, price_offset from price_options where is_default order by position limit 1`;
+          await tx`
+            insert into price_options (id, name, price_offset, position, is_default)
+            values (${BASE_ID}, ${BASE_NAME}, ${old?.price_offset ?? -10}, -1, true)`;
+          if (old) {
+            await tx`
+              insert into option_prices (option_id, variant_id, sku, label, price)
+              select ${BASE_ID}, variant_id, sku, label, price from option_prices where option_id = ${old.id}
+              on conflict do nothing`;
+          }
+        }
+        await tx`update price_options set is_default = (id = ${BASE_ID}) where is_default <> (id = ${BASE_ID})`;
+      });
       // Historique des factures confirmées (lignes figées en JSON).
       await sql`
         create table if not exists invoices (

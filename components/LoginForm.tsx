@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OPTION_STORAGE_KEY } from "@/lib/options";
 import { LockIcon } from "./Icons";
 
 export function LoginForm() {
@@ -20,8 +21,11 @@ export function LoginForm() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
-        // Rechargement complet (la session est lue côté serveur), puis choix du commercial.
-        window.location.href = "/admin?choisir=1";
+        // Chaque connexion repart du tarif de base (« Revendeur ») ; rechargement complet (session lue côté serveur).
+        try {
+          localStorage.removeItem(OPTION_STORAGE_KEY);
+        } catch {}
+        window.location.href = "/admin";
         return;
       }
       const data = (await res.json().catch(() => null)) as { error?: string } | null;

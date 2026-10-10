@@ -68,7 +68,7 @@ export async function computeDraft(
 ): Promise<{ draft: Draft } | { error: string }> {
   const [{ items }, allPrices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const option = options.find((o) => o.id === commercialId);
-  if (!option) return { error: "Commercial inconnu : choisissez un commercial." };
+  if (!option) return { error: "Revendeur inconnu : choisissez un revendeur." };
   const byId = new Map(items.map((i) => [i.id, i]));
   const prices = pricesFor(option, allPrices[option.id] ?? {}, items);
 
@@ -96,7 +96,7 @@ export async function computeDraft(
   }
   if (missing.length) {
     return {
-      error: `Pas de prix commercial pour ${option.name} : ${missing.join(", ")}. Définissez-le dans Gestion › Prix des produits.`,
+      error: `Pas de prix revendeur pour ${option.name} : ${missing.join(", ")}. Définissez-le dans Gestion › Prix des produits.`,
     };
   }
   if (gone.length) return { error: `${gone.length} produit(s) ne sont plus sur la boutique : retirez-les du panier.` };

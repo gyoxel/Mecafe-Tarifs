@@ -218,7 +218,7 @@ export function CartPanel({
                 <span className="cart-line-meta">
                   {l.item.variant && <span className="cart-line-variant">{displayVariant(l.item.variant)}</span>}
                   {l.unit == null ? (
-                    <span className="cart-line-missing">Pas de prix commercial</span>
+                    <span className="cart-line-missing">Pas de prix revendeur</span>
                   ) : (
                     <span className="cart-line-unit">{formatDH(l.unit)}</span>
                   )}
@@ -245,7 +245,7 @@ export function CartPanel({
       <div className="cart-foot">
         {missing.length > 0 && (
           <p className="cart-warn">
-            {missing.length} produit{missing.length > 1 ? "s" : ""} sans prix commercial pour {commercial} : retirez-
+            {missing.length} produit{missing.length > 1 ? "s" : ""} sans prix revendeur pour {commercial} : retirez-
             {missing.length > 1 ? "les" : "le"} ou définissez le prix dans Gestion › Prix des produits.
           </p>
         )}

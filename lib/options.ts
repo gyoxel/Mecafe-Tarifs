@@ -3,9 +3,11 @@ import { fromCents, toCents } from "./money";
 import type { CatalogItem, PriceMap } from "./types";
 
 /**
- * Options de prix commerciaux (A, B, C, ou le nom d'un commercial…), gérées depuis la page de modification.
- * Chaque option a un écart appliqué automatiquement au prix du site, et ses propres prix saisis à la main
- * qui remplacent ce calcul produit par produit. L'écart suit donc le prix du site en direct.
+ * Revendeurs (« options » de prix dans le code). Chacun a un écart appliqué automatiquement au prix du site,
+ * et ses propres prix saisis à la main qui remplacent ce calcul produit par produit.
+ *
+ * « Revendeur » (BASE_ID) est la base, sans nom propre : c'est le tarif affiché par défaut dans l'admin, et un
+ * nouveau revendeur part de son écart et de ses prix saisis (copiés à la création, modifiables ensuite).
  */
 export type PriceOption = {
   id: string;
@@ -21,18 +23,20 @@ export type PriceOption = {
 /** Prix saisis à la main, par option (id option → variantId → prix). */
 export type OptionPrices = Record<string, PriceMap>;
 
-/** Options créées au premier lancement (C par défaut). */
-export const SEED_OPTIONS: PriceOption[] = [
-  { id: "a", name: "A", city: null, offset: -10, isDefault: false },
-  { id: "b", name: "B", city: null, offset: -9, isDefault: false },
-  { id: "c", name: "C", city: null, offset: -8, isDefault: true },
-];
+/** Le revendeur de base : tarif par défaut, modèle des nouveaux revendeurs. Ne peut pas être supprimé. */
+export const BASE_ID = "base";
+export const BASE_NAME = "Revendeur";
+export const isBase = (o: { id: string } | null | undefined) => o?.id === BASE_ID;
+
+/** Créé au premier lancement : la base seule (les revendeurs nommés s'ajoutent dans la gestion). */
+export const SEED_OPTIONS: PriceOption[] = [{ id: BASE_ID, name: BASE_NAME, city: null, offset: -10, isDefault: true }];
 
 export const NAME_MAX = 60;
 export const OFFSET_LIMIT = 100_000;
 
+/** Le tarif de base (« Revendeur »), affiché par défaut. */
 export function defaultOption(options: PriceOption[]): PriceOption | undefined {
-  return options.find((o) => o.isDefault) ?? options[0];
+  return options.find(isBase) ?? options.find((o) => o.isDefault) ?? options[0];
 }
 
 /** « −10 DH », « +5 DH », « 0 DH ». */

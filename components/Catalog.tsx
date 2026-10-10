@@ -18,10 +18,9 @@ import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import { OPTION_STORAGE_KEY, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import { OPTION_STORAGE_KEY, defaultOption, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
 import { CartFab, CartPanel, CartSheet } from "./Cart";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
-import { CommercialChooser } from "./CommercialChooser";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
@@ -46,8 +45,6 @@ type Props = {
   admin?: {
     prices: OptionPrices;
     options: PriceOption[];
-    /** Ouvrir le choix du commercial dès l'arrivée (après la connexion). */
-    choose: boolean;
     /** Facture à modifier (lien « Modifier » de l'historique) : remise dans le panier à l'arrivée. */
     edit?: SavedInvoice | null;
     /** Production sans base de données : rien ne peut être enregistré. */
@@ -118,10 +115,10 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       className="global-eye"
       aria-pressed={on}
       onClick={onToggle}
-      title={on ? "Masquer tous les prix commerciaux" : "Afficher tous les prix commerciaux"}
+      title={on ? "Masquer tous les prix revendeurs" : "Afficher tous les prix revendeurs"}
     >
       <EyeIcon off={!on} size={18} />
-      <span className="global-eye-label">Tarifs commerciaux</span>
+      <span className="global-eye-label">Tarifs revendeurs</span>
       <span className="switch" aria-hidden="true">
         <span className="switch-thumb" />
       </span>
@@ -130,28 +127,24 @@ function GlobalEye({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 }
 
 export function Catalog({ items, source, menu, order, initial, admin }: Props) {
-  // ── Admin : commercial choisi (fenêtre de choix à l'arrivée, puis mémorisé sur l'appareil) ──
+  // ── Admin : revendeur affiché. Par défaut « Revendeur » (la base) ; le choix est mémorisé sur l'appareil
+  // (remis à la base à chaque connexion, voir LoginForm).
   const isAdmin = Boolean(admin);
-  const [options, setOptions] = useState<PriceOption[]>(admin?.options ?? []);
-  const [option, setOption] = useState<string | null>(null);
-  const [chooser, setChooser] = useState(Boolean(admin?.choose));
+  const options = admin?.options ?? [];
+  const [option, setOption] = useState<string | null>(() => defaultOption(admin?.options ?? [])?.id ?? null);
   useEffect(() => {
     if (!admin) return;
     let saved: string | null = null;
     try {
       saved = localStorage.getItem(OPTION_STORAGE_KEY);
     } catch {}
-    // Modification d'une facture : son commercial d'origine, s'il existe encore.
+    // Modification d'une facture : son revendeur d'origine, s'il existe encore.
     const fromEdit = admin.edit?.commercialId;
-    if (fromEdit && admin.options.some((o) => o.id === fromEdit)) {
-      setOption(fromEdit);
-      setChooser(false);
-    } else if (saved && admin.options.some((o) => o.id === saved)) setOption(saved);
-    else setChooser(true);
+    if (fromEdit && admin.options.some((o) => o.id === fromEdit)) setOption(fromEdit);
+    else if (saved && admin.options.some((o) => o.id === saved)) setOption(saved);
   }, [admin]);
   const pickCommercial = (o: PriceOption) => {
     setOption(o.id);
-    setChooser(false);
     try {
       localStorage.setItem(OPTION_STORAGE_KEY, o.id);
     } catch {}
@@ -163,7 +156,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     () => (currentOption && optionPrices ? pricesFor(currentOption, optionPrices[currentOption.id] ?? {}, items) : {}),
     [currentOption, optionPrices, items],
   );
-  const proLabel = currentOption?.name ?? "Commercial";
+  const proLabel = currentOption?.name ?? "Revendeur";
 
   // ── Panier (admin seulement), mémorisé sur l'appareil ────────────
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -268,7 +261,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   });
   const openInvoice = async (printAfter: boolean) => {
     if (previewing) return;
-    if (!currentOption) return setCartError("Choisissez d'abord un commercial.");
+    if (!currentOption) return setCartError("Choisissez d'abord un revendeur.");
     setCartError("");
     setInvoiceError("");
     setPreviewing(true);
@@ -634,7 +627,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/mecafe-logo-sm.png" alt="Mécafé" width={480} height={156} />
           </a>
-          <span className="appbar-title">{isAdmin ? "Admin · tarifs commerciaux" : "Tarifs professionnels"}</span>
+          <span className="appbar-title">{isAdmin ? "TARIFS REVENDEURS" : "Tarifs professionnels"}</span>
           <div className="appbar-search">
             <SearchField
               value={query}
@@ -647,7 +640,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               <OptionPicker
                 options={options}
                 value={option ?? ""}
-                label="Commercial"
+                label="Revendeur"
                 onChange={(id) => {
                   const o = options.find((x) => x.id === id);
                   if (o) pickCommercial(o);
@@ -834,7 +827,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               </span>
               {isAdmin && (
                 <span role="columnheader" className="num">
-                  Prix commercial · {proLabel}
+                  Prix revendeur · {proLabel}
                 </span>
               )}
               {isAdmin && (
@@ -947,16 +940,6 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         />
       )}
       {isAdmin && <PrintInvoice doc={printing} />}
-
-      {admin && chooser && (
-        <CommercialChooser
-          options={options}
-          value={option}
-          onPick={pickCommercial}
-          onOptions={setOptions}
-          onClose={currentOption ? () => setChooser(false) : undefined}
-        />
-      )}
     </>
   );
 }
