@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { fold, formatDH } from "@/lib/format";
 import type { SavedInvoice } from "@/lib/invoice-types";
-import { FilterSelect } from "./FilterSelect";
-import { CalendarIcon, CheckIcon, FileTextIcon, SearchIcon, UsersIcon } from "./Icons";
+import type { PriceOption } from "@/lib/options";
+import { CommercialFilter } from "./CommercialFilter";
+import { CalendarIcon, CheckIcon, FileTextIcon, SearchIcon } from "./Icons";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -23,7 +24,10 @@ const PERIODS: { id: Period; label: string }[] = [
 ];
 
 /** Gestion › Factures : historique des factures confirmées, avec recherche et filtres. */
-export function FacturesPanel({ invoices }: { invoices: SavedInvoice[] }) {
+/** Clé du commercial d'une facture : son id, ou son nom s'il a été supprimé depuis. */
+const keyOf = (inv: SavedInvoice) => inv.commercialId ?? `nom:${inv.commercial}`;
+
+export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[]; options: PriceOption[] }) {
   const [query, setQuery] = useState("");
   const [commercial, setCommercial] = useState<string | null>(null);
   const [from, setFrom] = useState("");
@@ -31,10 +35,19 @@ export function FacturesPanel({ invoices }: { invoices: SavedInvoice[] }) {
   const [open, setOpen] = useState<SavedInvoice | null>(null);
   const [printing, setPrinting] = useState<InvoiceDoc | null>(null);
 
-  const commercials = useMemo(
-    () => [...new Set(invoices.map((i) => i.commercial))].sort((a, b) => fold(a).localeCompare(fold(b))),
-    [invoices],
-  );
+  // Tous les commerciaux actuels, plus ceux supprimés depuis qui ont encore des factures.
+  const commercials = useMemo(() => {
+    const list: PriceOption[] = [...options];
+    const known = new Set(options.map((o) => o.id));
+    for (const inv of invoices) {
+      const k = keyOf(inv);
+      if (!known.has(k)) {
+        known.add(k);
+        list.push({ id: k, name: inv.commercial, city: inv.city, offset: 0, isDefault: false });
+      }
+    }
+    return list.sort((a, b) => fold(a.name).localeCompare(fold(b.name)));
+  }, [options, invoices]);
   // Texte recherché par facture : n°, commercial, ville, produits, formats, SKU.
   const haystacks = useMemo(
     () =>
@@ -75,7 +88,7 @@ export function FacturesPanel({ invoices }: { invoices: SavedInvoice[] }) {
     return invoices.filter((inv, i) => {
       const day = dayKey(new Date(inv.createdAt));
       return (
-        (!commercial || inv.commercial === commercial) &&
+        (!commercial || keyOf(inv) === commercial) &&
         (!from || day >= from) &&
         (!to || day <= to) &&
         words.every((w) => haystacks[i].includes(w))
@@ -104,14 +117,7 @@ export function FacturesPanel({ invoices }: { invoices: SavedInvoice[] }) {
           />
         </label>
         <div className="factures-commercial">
-          <FilterSelect
-            values={commercials}
-            value={commercial}
-            onChange={setCommercial}
-            allLabel="Tous les commerciaux"
-            label="Filtrer par commercial"
-            icon={<UsersIcon size={15} />}
-          />
+          <CommercialFilter options={commercials} value={commercial} onChange={setCommercial} />
         </div>
         <div className="factures-dates">
           <label className="date-field">

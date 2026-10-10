@@ -81,7 +81,7 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Factures* (`/admin/gestion/factures`) : historique des factures confirmées ; recherche (n°, commercial,
-    ville, produit), filtre par commercial, dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
+    ville, produit), filtre par commercial (liste avec recherche par nom ou ville, y compris les commerciaux supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
     réimprimer, partager en PDF ou **modifier** une facture (retour au catalogue avec la facture dans le panier) ;
   - *Prix des produits* (`/admin/gestion/prix`) : choisir le commercial, puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
     retour au prix automatique) ; **Exporter / Importer CSV** pour ce commercial (colonne `prix_commercial`,
