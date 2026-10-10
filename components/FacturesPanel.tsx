@@ -6,20 +6,13 @@ import { fold, formatDH } from "@/lib/format";
 import type { SavedInvoice } from "@/lib/invoice-types";
 import { FilterSelect } from "./FilterSelect";
 import { CalendarIcon, CheckIcon, FileTextIcon, SearchIcon, UsersIcon } from "./Icons";
-import { InvoiceModal, PrintInvoice, printDoc, type InvoiceDoc } from "./Invoice";
+import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 
 const p2 = (n: number) => String(n).padStart(2, "0");
 /** Date locale « AAAA-MM-JJ » (valeur des champs date). */
 const dayKey = (d: Date) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 const dateTime = (d: Date) => `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} · ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 
-const toDoc = (inv: SavedInvoice): InvoiceDoc => ({
-  rows: inv.rows,
-  commercial: inv.commercial,
-  city: inv.city,
-  number: inv.number,
-  date: new Date(inv.createdAt),
-});
 
 type Period = "all" | "today" | "7d" | "month";
 const PERIODS: { id: Period; label: string }[] = [
@@ -192,6 +185,11 @@ export function FacturesPanel({ invoices }: { invoices: SavedInvoice[] }) {
                 <span className="facture-status">
                   <CheckIcon size={13} /> Confirmée
                 </span>
+                {inv.updatedAt && (
+                  <span className="facture-updated" title={`Modifiée le ${dateTime(new Date(inv.updatedAt))}`}>
+                    modifiée
+                  </span>
+                )}
               </span>
             </button>
           ))}
@@ -200,9 +198,13 @@ export function FacturesPanel({ invoices }: { invoices: SavedInvoice[] }) {
 
       {open && (
         <InvoiceModal
-          doc={toDoc(open)}
+          doc={docOf(open)}
           onClose={() => setOpen(null)}
-          onPrint={() => printDoc(setPrinting, toDoc(open), flushSync)}
+          onPrint={() => printDoc(setPrinting, docOf(open), flushSync)}
+          onEdit={() => {
+            // Retour au catalogue admin, la facture remise dans le panier.
+            window.location.href = `/admin?modifier=${open.id}`;
+          }}
         />
       )}
       <PrintInvoice doc={printing} />

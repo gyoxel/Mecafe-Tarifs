@@ -27,6 +27,8 @@ export type SavedInvoice = {
   status: "confirmee";
   /** ISO 8601. */
   createdAt: string;
+  /** ISO 8601 de la dernière modification après confirmation, ou null. */
+  updatedAt: string | null;
 };
 
 export const sumRows = (rows: InvoiceRow[]) => ({

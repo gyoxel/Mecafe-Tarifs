@@ -1,4 +1,5 @@
 import "server-only";
+import { QTY_MAX } from "./cart";
 import { getCatalog } from "./catalog";
 import { ensureSchema, getSql, isDbConfigured } from "./db";
 import { sumRows, type InvoiceRow, type SavedInvoice } from "./invoice-types";
@@ -17,6 +18,24 @@ const mem = () => (g.__memInvoices ??= []);
 const numberOf = (id: number, d: Date) => `F${d.getFullYear()}-${String(id).padStart(5, "0")}`;
 
 export const MAX_LINES = 500;
+
+/** Corps { commercialId, lines: [{ id, qty }] } validé, ou { error }. */
+export function parseInvoiceBody(body: unknown): { commercialId: string; lines: { id: string; qty: number }[] } | { error: string } {
+  const b = body as { commercialId?: unknown; lines?: unknown } | null;
+  const lines = Array.isArray(b?.lines) ? b.lines : null;
+  if (typeof b?.commercialId !== "string" || !lines || !lines.length || lines.length > MAX_LINES) {
+    return { error: "Requête invalide" };
+  }
+  const clean: { id: string; qty: number }[] = [];
+  for (const l of lines as { id?: unknown; qty?: unknown }[]) {
+    const qty = l?.qty;
+    if (typeof l?.id !== "string" || typeof qty !== "number" || !Number.isInteger(qty) || qty < 1 || qty > QTY_MAX) {
+      return { error: "Ligne invalide" };
+    }
+    clean.push({ id: l.id, qty });
+  }
+  return { commercialId: b.commercialId, lines: clean };
+}
 
 /**
  * Construit les lignes côté serveur à partir du catalogue et des prix du commercial :
@@ -76,6 +95,7 @@ export async function saveInvoice(input: {
       total,
       status: "confirmee",
       createdAt: now.toISOString(),
+      updatedAt: null,
     };
     list.unshift(inv);
     return inv;
@@ -90,6 +110,46 @@ export async function saveInvoice(input: {
             ${sql.json(input.rows as never)}, ${count}, ${total}, 'confirmee')
     returning *`;
   return fromRow(row);
+}
+
+export async function getInvoice(id: number): Promise<SavedInvoice | null> {
+  if (!Number.isSafeInteger(id) || id < 1) return null;
+  if (!isDbConfigured()) return mem().find((i) => i.id === id) ?? null;
+  await ensureSchema();
+  const [row] = await getSql()`select * from invoices where id = ${id}`;
+  return row ? fromRow(row) : null;
+}
+
+/** Modifier une facture confirmée : mêmes n° et date de création, nouvelles lignes / commercial. */
+export async function updateInvoice(
+  id: number,
+  input: { commercialId: string; commercial: string; city: string | null; rows: InvoiceRow[] },
+): Promise<SavedInvoice | null> {
+  const { count, total } = sumRows(input.rows);
+  if (!isDbConfigured()) {
+    const inv = mem().find((i) => i.id === id);
+    if (!inv) return null;
+    Object.assign(inv, {
+      commercialId: input.commercialId,
+      commercial: input.commercial,
+      city: input.city,
+      rows: input.rows,
+      count,
+      total,
+      updatedAt: new Date().toISOString(),
+    });
+    return inv;
+  }
+  await ensureSchema();
+  const sql = getSql();
+  const [row] = await sql`
+    update invoices
+       set commercial_id = ${input.commercialId}, commercial_name = ${input.commercial},
+           commercial_city = ${input.city}, lines = ${sql.json(input.rows as never)},
+           item_count = ${count}, total = ${total}, updated_at = now()
+     where id = ${id}
+     returning *`;
+  return row ? fromRow(row) : null;
 }
 
 export async function listInvoices(limit = 2000): Promise<SavedInvoice[]> {
@@ -111,5 +171,6 @@ function fromRow(r: Record<string, unknown>): SavedInvoice {
     total: Number(r.total),
     status: "confirmee",
     createdAt: new Date(r.created_at as string).toISOString(),
+    updatedAt: r.updated_at ? new Date(r.updated_at as string).toISOString() : null,
   };
 }

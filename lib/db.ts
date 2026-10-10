@@ -102,6 +102,7 @@ export function ensureSchema(): Promise<void> {
           created_at timestamptz not null default now()
         )`;
       await sql`create index if not exists invoices_created_idx on invoices (created_at desc)`;
+      await sql`alter table invoices add column if not exists updated_at timestamptz`;
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel
       throw err;

@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { QTY_MAX, readCart, resolveCart, toInvoiceRows, writeCart, type CartLine } from "@/lib/cart";
+import {
+  QTY_MAX,
+  readCart,
+  readEditing,
+  resolveCart,
+  toInvoiceRows,
+  writeCart,
+  writeEditing,
+  type CartEditing,
+  type CartLine,
+} from "@/lib/cart";
 import type { SavedInvoice } from "@/lib/invoice-types";
 import { slug } from "@/lib/format";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
@@ -11,7 +21,7 @@ import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import { OPTION_STORAGE_KEY, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
 import { CartFab, CartPanel, CartSheet } from "./Cart";
-import { InvoiceModal, PrintInvoice, printDoc, type InvoiceDoc } from "./Invoice";
+import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 import { CommercialChooser } from "./CommercialChooser";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
@@ -39,6 +49,8 @@ type Props = {
     options: PriceOption[];
     /** Ouvrir le choix du commercial dès l'arrivée (après la connexion). */
     choose: boolean;
+    /** Facture à modifier (lien « Modifier » de l'historique) : remise dans le panier à l'arrivée. */
+    edit?: SavedInvoice | null;
   };
 };
 
@@ -128,7 +140,12 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     try {
       saved = localStorage.getItem(OPTION_STORAGE_KEY);
     } catch {}
-    if (saved && admin.options.some((o) => o.id === saved)) setOption(saved);
+    // Modification d'une facture : son commercial d'origine, s'il existe encore.
+    const fromEdit = admin.edit?.commercialId;
+    if (fromEdit && admin.options.some((o) => o.id === fromEdit)) {
+      setOption(fromEdit);
+      setChooser(false);
+    } else if (saved && admin.options.some((o) => o.id === saved)) setOption(saved);
     else setChooser(true);
   }, [admin]);
   const pickCommercial = (o: PriceOption) => {
@@ -152,14 +169,37 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   const cartRef = useRef(cart);
   cartRef.current = cart;
   const cartLoaded = useRef(false);
+  // Facture confirmée remise dans le panier pour être modifiée (même n° à l'enregistrement).
+  const [editing, setEditing] = useState<CartEditing | null>(null);
   useEffect(() => {
     if (!admin) return;
-    setCart(readCart());
+    let lines = readCart();
+    let edit = readEditing();
+    const inv = admin.edit;
+    if (inv && edit?.id !== inv.id) {
+      const replace =
+        lines.length === 0 || window.confirm(`Modifier la facture ${inv.number} ? Le panier en cours sera remplacé.`);
+      if (replace) {
+        lines = inv.rows.map((r) => ({ id: r.variantId, qty: r.qty }));
+        edit = { id: inv.id, number: inv.number };
+        // Téléphone / tablette : le panier s'ouvre directement sur la facture à modifier.
+        if (!window.matchMedia("(min-width: 1100px)").matches) setSheetOpen(true);
+      }
+    }
+    setCart(lines);
+    setEditing(lines.length ? edit : null);
     cartLoaded.current = true;
   }, [admin]);
   useEffect(() => {
     if (cartLoaded.current) writeCart(cart);
   }, [cart]);
+  useEffect(() => {
+    if (cartLoaded.current) writeEditing(editing);
+  }, [editing]);
+  const clearCart = () => {
+    setCart([]);
+    setEditing(null);
+  };
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [bump, setBump] = useState(0); // relance l'animation du bouton panier à chaque ajout
   const [panelHidden, setPanelHidden] = useState(false); // bureau : panneau réduit par l'utilisateur
@@ -168,6 +208,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     const q = Math.max(0, Math.min(qty, QTY_MAX));
     const prev = cartRef.current;
     const before = prev.find((l) => l.id === id)?.qty ?? 0;
+    // Dernier article retiré : le panier est vide, plus de modification de facture en cours.
+    if (q === 0 && before > 0 && prev.length === 1) setEditing(null);
     if (q > before) {
       setLastAdded(id);
       setBump((b) => b + 1);
@@ -212,7 +254,14 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     setInvoiceError("");
     setInvoiceView({
       printAfter,
-      doc: { rows: toInvoiceRows(cartLines), commercial: proLabel, city: currentOption?.city ?? null, number: null, date: new Date() },
+      doc: {
+        rows: toInvoiceRows(cartLines),
+        commercial: proLabel,
+        city: currentOption?.city ?? null,
+        number: null,
+        date: new Date(),
+        editing: editing?.number,
+      },
     });
   };
   const print = (doc: InvoiceDoc) => printDoc(setPrinting, doc, flushSync);
@@ -222,29 +271,36 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     setConfirming(true);
     setInvoiceError("");
     try {
-      const res = await fetch("/api/admin/invoices", {
-        method: "POST",
+      // Nouvelle facture, ou modification d'une facture existante (même n°).
+      const res = await fetch(editing ? `/api/admin/invoices/${editing.id}` : "/api/admin/invoices", {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commercialId: currentOption.id, lines: cart }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; invoice?: SavedInvoice };
       if (!res.ok || !data.invoice) throw new Error(data.error ?? `Erreur ${res.status}`);
-      const inv = data.invoice;
-      const doc: InvoiceDoc = {
-        rows: inv.rows,
-        commercial: inv.commercial,
-        city: inv.city,
-        number: inv.number,
-        date: new Date(inv.createdAt),
-      };
+      const doc = docOf(data.invoice);
       const printAfter = invoiceView.printAfter;
       setInvoiceView({ doc, printAfter: false });
-      setCart([]); // facture enregistrée : le panier repart à zéro
+      clearCart(); // facture enregistrée : le panier repart à zéro
       if (printAfter) print(doc);
     } catch (e) {
       setInvoiceError(e instanceof Error ? e.message : "Échec de la confirmation");
     }
     setConfirming(false);
+  };
+  /** Remettre une facture confirmée dans le panier pour la modifier. */
+  const startEdit = (doc: InvoiceDoc) => {
+    if (doc.id == null || !doc.number) return;
+    const same = editing?.id === doc.id;
+    if (cart.length && !same && !window.confirm(`Modifier la facture ${doc.number} ? Le panier en cours sera remplacé.`)) return;
+    setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty })));
+    setEditing({ id: doc.id, number: doc.number });
+    const o = options.find((x) => x.id === doc.commercialId);
+    if (o) pickCommercial(o);
+    setInvoiceView(null);
+    setPanelHidden(false);
+    if (!deskCart) setSheetOpen(true);
   };
 
   // ── Filtres ───────────────────────────────────────────────────────
@@ -792,7 +848,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               commercial={proLabel}
               lastAdded={lastAdded}
               onQty={setCartQty}
-              onClear={() => setCart([])}
+              onClear={clearCart}
+              editing={editing?.number ?? null}
               onInvoice={() => openInvoice(false)}
               onPrint={() => openInvoice(true)}
               onClose={() => setPanelHidden(true)}
@@ -816,7 +873,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             commercial={proLabel}
             lastAdded={lastAdded}
             onQty={setCartQty}
-            onClear={() => setCart([])}
+            onClear={clearCart}
+            editing={editing?.number ?? null}
             onInvoice={() => openInvoice(false)}
             onPrint={() => openInvoice(true)}
             onClose={() => setSheetOpen(false)}
@@ -828,8 +886,17 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
           doc={invoiceView.doc}
           busy={confirming}
           error={invoiceError}
-          confirmLabel={invoiceView.printAfter ? "Confirmer et imprimer" : "Confirmer"}
+          confirmLabel={
+            editing
+              ? invoiceView.printAfter
+                ? "Enregistrer et imprimer"
+                : "Enregistrer la modification"
+              : invoiceView.printAfter
+                ? "Confirmer et imprimer"
+                : "Confirmer"
+          }
           onConfirm={confirmInvoice}
+          onEdit={() => startEdit(invoiceView.doc)}
           onModify={() => setInvoiceView(null)}
           onClose={() => setInvoiceView(null)}
           onPrint={() => print(invoiceView.doc)}

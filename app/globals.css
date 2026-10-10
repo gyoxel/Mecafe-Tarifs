@@ -3601,3 +3601,67 @@ button.facture-row:hover {
     padding: 0 8px;
   }
 }
+
+/* Facture confirmée en cours de modification (panier) */
+.cart-editing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 2px;
+  padding: 9px 12px;
+  border: 1px solid #f3d9a4;
+  border-radius: 10px;
+  background: #fff8ea;
+  color: #7a4a00;
+  font-size: 12.5px;
+}
+.cart-editing svg {
+  flex: none;
+}
+.cart-editing span {
+  flex: 1;
+  min-width: 0;
+}
+.cart-editing .link-btn {
+  font-size: 12.5px;
+  color: #7a4a00;
+}
+.invoice-updated {
+  font-size: 11.5px;
+  color: #777 !important;
+}
+.invoice-close {
+  width: 34px;
+  height: 34px;
+}
+.facture-updated {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #9a5b00;
+}
+@media (max-width: 640px) {
+  .invoice-bar {
+    flex-wrap: wrap;
+  }
+  .invoice-bar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .invoice-bar-actions .btn {
+    flex: 1 1 auto;
+  }
+  .invoice-status {
+    flex: 1;
+  }
+  .invoice-bar-actions .invoice-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+  }
+  .invoice-bar {
+    position: relative;
+    padding-right: 56px;
+  }
+}

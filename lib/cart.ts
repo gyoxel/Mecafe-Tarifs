@@ -6,6 +6,26 @@ import type { CatalogItem, PriceMap } from "./types";
 export type CartLine = { id: string; qty: number };
 
 export const CART_STORAGE_KEY = "mecafe:panier";
+export const EDIT_STORAGE_KEY = "mecafe:panier-modification";
+
+/** Le panier contient une facture confirmée en cours de modification. */
+export type CartEditing = { id: number; number: string };
+
+export function readEditing(): CartEditing | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(EDIT_STORAGE_KEY) ?? "null") as CartEditing | null;
+    return v && Number.isInteger(v.id) && typeof v.number === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeEditing(v: CartEditing | null) {
+  try {
+    if (v) localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(v));
+    else localStorage.removeItem(EDIT_STORAGE_KEY);
+  } catch {}
+}
 export const QTY_MAX = 9999;
 
 /** Quantité saisie : entier 0…QTY_MAX, ou null si invalide / vide. */

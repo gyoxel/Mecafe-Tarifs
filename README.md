@@ -72,13 +72,17 @@ remplacent ce calcul produit par produit. Au premier lancement : A (−10), B (�
   numérotée (F2026-00001), figée (prix recalculés et enregistrés côté serveur), ajoutée à l'historique, et le
   panier repart à zéro. *Imprimer la facture* = confirmer puis imprimer (A4, seule la facture sort ; « Enregistrer
   en PDF » du navigateur pour un fichier). Seule une facture confirmée s'imprime.
+  Facture confirmée : **Modifier** (elle revient dans le panier, bandeau « Modification de la facture … » ;
+  l'enregistrement garde le même n° et note « Modifiée le … »), **Partager PDF** (feuille de partage du
+  téléphone : WhatsApp, e-mail… ; sur ordinateur : téléchargement du PDF) et **Imprimer**. Le PDF est généré
+  côté serveur (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Commerciaux et villes* (`/admin/gestion`, page d'arrivée) : ajouter, modifier (nom, ville, écart), supprimer (avec ses prix saisis). L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Factures* (`/admin/gestion/factures`) : historique des factures confirmées ; recherche (n°, commercial,
-    ville, produit), filtre par commercial, dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir et
-    réimprimer une facture ;
+    ville, produit), filtre par commercial, dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
+    réimprimer, partager en PDF ou **modifier** une facture (retour au catalogue avec la facture dans le panier) ;
   - *Prix des produits* (`/admin/gestion/prix`) : choisir le commercial, puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
     retour au prix automatique) ; **Exporter / Importer CSV** pour ce commercial (colonne `prix_commercial`,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).

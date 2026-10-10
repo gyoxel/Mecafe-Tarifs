@@ -56,3 +56,4 @@ create table if not exists invoices (
   created_at      timestamptz not null default now()
 );
 create index if not exists invoices_created_idx on invoices (created_at desc);
+alter table invoices add column if not exists updated_at timestamptz;  -- modifiée après confirmation

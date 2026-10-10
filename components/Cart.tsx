@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { QTY_MAX, parseQty, type ResolvedLine } from "@/lib/cart";
 import { formatDH } from "@/lib/format";
 import { displayTitle, displayVariant } from "@/lib/title";
-import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
+import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PencilIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
 import { Price } from "./Price";
 import { Thumb } from "./Thumb";
 import { lockScroll } from "./scroll";
@@ -126,9 +126,22 @@ type PanelProps = {
   onClose: () => void;
   /** Mobile : fenêtre qui se descend (poignée en haut). */
   sheet?: boolean;
+  /** N° de la facture confirmée en cours de modification, ou null. */
+  editing?: string | null;
 };
 
-export function CartPanel({ lines, commercial, lastAdded, onQty, onClear, onInvoice, onPrint, onClose, sheet }: PanelProps) {
+export function CartPanel({
+  lines,
+  commercial,
+  lastAdded,
+  onQty,
+  onClear,
+  onInvoice,
+  onPrint,
+  onClose,
+  sheet,
+  editing,
+}: PanelProps) {
   const count = lines.reduce((n, l) => n + l.qty, 0);
   const total = lines.reduce((s, l) => s + l.total, 0);
   const anySite = lines.some((l) => l.sitePrice);
@@ -163,6 +176,24 @@ export function CartPanel({ lines, commercial, lastAdded, onQty, onClear, onInvo
           </button>
         </span>
       </div>
+
+      {editing && (
+        <div className="cart-editing">
+          <PencilIcon size={15} />
+          <span>
+            Modification de la facture <strong>{editing}</strong>
+          </span>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              if (window.confirm(`Annuler la modification de ${editing} ? La facture reste telle quelle.`)) onClear();
+            }}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
 
       <ul className="cart-lines">
         {lines.map((l) => {

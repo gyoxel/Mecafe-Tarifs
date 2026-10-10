@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoiceDate } from "@/lib/cart";
 import { formatDH } from "@/lib/format";
-import { sumRows, type InvoiceRow } from "@/lib/invoice-types";
-import { CheckIcon, PrinterIcon } from "./Icons";
+import { sumRows, type InvoiceRow, type SavedInvoice } from "@/lib/invoice-types";
+import { CheckIcon, CloseIcon, PencilIcon, PrinterIcon, ShareIcon } from "./Icons";
 import { lockScroll } from "./scroll";
 
 /** Ce qu'affiche une facture : brouillon (pas de n°) ou confirmée. */
@@ -16,7 +16,25 @@ export type InvoiceDoc = {
   /** null = brouillon, pas encore confirmé (pas de n°). */
   number: string | null;
   date: Date;
+  /** Facture enregistrée : id (PDF, modification), commercial d'origine, date de modification. */
+  id?: number;
+  commercialId?: string | null;
+  updatedAt?: Date | null;
+  /** Brouillon qui modifie une facture existante : son n°. */
+  editing?: string;
 };
+
+/** Facture enregistrée → document affichable. */
+export const docOf = (inv: SavedInvoice): InvoiceDoc => ({
+  rows: inv.rows,
+  commercial: inv.commercial,
+  city: inv.city,
+  number: inv.number,
+  date: new Date(inv.createdAt),
+  id: inv.id,
+  commercialId: inv.commercialId,
+  updatedAt: inv.updatedAt ? new Date(inv.updatedAt) : null,
+});
 
 export function Invoice({ doc }: { doc: InvoiceDoc }) {
   const { count, total } = sumRows(doc.rows);
@@ -32,10 +50,13 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
             <p>
               N° <strong>{doc.number}</strong>
             </p>
+          ) : doc.editing ? (
+            <p className="invoice-draft">Modification de {doc.editing} · non enregistrée</p>
           ) : (
             <p className="invoice-draft">Brouillon · non confirmée</p>
           )}
           <p>Date : {invoiceDate(doc.date)}</p>
+          {doc.updatedAt && <p className="invoice-updated">Modifiée le {invoiceDate(doc.updatedAt)}</p>}
         </div>
       </header>
 
@@ -95,8 +116,61 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
 }
 
 /**
+ * Partage la facture en PDF : feuille de partage du téléphone (WhatsApp, e-mail…) si le navigateur sait
+ * partager un fichier, sinon téléchargement. Le PDF est préparé dès l'ouverture : le partage part tout de
+ * suite au clic (certains navigateurs refusent un partage lancé après une attente).
+ */
+function usePdf(id: number | undefined, number: string | null) {
+  const [file, setFile] = useState<File | null>(null);
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => {
+    if (id == null || !number) return;
+    let alive = true;
+    fetch(`/api/admin/invoices/${id}/pdf`)
+      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+      .then((b) => {
+        if (!alive) return;
+        const f = new File([b], `Facture-${number}.pdf`, { type: "application/pdf" });
+        setFile(f);
+        setCanShare(Boolean(navigator.canShare?.({ files: [f] })));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [id, number]);
+
+  const share = async () => {
+    if (id == null || !number) return;
+    const f: File =
+      file ??
+      new File([await fetch(`/api/admin/invoices/${id}/pdf`).then((r) => r.blob())], `Facture-${number}.pdf`, {
+        type: "application/pdf",
+      });
+    if (navigator.canShare?.({ files: [f] })) {
+      try {
+        await navigator.share({ files: [f], title: `Facture ${number}` });
+        return;
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") return; // partage annulé
+      }
+    }
+    const url = URL.createObjectURL(f);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
+  return { share, canShare, ready: Boolean(file) };
+}
+
+/**
  * Facture à l'écran. Brouillon : « Modifier » (retour au panier) ou « Confirmer » (enregistrée dans
- * l'historique, numérotée). Confirmée : « Imprimer ».
+ * l'historique, numérotée). Confirmée : « Modifier » (la remet dans le panier), PDF (partage / téléchargement),
+ * « Imprimer ».
  */
 export function InvoiceModal({
   doc,
@@ -104,6 +178,7 @@ export function InvoiceModal({
   onPrint,
   onModify,
   onConfirm,
+  onEdit,
   confirmLabel = "Confirmer",
   busy,
   error,
@@ -111,14 +186,17 @@ export function InvoiceModal({
   doc: InvoiceDoc;
   onClose: () => void;
   onPrint: () => void;
-  /** Brouillon seulement. */
+  /** Brouillon : retour au panier. */
   onModify?: () => void;
   onConfirm?: () => void;
+  /** Confirmée : la remettre dans le panier pour la modifier. */
+  onEdit?: () => void;
   confirmLabel?: string;
   busy?: boolean;
   error?: string;
 }) {
   const draft = doc.number == null;
+  const pdf = usePdf(doc.id, doc.number);
   useEffect(() => {
     const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
@@ -134,7 +212,7 @@ export function InvoiceModal({
       <div className="invoice-modal" role="dialog" aria-modal="true" aria-label="Facture">
         <div className="invoice-bar">
           {draft ? (
-            <span className="invoice-status draft">Brouillon</span>
+            <span className="invoice-status draft">{doc.editing ? `Modification · ${doc.editing}` : "Brouillon"}</span>
           ) : (
             <span className="invoice-status ok">
               <CheckIcon size={15} /> Confirmée · {doc.number}
@@ -144,21 +222,33 @@ export function InvoiceModal({
             {draft ? (
               <>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={onModify ?? onClose}>
-                  Modifier
+                  <PencilIcon size={15} /> Modifier
                 </button>
                 <button type="button" className="btn btn-gold btn-sm" disabled={busy} onClick={onConfirm}>
-                  <CheckIcon size={16} /> {busy ? "Confirmation…" : confirmLabel}
+                  <CheckIcon size={16} /> {busy ? "Enregistrement…" : confirmLabel}
                 </button>
               </>
             ) : (
               <>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-                  Fermer
-                </button>
+                {onEdit && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={onEdit}>
+                    <PencilIcon size={15} /> Modifier
+                  </button>
+                )}
+                {doc.id != null && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={pdf.share} title="Fichier PDF de la facture">
+                    <ShareIcon size={15} /> {pdf.canShare ? "Partager PDF" : "Télécharger PDF"}
+                  </button>
+                )}
                 <button type="button" className="btn btn-gold btn-sm" onClick={onPrint}>
                   <PrinterIcon size={16} /> Imprimer
                 </button>
               </>
+            )}
+            {!draft && (
+              <button type="button" className="icon-btn invoice-close" onClick={onClose} aria-label="Fermer">
+                <CloseIcon size={14} />
+              </button>
             )}
           </span>
         </div>

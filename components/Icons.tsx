@@ -99,6 +99,24 @@ export function CalendarIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function PencilIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16v4Z" />
+      <path d="m13.5 6.5 4 4" />
+    </svg>
+  );
+}
+
+export function ShareIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 15V3.5M7.5 8 12 3.5 16.5 8" />
+      <path d="M5 12.5v6A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-6" />
+    </svg>
+  );
+}
+
 export function PinIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>
