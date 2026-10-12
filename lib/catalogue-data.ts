@@ -7,8 +7,11 @@ import { groupItems, menuLeaves } from "./groups";
 import { sizedImage } from "./image";
 import type { CatalogItem } from "./types";
 
-/** Marques du catalogue (ordre du site), chacune avec ses produits rangés par catégorie du menu. */
-export async function catalogueBrands(onlyBrand?: string | null): Promise<{
+/**
+ * Marques du catalogue (ordre du site), chacune avec ses produits rangés par catégorie du menu.
+ * `ids` : seulement ces variants (sélection de la page PDF) ; `onlyBrand` : une seule marque.
+ */
+export async function catalogueBrands(filter: { onlyBrand?: string | null; ids?: Set<string> | null } = {}): Promise<{
   brands: (Omit<CatalogueBrand, "logo"> & { logoPath: string | null })[];
   items: CatalogItem[];
 }> {
@@ -16,12 +19,13 @@ export async function catalogueBrands(onlyBrand?: string | null): Promise<{
   const leaves = menuLeaves(menu);
   const sorted = groupItems(items, items, leaves, order);
 
+  const { onlyBrand, ids } = filter;
   const names = [...new Set(items.map((it) => it.brand))].filter((b) => !onlyBrand || fold(b) === fold(onlyBrand));
   const brands = names.map((name) => {
     const groups: CatalogueGroup[] = [];
     let lastK = -1;
     for (const { it, k } of sorted) {
-      if (it.brand !== name) continue;
+      if (it.brand !== name || (ids && !ids.has(it.id))) continue;
       if (k !== lastK) {
         const leaf = leaves[k];
         groups.push({

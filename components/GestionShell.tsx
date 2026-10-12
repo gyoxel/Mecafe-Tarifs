@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { FileTextIcon, TagIcon, UsersIcon } from "./Icons";
+import { DownloadIcon, FileTextIcon, TagIcon, UsersIcon } from "./Icons";
 
-type Section = "commerciaux" | "prix" | "factures";
+type Section = "commerciaux" | "prix" | "factures" | "pdf";
 
 const SECTIONS: { id: Section; href: string; label: string; hint: string; Icon: typeof TagIcon }[] = [
   { id: "commerciaux", href: "/admin/gestion", label: "Revendeurs et villes", hint: "Noms, villes, écarts", Icon: UsersIcon },
   { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", hint: "Par revendeur", Icon: TagIcon },
   { id: "factures", href: "/admin/gestion/factures", label: "Factures", hint: "Historique", Icon: FileTextIcon },
+  { id: "pdf", href: "/admin/gestion/pdf", label: "PDF", hint: "Catalogues à télécharger", Icon: DownloadIcon },
 ];
 
 /** Cadre des pages Gestion : en-tête + barre latérale (onglets en haut sur mobile). */

@@ -7,14 +7,32 @@ import { displayTitle, displayVariant } from "./title";
 import type { CatalogItem } from "./types";
 
 /**
- * Catalogue revendeurs en PDF (A4) : page de garde (sommaire, mode d'emploi, visa de la direction), puis chaque
- * marque sur une page, deux au plus : selon le nombre de produits, une ou deux colonnes et la hauteur des lignes
- * s'adaptent. Pour chaque produit : photo, nom, format, prix du site, et une case « Prix revendeur » vide à
- * remplir à la main.
+ * Catalogue en PDF (A4) : page de garde (sommaire), puis chaque marque sur une page, deux au plus : selon le
+ * nombre de produits, une ou deux colonnes et la hauteur des lignes s'adaptent. Pour chaque produit : photo, nom,
+ * format, prix public, et selon le type :
+ * - « public » : rien de plus (catalogue de prix, sans mention des revendeurs) ;
+ * - « revendeur » : le prix d'un revendeur choisi (« — » s'il n'en a pas) ;
+ * - « validation » : une case « Prix revendeur » vide à remplir à la main, mode d'emploi et visa de la direction.
  */
 
-export type CatalogueGroup = { title: string; crumb: string; items: CatalogItem[] };
-export type CatalogueBrand = { name: string; color: string; logo: Uint8Array | null; groups: CatalogueGroup[] };
+export type CatalogueMode = "public" | "revendeur" | "validation";
+export const CATALOGUE_TITLES: Record<CatalogueMode, string> = {
+  public: "Catalogue de prix",
+  revendeur: "Catalogue des tarifs revendeurs",
+  validation: "Tarifs revendeurs - À valider",
+};
+
+export type CatalogueGroup = {
+  title: string;
+  crumb: string;
+  items: CatalogItem[];
+};
+export type CatalogueBrand = {
+  name: string;
+  color: string;
+  logo: Uint8Array | null;
+  groups: CatalogueGroup[];
+};
 /** Photo d'un produit (PNG ou JPEG), par URL. */
 export type ImageBytes = { bytes: Uint8Array; kind: "png" | "jpg" };
 
@@ -95,18 +113,36 @@ function roundRect(
   const path =
     `M ${rr} 0 H ${w - rr} Q ${w} 0 ${w} ${rr} V ${h - rr} Q ${w} ${h} ${w - rr} ${h} ` +
     `H ${rr} Q 0 ${h} 0 ${h - rr} V ${rr} Q 0 0 ${rr} 0 Z`;
-  page.drawSvgPath(path, { x, y: yTop, ...opts, borderWidth: opts.borderColor ? (opts.borderWidth ?? 0.8) : 0 });
+  page.drawSvgPath(path, {
+    x,
+    y: yTop,
+    ...opts,
+    borderWidth: opts.borderColor ? (opts.borderWidth ?? 0.8) : 0,
+  });
 }
 
 export async function cataloguePdf(input: {
+  mode: CatalogueMode;
   brands: CatalogueBrand[];
   images: Map<string, ImageBytes>;
   logo: Uint8Array | null;
   date: Date;
+  /** Type « revendeur » : prix du revendeur par variant, et son nom (null = tarif de base, sans nom affiché). */
+  reseller?: {
+    prices: Record<string, number>;
+    name: string | null;
+    city: string | null;
+  };
 }): Promise<Uint8Array> {
+  const { mode } = input;
+  const title = CATALOGUE_TITLES[mode];
+  const hasResale = mode !== "public";
+  const resellerLabel = input.reseller?.name
+    ? `${input.reseller.name}${input.reseller.city ? ` – ${input.reseller.city}` : ""}`
+    : null;
   const doc = await PDFDocument.create();
   const date = invoiceDate(input.date);
-  doc.setTitle(`Catalogue revendeurs Mécafé — ${date}`);
+  doc.setTitle(`${title} Mécafé — ${date}`);
   doc.setAuthor("Mécafé");
   doc.setCreator("Mécafé");
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -115,10 +151,38 @@ export async function cataloguePdf(input: {
   const width = (s: string, f: PDFFont, size: number) => f.widthOfTextAtSize(T(s, f), size);
   const text = (page: PDFPage, s: string, x: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
     page.drawText(T(s, f), { x, y, size, font: f, color });
-  const right = (page: PDFPage, s: string, xEnd: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
-    page.drawText(T(s, f), { x: xEnd - width(s, f, size), y, size, font: f, color });
-  const center = (page: PDFPage, s: string, cx: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
-    page.drawText(T(s, f), { x: cx - width(s, f, size) / 2, y, size, font: f, color });
+  const right = (
+    page: PDFPage,
+    s: string,
+    xEnd: number,
+    y: number,
+    size: number,
+    f: PDFFont = font,
+    color: Color = INK,
+  ) =>
+    page.drawText(T(s, f), {
+      x: xEnd - width(s, f, size),
+      y,
+      size,
+      font: f,
+      color,
+    });
+  const center = (
+    page: PDFPage,
+    s: string,
+    cx: number,
+    y: number,
+    size: number,
+    f: PDFFont = font,
+    color: Color = INK,
+  ) =>
+    page.drawText(T(s, f), {
+      x: cx - width(s, f, size) / 2,
+      y,
+      size,
+      font: f,
+      color,
+    });
   /** Coupe un texte à la largeur donnée (avec « … »). */
   const fit = (s: string, f: PDFFont, size: number, w: number) => {
     let t = T(s, f);
@@ -129,7 +193,9 @@ export async function cataloguePdf(input: {
   /** Texte sur `max` lignes au plus (la dernière coupée avec « … »). */
   const lines = (s: string, f: PDFFont, size: number, w: number, max: number) => {
     const all = wrap(f, T(s, f), size, w);
-    return all.length <= max ? all.map((l) => fit(l, f, size, w)) : [...all.slice(0, max - 1), fit(all.slice(max - 1).join(" "), f, size, w)];
+    return all.length <= max
+      ? all.map((l) => fit(l, f, size, w))
+      : [...all.slice(0, max - 1), fit(all.slice(max - 1).join(" "), f, size, w)];
   };
 
   const embed = async (img: ImageBytes | Uint8Array | null | undefined): Promise<PDFImage | null> => {
@@ -144,13 +210,23 @@ export async function cataloguePdf(input: {
   /** Image centrée dans un cadre, sans déformation. */
   const contain = (page: PDFPage, img: PDFImage, x: number, y: number, w: number, h: number) => {
     const s = Math.min(w / img.width, h / img.height);
-    page.drawImage(img, { x: x + (w - img.width * s) / 2, y: y + (h - img.height * s) / 2, width: img.width * s, height: img.height * s });
+    page.drawImage(img, {
+      x: x + (w - img.width * s) / 2,
+      y: y + (h - img.height * s) / 2,
+      width: img.width * s,
+      height: img.height * s,
+    });
   };
   /** Logo rond de la marque, ou initiale sur un disque à sa couleur. */
   const brandMark = (page: PDFPage, b: CatalogueBrand, x: number, yBottom: number, size: number) => {
     const img = brandLogos.get(b.name);
     if (img) return contain(page, img, x, yBottom, size, size);
-    page.drawCircle({ x: x + size / 2, y: yBottom + size / 2, size: size / 2, color: hex(b.color) });
+    page.drawCircle({
+      x: x + size / 2,
+      y: yBottom + size / 2,
+      size: size / 2,
+      color: hex(b.color),
+    });
     center(page, b.name.charAt(0), x + size / 2, yBottom + size / 2 - size * 0.17, size * 0.45, bold, WHITE);
   };
 
@@ -175,7 +251,7 @@ export async function cataloguePdf(input: {
     const color = hex(b.color);
     const colW = cols === 1 ? W : (W - GUTTER) / 2;
     // Colonnes d'une ligne produit (x relatifs au bord droit de la colonne)
-    const boxW = cols === 1 ? 104 : 66;
+    const boxW = !hasResale ? 0 : cols === 1 ? 104 : 66;
     const siteW = cols === 1 ? 76 : 50;
     const formatW = cols === 1 ? 84 : 0;
     const imgS = Math.min(cols === 1 ? 44 : 34, Math.max(20, h - 9));
@@ -190,17 +266,24 @@ export async function cataloguePdf(input: {
     const first = footers.length;
     const colX = () => M + col * (colW + GUTTER);
 
+    /** Fin (bord droit) de la colonne « Prix public » ; la colonne revendeur, s'il y en a une, suit. */
+    const siteEnd = (x: number) => (hasResale ? x + colW - boxW - (cols === 1 ? 14 : 8) : x + colW - 12);
+
     const tableHead = () => {
       const x = colX();
       const xResale = x + colW - boxW;
-      const xSiteEnd = xResale - (cols === 1 ? 14 : 8);
+      const xSiteEnd = siteEnd(x);
       const hy = TABLE_TOP - 14.5;
       roundRect(page, x, TABLE_TOP, colW, HEAD_H, 6, { color: HEAD });
-      roundRect(page, xResale, TABLE_TOP, boxW, HEAD_H, 6, { color: hex(PRO) });
       text(page, "PRODUIT", x + 10, hy, headSize, bold, INK2);
       if (formatW) text(page, "FORMAT", xSiteEnd - siteW - formatW, hy, headSize, bold, INK2);
-      right(page, "PRIX SITE", xSiteEnd, hy, headSize, bold, INK2);
-      center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+      right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
+      if (hasResale) {
+        roundRect(page, xResale, TABLE_TOP, boxW, HEAD_H, 6, {
+          color: hex(PRO),
+        });
+        center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+      }
     };
 
     const newPage = () => {
@@ -211,13 +294,32 @@ export async function cataloguePdf(input: {
       const top = A4.h - 26;
       brandMark(page, b, M, top - 44, 44);
       text(page, b.name, M + 58, top - 22, 22, bold, color);
-      text(page, `${count} produit${count > 1 ? "s" : ""}${part > 1 ? "  ·  suite" : ""}`, M + 58, top - 38, 9.5, font, MUTED);
+      text(
+        page,
+        `${count} produit${count > 1 ? "s" : ""}${part > 1 ? "  ·  suite" : ""}`,
+        M + 58,
+        top - 38,
+        9.5,
+        font,
+        MUTED,
+      );
       if (logo) {
         const lw = 78;
         const lh = (logo.height / logo.width) * lw;
-        page.drawImage(logo, { x: A4.w - M - lw, y: top - 8 - lh, width: lw, height: lh });
+        page.drawImage(logo, {
+          x: A4.w - M - lw,
+          y: top - 8 - lh,
+          width: lw,
+          height: lh,
+        });
       }
-      right(page, "Catalogue revendeurs", A4.w - M, top - 44, 8.5, bold, MUTED);
+      const tag =
+        mode === "public"
+          ? title
+          : mode === "validation"
+            ? "À valider par la direction"
+            : (resellerLabel ?? "Tarifs revendeurs");
+      right(page, fit(tag, bold, 8.5, 200), A4.w - M, top - 44, 8.5, bold, mode === "revendeur" ? hex(PRO) : MUTED);
       col = 0;
       y = ROWS_TOP;
       tableHead();
@@ -248,13 +350,24 @@ export async function cataloguePdf(input: {
       const bottom = y - h;
       const mid = (top + bottom) / 2;
       const xResale = x + colW - boxW;
-      const xSiteEnd = xResale - (cols === 1 ? 14 : 8);
-      if (zebra++ % 2 === 1) page.drawRectangle({ x, y: bottom, width: colW, height: h, color: ZEBRA });
+      const xSiteEnd = siteEnd(x);
+      if (zebra++ % 2 === 1)
+        page.drawRectangle({
+          x,
+          y: bottom,
+          width: colW,
+          height: h,
+          color: ZEBRA,
+        });
 
       // photo
       const ix = x + (cols === 1 ? 6 : 4);
       const iy = mid - imgS / 2;
-      roundRect(page, ix, iy + imgS, imgS, imgS, 5, { color: WHITE, borderColor: LINE, borderWidth: 0.6 });
+      roundRect(page, ix, iy + imgS, imgS, imgS, 5, {
+        color: WHITE,
+        borderColor: LINE,
+        borderWidth: 0.6,
+      });
       const photo = it.image ? photos.get(it.image) : null;
       if (photo) contain(page, photo, ix + 2, iy + 2, imgS - 4, imgS - 4);
       else center(page, b.name.charAt(0), ix + imgS / 2, mid - imgS * 0.16, imgS * 0.42, bold, LINE);
@@ -272,7 +385,13 @@ export async function cataloguePdf(input: {
       const blockH = nameLines.length * lh + extra + (showSku ? 10 : 0);
       let ty = mid + blockH / 2 - nameSize + 1.5;
       for (const l of nameLines) {
-        page.drawText(l, { x: nx, y: ty, size: nameSize, font: bold, color: INK });
+        page.drawText(l, {
+          x: nx,
+          y: ty,
+          size: nameSize,
+          font: bold,
+          color: INK,
+        });
         ty -= lh;
       }
       if (showSku) text(page, fit(`Réf. ${it.sku}`, font, 7.2, nw), nx, ty + 1, 7.2, font, FAINT);
@@ -281,8 +400,16 @@ export async function cataloguePdf(input: {
       const pill = (px: number, py: number, size: number, maxW: number) => {
         const v = fit(variant!, bold, size, maxW - 10);
         const vw = bold.widthOfTextAtSize(v, size) + 10;
-        roundRect(page, px, py + size + 3.2, vw, size + 6.5, (size + 6.5) / 2, { color: tint(VARIANT, 0.9) });
-        page.drawText(v, { x: px + 5, y: py, size, font: bold, color: hex(VARIANT) });
+        roundRect(page, px, py + size + 3.2, vw, size + 6.5, (size + 6.5) / 2, {
+          color: tint(VARIANT, 0.9),
+        });
+        page.drawText(v, {
+          x: px + 5,
+          y: py,
+          size,
+          font: bold,
+          color: hex(VARIANT),
+        });
       };
       if (cols === 1) {
         if (variant) pill(xSiteEnd - siteW - formatW, mid - 2.8, 7.8, formatW);
@@ -298,18 +425,45 @@ export async function cataloguePdf(input: {
         const os = cols === 1 ? 7.5 : 6.5;
         right(page, old, xSiteEnd, mid + 4.5, os, font, FAINT);
         const ow = width(old, font, os);
-        page.drawLine({ start: { x: xSiteEnd - ow, y: mid + 4.5 + os * 0.32 }, end: { x: xSiteEnd, y: mid + 4.5 + os * 0.32 }, thickness: 0.6, color: FAINT });
+        page.drawLine({
+          start: { x: xSiteEnd - ow, y: mid + 4.5 + os * 0.32 },
+          end: { x: xSiteEnd, y: mid + 4.5 + os * 0.32 },
+          thickness: 0.6,
+          color: FAINT,
+        });
         right(page, formatDH(it.price), xSiteEnd, mid - ps + 1, ps, bold, hex(PROMO));
       } else {
         right(page, formatDH(it.price), xSiteEnd, mid - ps / 2 + 2, ps, bold, INK);
       }
 
-      // case prix revendeur (vide, à remplir à la main)
       const bh = Math.min(cols === 1 ? 28 : 24, h - 8);
-      roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, { color: WHITE, borderColor: tint(PRO, 0.45), borderWidth: 0.9 });
-      right(page, "DH", xResale + boxW - 11, mid - 2.8, cols === 1 ? 8 : 7, bold, tint(PRO, 0.35));
+      if (mode === "validation") {
+        // case prix revendeur vide, à remplir à la main
+        roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, {
+          color: WHITE,
+          borderColor: tint(PRO, 0.45),
+          borderWidth: 0.9,
+        });
+        right(page, "DH", xResale + boxW - 11, mid - 2.8, cols === 1 ? 8 : 7, bold, tint(PRO, 0.35));
+      } else if (mode === "revendeur") {
+        const price = input.reseller?.prices[it.id];
+        const cx = xResale + boxW / 2;
+        if (price == null) center(page, "—", cx, mid - 3, 10, bold, FAINT);
+        else {
+          const rs = cols === 1 ? 11 : 9;
+          roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, {
+            color: hex("#e8f6ef"),
+          });
+          center(page, formatDH(price), cx, mid - rs / 2 + 2, rs, bold, hex("#075e41"));
+        }
+      }
 
-      page.drawLine({ start: { x, y: bottom }, end: { x: x + colW, y: bottom }, thickness: 0.4, color: LINE });
+      page.drawLine({
+        start: { x, y: bottom },
+        end: { x: x + colW, y: bottom },
+        thickness: 0.4,
+        color: LINE,
+      });
       y = bottom;
     };
 
@@ -330,22 +484,51 @@ export async function cataloguePdf(input: {
   }
 
   /* ─────────────── Page de garde ─────────────── */
-  cover.drawRectangle({ x: 0, y: A4.h - 10, width: A4.w, height: 10, color: hex(GOLD) });
+  cover.drawRectangle({
+    x: 0,
+    y: A4.h - 10,
+    width: A4.w,
+    height: 10,
+    color: hex(GOLD),
+  });
   let y = A4.h - 70;
   if (logo) {
     const lw = 170;
     const lh = (logo.height / logo.width) * lw;
-    cover.drawImage(logo, { x: (A4.w - lw) / 2, y: y - lh, width: lw, height: lh });
+    cover.drawImage(logo, {
+      x: (A4.w - lw) / 2,
+      y: y - lh,
+      width: lw,
+      height: lh,
+    });
     y -= lh + 34;
   } else {
     center(cover, "Mécafé", A4.w / 2, y - 30, 34, bold, hex(GOLD));
     y -= 70;
   }
-  center(cover, "CATALOGUE REVENDEURS", A4.w / 2, y, 26, bold, INK);
+  const big = title.toUpperCase();
+  const bigSize = Math.min(26, (W - 20) / (width(big, bold, 1) || 1));
+  center(cover, big, A4.w / 2, y, bigSize, bold, INK);
   y -= 22;
-  center(cover, "Proposition de prix revendeur — à valider par la direction", A4.w / 2, y, 11.5, font, MUTED);
-  y -= 22;
-  const pillText = `Prix du site au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+  const subtitle =
+    mode === "validation"
+      ? "Proposition de prix revendeur — à valider par la direction"
+      : mode === "revendeur" && resellerLabel
+        ? `Revendeur : ${resellerLabel}`
+        : null;
+  if (subtitle) {
+    center(
+      cover,
+      subtitle,
+      A4.w / 2,
+      y,
+      mode === "revendeur" ? 13 : 11.5,
+      mode === "revendeur" ? bold : font,
+      mode === "revendeur" ? hex(PRO) : MUTED,
+    );
+    y -= 22;
+  } else y -= 4;
+  const pillText = `${mode === "public" ? "Prix" : "Prix public"} au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
   const pw = width(pillText, bold, 9.5) + 28;
   roundRect(cover, (A4.w - pw) / 2, y, pw, 24, 12, { color: tint(GOLD, 0.88) });
   center(cover, pillText, A4.w / 2, y - 15.5, 9.5, bold, hex(GOLD));
@@ -356,8 +539,14 @@ export async function cataloguePdf(input: {
   const tx1 = A4.w - M - 30;
   text(cover, "SOMMAIRE", tx0, y, 9, bold, MUTED);
   y -= 10;
-  cover.drawLine({ start: { x: tx0, y }, end: { x: tx1, y }, thickness: 0.8, color: LINE });
-  const tocH = Math.min(46, Math.max(24, (y - (M + 300)) / Math.max(1, input.brands.length)));
+  cover.drawLine({
+    start: { x: tx0, y },
+    end: { x: tx1, y },
+    thickness: 0.8,
+    color: LINE,
+  });
+  const tocBottom = mode === "validation" ? M + 300 : M + 60;
+  const tocH = Math.min(46, Math.max(24, (y - tocBottom) / Math.max(1, input.brands.length)));
   input.brands.forEach((b, i) => {
     const count = countOf(b);
     const top = y - i * tocH;
@@ -375,36 +564,72 @@ export async function cataloguePdf(input: {
     const dotsFrom = ix + width(info, font, 9.5) + 10;
     const dotsTo = tx1 - width(pageLabel, bold, 10.5) - 10;
     for (let x = dotsFrom; x < dotsTo; x += 5) cover.drawCircle({ x, y: mid - 1.5, size: 0.6, color: FAINT });
-    cover.drawLine({ start: { x: tx0, y: top - tocH }, end: { x: tx1, y: top - tocH }, thickness: 0.5, color: LINE });
+    cover.drawLine({
+      start: { x: tx0, y: top - tocH },
+      end: { x: tx1, y: top - tocH },
+      thickness: 0.5,
+      color: LINE,
+    });
   });
 
-  // Mode d'emploi + visa de la direction
-  const boxTop = M + 196;
-  roundRect(cover, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
-  text(cover, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
-  text(cover, "Prix site : prix public affiché sur mecafe.ma à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
-  text(cover, "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.", M + 16, boxTop - 54, 9.5, font, INK2);
-  const visaTop = boxTop - 88;
-  text(cover, "VALIDATION", M, visaTop, 9, bold, MUTED);
-  const fw = (W - 2 * 12) / 3;
-  ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
-    const x = M + i * (fw + 12);
-    roundRect(cover, x, visaTop - 10, fw, 84, 8, { borderColor: hex("#c9ced6"), color: WHITE });
-    text(cover, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
-  });
+  // Mode d'emploi + visa de la direction (catalogue « à valider » seulement)
+  if (mode === "validation") {
+    const boxTop = M + 196;
+    roundRect(cover, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
+    text(cover, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
+    text(cover, "Prix public : prix de vente public à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
+    text(
+      cover,
+      "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.",
+      M + 16,
+      boxTop - 54,
+      9.5,
+      font,
+      INK2,
+    );
+    const visaTop = boxTop - 88;
+    text(cover, "VALIDATION", M, visaTop, 9, bold, MUTED);
+    const fw = (W - 2 * 12) / 3;
+    ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
+      const x = M + i * (fw + 12);
+      roundRect(cover, x, visaTop - 10, fw, 84, 8, {
+        borderColor: hex("#c9ced6"),
+        color: WHITE,
+      });
+      text(cover, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
+    });
+  }
 
   // Pied de page : date, visa, numéro de page
   const pages = footers.length;
   footers.forEach(({ page, brand }, i) => {
     const fy = M - 6;
-    page.drawLine({ start: { x: M, y: fy + 14 }, end: { x: A4.w - M, y: fy + 14 }, thickness: 0.6, color: LINE });
-    text(page, `Mécafé  ·  Catalogue revendeurs  ·  prix du site au ${date}`, M, fy, 7.8, font, MUTED);
-    if (brand) {
+    page.drawLine({
+      start: { x: M, y: fy + 14 },
+      end: { x: A4.w - M, y: fy + 14 },
+      thickness: 0.6,
+      color: LINE,
+    });
+    text(
+      page,
+      `Mécafé  ·  ${title}  ·  ${mode === "public" ? "prix" : "prix public"} au ${date}`,
+      M,
+      fy,
+      7.8,
+      font,
+      MUTED,
+    );
+    if (brand && mode === "validation") {
       const visa = "Visa direction :";
       const vx = A4.w / 2 + 40;
       text(page, visa, vx, fy, 7.8, bold, MUTED);
       const vEnd = vx + width(visa, bold, 7.8) + 6;
-      page.drawLine({ start: { x: vEnd, y: fy - 1 }, end: { x: vEnd + 70, y: fy - 1 }, thickness: 0.6, color: FAINT });
+      page.drawLine({
+        start: { x: vEnd, y: fy - 1 },
+        end: { x: vEnd + 70, y: fy - 1 },
+        thickness: 0.6,
+        color: FAINT,
+      });
     }
     right(page, `${i + 1} / ${pages}`, A4.w - M, fy, 8, bold, INK2);
   });

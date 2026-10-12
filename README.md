@@ -93,12 +93,17 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
   l'enregistrement garde le même n° et note « Modifiée le … »), **Partager PDF** (feuille de partage du
   téléphone : WhatsApp, e-mail… ; sur ordinateur : téléchargement du PDF) et **Imprimer**. Le PDF est généré
   côté serveur (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
-- **Catalogue PDF** (bouton à côté de « Gestion ») : catalogue A4 à faire valider par la direction. Page de
-  garde (sommaire, mode d'emploi, cases de validation), puis chaque marque sur une page, deux au plus : une ou deux
-  colonnes et la hauteur des lignes s'adaptent au nombre de produits. Par produit : photo, nom, format, prix du
-  site (ancien prix barré si promotion) et une case **Prix revendeur vide** à remplir à la main ; « Visa
-  direction » en bas de chaque page. Généré à la demande côté serveur (`/api/admin/catalogue`, `?marque=` pour
-  une seule marque ; `lib/catalogue-pdf.ts`), toujours avec les prix et les photos actuels de Shopify.
+- **PDF** (bouton « PDF » sous « Gestion », ou Gestion › PDF, `/admin/gestion/pdf`) : catalogues A4 à télécharger.
+  1. Choisir le type :
+     - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
+     - *Catalogue des tarifs revendeurs* : prix public + prix du revendeur choisi (son nom sur la page de garde ;
+       « — » pour un produit sans prix revendeur) ;
+     - *Tarifs revendeurs - À valider* : prix public + case « Prix revendeur » vide à remplir à la main, mode
+       d'emploi, cases de validation et « Visa direction » sur chaque page.
+  2. Contenu : tout le catalogue, ou des marques / catégories / produits cochés (avec recherche).
+  Page de garde avec sommaire, puis chaque marque sur une page, deux au plus (une ou deux colonnes, hauteur des
+  lignes adaptée au nombre de produits). Photo, nom, format, prix public (promotion barrée). Généré à la demande
+  côté serveur (`POST /api/admin/catalogue`, `lib/catalogue-pdf.ts`) avec les prix et photos actuels de Shopify.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : écart de la base en tête ; ajouter un revendeur
     (écart prérempli avec celui de la base) ; la liste affiche les noms avec **Modifier** et **Supprimer** (avec ses

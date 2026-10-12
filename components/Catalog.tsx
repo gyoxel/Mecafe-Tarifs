@@ -21,12 +21,11 @@ import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import { OPTION_STORAGE_KEY, defaultOption, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
 import { CartFab, CartPanel, CartSheet } from "./Cart";
-import { CatalogueButton } from "./CatalogueButton";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
-import { CloseIcon, EyeIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
+import { CloseIcon, DownloadIcon, EyeIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
 import { ProductCard } from "./ProductCard";
 import { ProductRow } from "./ProductRow";
 
@@ -635,7 +634,9 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               <Link href="/admin/gestion" className="admin-link">
                 <SettingsIcon size={16} /> Gestion
               </Link>
-              <CatalogueButton className="admin-link admin-link-ghost" />
+              <Link href="/admin/gestion/pdf" className="admin-link admin-link-ghost">
+                <DownloadIcon size={16} /> PDF
+              </Link>
             </div>
           )}
           <h2 className="side-label">Marques</h2>
