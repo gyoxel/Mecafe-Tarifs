@@ -101,8 +101,9 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
      - *Tarifs revendeurs - À valider* : prix public + case « Prix revendeur » vide à remplir à la main, mode
        d'emploi, cases de validation et « Visa direction » sur chaque page.
   2. Contenu : tout le catalogue, ou des marques / catégories / produits cochés (avec recherche).
-  Page de garde avec sommaire, puis chaque marque sur une page, deux au plus (une ou deux colonnes, hauteur des
-  lignes adaptée au nombre de produits). Photo, nom, format, prix public (promotion barrée). Généré à la demande
+  Page de garde avec sommaire, puis les marques à la suite, sans saut de page (moins de papier) : chaque marque
+  commence par son titre (logo, nom, nombre de produits), répété « (suite) » en haut de colonne ; deux colonnes,
+  ou une seule si tout tient sur une page. Photo, nom, format, prix public (promotion barrée). Généré à la demande
   côté serveur (`POST /api/admin/catalogue`, `lib/catalogue-pdf.ts`) avec les prix et photos actuels de Shopify.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : écart de la base en tête ; ajouter un revendeur

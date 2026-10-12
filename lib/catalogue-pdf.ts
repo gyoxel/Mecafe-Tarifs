@@ -65,38 +65,26 @@ const VARIANT = "#2563eb";
 const PROMO = "#e11d48";
 const WHITE = rgb(1, 1, 1);
 
-// Hauteurs verticales des pages de marque.
-const TABLE_TOP = A4.h - 112; // haut de l'en-tête du tableau
+// Hauteurs verticales des pages produits.
+const TABLE_TOP = A4.h - 78; // haut de l'en-tête du tableau
 const HEAD_H = 22;
 const ROWS_TOP = TABLE_TOP - HEAD_H - 4;
 const ROWS_BOTTOM = M + 30; // au-dessus du pied de page
 const USABLE = ROWS_TOP - ROWS_BOTTOM;
 const CAT_H = 24;
+const BRAND_H = 40;
+const BRAND_GAP = 12; // espace avant une nouvelle marque (sauf en haut de colonne)
 
-/** Mise en page d'une marque : colonnes par page, nombre de pages, hauteur d'une ligne produit. */
-export type Layout = { cols: 1 | 2; pages: number; rowH: number };
+/** Mise en page : colonnes par page et hauteur d'une ligne produit (la même pour tout le document). */
+export type Layout = { cols: 1 | 2; rowH: number };
 
 /**
- * Une page si possible, sinon deux : d'abord une colonne large, puis deux colonnes plus serrées.
- * La hauteur prévue garde une marge pour les bas de colonne perdus et les titres de catégorie répétés.
+ * Les marques se suivent sans saut de page. Une colonne large si tout tient sur une page, sinon deux colonnes
+ * (moins de pages à imprimer).
  */
-export function layoutFor(rows: number, groups: number): Layout {
-  const tries: { cols: 1 | 2; pages: number; min: number; max: number }[] = [
-    { cols: 1, pages: 1, min: 40, max: 52 },
-    { cols: 2, pages: 1, min: 34, max: 50 },
-    { cols: 1, pages: 2, min: 40, max: 52 },
-    { cols: 2, pages: 2, min: 28, max: 50 },
-  ];
-  const best = (cols: number, pages: number) => {
-    const columns = cols * pages;
-    return Math.floor((columns * USABLE - (groups + columns - 1) * CAT_H - columns * CAT_H) / (rows + columns));
-  };
-  for (const t of tries) {
-    const h = best(t.cols, t.pages);
-    if (h >= t.min) return { cols: t.cols, pages: t.pages, rowH: Math.min(t.max, h) };
-  }
-  const columns = Math.ceil((rows * 28 + (groups + 1) * CAT_H) / (USABLE - 2 * CAT_H));
-  return { cols: 2, pages: Math.ceil(columns / 2), rowH: 28 };
+export function layoutFor(rows: number, groups: number, brands: number): Layout {
+  const oneColumn = rows * 48 + groups * CAT_H + brands * (BRAND_H + BRAND_GAP) <= USABLE;
+  return oneColumn ? { cols: 1, rowH: 48 } : { cols: 2, rowH: 42 };
 }
 
 /** Rectangle à coins arrondis (y = bord du haut). */
@@ -240,369 +228,341 @@ export async function cataloguePdf(input: {
   const total = input.brands.reduce((n, b) => n + countOf(b), 0);
 
   const cover = doc.addPage([A4.w, A4.h]);
-  const footers: { page: PDFPage; brand: string | null }[] = [{ page: cover, brand: null }];
+  const pages: PDFPage[] = [cover];
   /** Première et dernière page de chaque marque (pour le sommaire). */
   const spans: { first: number; last: number }[] = [];
 
-  /* ─────────────── Pages des marques ─────────────── */
-  for (const b of input.brands) {
-    const count = countOf(b);
-    const { cols, rowH: h } = layoutFor(count, b.groups.length);
-    const color = hex(b.color);
-    const colW = cols === 1 ? W : (W - GUTTER) / 2;
-    // Colonnes d'une ligne produit (x relatifs au bord droit de la colonne)
-    const boxW = !hasResale ? 0 : cols === 1 ? 104 : 66;
-    const siteW = cols === 1 ? 76 : 50;
-    const formatW = cols === 1 ? 84 : 0;
-    const imgS = Math.min(cols === 1 ? 44 : 34, Math.max(20, h - 9));
-    const nameSize = cols === 1 ? (h >= 44 ? 9.8 : 9) : h >= 46 ? 8.2 : 7.6;
-    const headSize = cols === 1 ? 7.8 : 6.8;
+  /* ─────────────── Pages produits : les marques se suivent ─────────────── */
+  const groupCount = input.brands.reduce((n, b) => n + b.groups.length, 0);
+  const { cols, rowH: h } = layoutFor(total, groupCount, input.brands.length);
+  const colW = cols === 1 ? W : (W - GUTTER) / 2;
+  // Colonnes d'une ligne produit (x relatifs au bord droit de la colonne)
+  const boxW = !hasResale ? 0 : cols === 1 ? 104 : 66;
+  const siteW = cols === 1 ? 76 : 50;
+  const formatW = cols === 1 ? 84 : 0;
+  const imgS = Math.min(cols === 1 ? 40 : 34, h - 8);
+  const nameSize = cols === 1 ? 9.6 : 7.9;
+  const headSize = cols === 1 ? 7.8 : 6.8;
+  const tag = mode === "revendeur" ? (resellerLabel ?? "") : ""; // le titre suffit pour les autres types
 
-    let page!: PDFPage;
-    let col = 0;
-    let y = ROWS_TOP;
-    let zebra = 0;
-    let part = 0;
-    const first = footers.length;
-    const colX = () => M + col * (colW + GUTTER);
+  let page!: PDFPage;
+  let col = 0;
+  let y = ROWS_TOP;
+  let zebra = 0;
+  const colX = () => M + col * (colW + GUTTER);
+  /** Fin (bord droit) de la colonne « Prix public » ; la colonne revendeur, s'il y en a une, suit. */
+  const siteEnd = (x: number) => (hasResale ? x + colW - boxW - (cols === 1 ? 14 : 8) : x + colW - 12);
 
-    /** Fin (bord droit) de la colonne « Prix public » ; la colonne revendeur, s'il y en a une, suit. */
-    const siteEnd = (x: number) => (hasResale ? x + colW - boxW - (cols === 1 ? 14 : 8) : x + colW - 12);
+  const tableHead = () => {
+    const x = colX();
+    const xResale = x + colW - boxW;
+    const xSiteEnd = siteEnd(x);
+    const hy = TABLE_TOP - 14.5;
+    roundRect(page, x, TABLE_TOP, colW, HEAD_H, 6, { color: HEAD });
+    text(page, "PRODUIT", x + 10, hy, headSize, bold, INK2);
+    if (formatW) text(page, "FORMAT", xSiteEnd - siteW - formatW, hy, headSize, bold, INK2);
+    right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
+    if (hasResale) {
+      roundRect(page, xResale, TABLE_TOP, boxW, HEAD_H, 6, { color: hex(PRO) });
+      center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+    }
+  };
 
-    const tableHead = () => {
-      const x = colX();
-      const xResale = x + colW - boxW;
-      const xSiteEnd = siteEnd(x);
-      const hy = TABLE_TOP - 14.5;
-      roundRect(page, x, TABLE_TOP, colW, HEAD_H, 6, { color: HEAD });
-      text(page, "PRODUIT", x + 10, hy, headSize, bold, INK2);
-      if (formatW) text(page, "FORMAT", xSiteEnd - siteW - formatW, hy, headSize, bold, INK2);
-      right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
-      if (hasResale) {
-        roundRect(page, xResale, TABLE_TOP, boxW, HEAD_H, 6, {
-          color: hex(PRO),
-        });
-        center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
-      }
-    };
-
-    const newPage = () => {
-      part += 1;
-      page = doc.addPage([A4.w, A4.h]);
-      footers.push({ page, brand: b.name });
-      page.drawRectangle({ x: 0, y: A4.h - 8, width: A4.w, height: 8, color });
-      const top = A4.h - 26;
-      brandMark(page, b, M, top - 44, 44);
-      text(page, b.name, M + 58, top - 22, 22, bold, color);
-      text(
-        page,
-        `${count} produit${count > 1 ? "s" : ""}${part > 1 ? "  ·  suite" : ""}`,
-        M + 58,
-        top - 38,
-        9.5,
-        font,
-        MUTED,
-      );
-      if (logo) {
-        const lw = 78;
-        const lh = (logo.height / logo.width) * lw;
-        page.drawImage(logo, {
-          x: A4.w - M - lw,
-          y: top - 8 - lh,
-          width: lw,
-          height: lh,
-        });
-      }
-      const tag =
-        mode === "public"
-          ? title
-          : mode === "validation"
-            ? "À valider par la direction"
-            : (resellerLabel ?? "Tarifs revendeurs");
-      right(page, fit(tag, bold, 8.5, 200), A4.w - M, top - 44, 8.5, bold, mode === "revendeur" ? hex(PRO) : MUTED);
-      col = 0;
+  const newPage = () => {
+    page = doc.addPage([A4.w, A4.h]);
+    pages.push(page);
+    page.drawRectangle({ x: 0, y: A4.h - 6, width: A4.w, height: 6, color: hex(GOLD) });
+    const top = A4.h - 20;
+    if (logo) {
+      const lw = 74;
+      const lh = (logo.height / logo.width) * lw;
+      page.drawImage(logo, { x: M, y: top - lh, width: lw, height: lh });
+    }
+    right(page, title, A4.w - M, top - 12, 11, bold, INK);
+    if (tag)
+      right(page, fit(tag, bold, 8.5, 260), A4.w - M, top - 26, 8.5, bold, mode === "revendeur" ? hex(PRO) : MUTED);
+    col = 0;
+    y = ROWS_TOP;
+    tableHead();
+  };
+  /** Colonne suivante (ou page suivante). */
+  const nextColumn = () => {
+    if (col + 1 < cols) {
+      col += 1;
       y = ROWS_TOP;
       tableHead();
+    } else newPage();
+  };
+
+  /** Titre de marque dans la colonne : logo, nom à sa couleur, nombre de produits. */
+  const brandHead = (b: CatalogueBrand, cont: boolean) => {
+    if (y < ROWS_TOP) y -= BRAND_GAP;
+    const x = colX();
+    const color = hex(b.color);
+    const mid = y - BRAND_H / 2 + 2;
+    brandMark(page, b, x + 2, mid - 12, 24);
+    text(page, b.name, x + 34, mid - 5, 14, bold, color);
+    if (cont) text(page, "(suite)", x + 34 + width(b.name, bold, 14) + 6, mid - 4.5, 8.5, font, MUTED);
+    const count = countOf(b);
+    right(page, `${count} produit${count > 1 ? "s" : ""}`, x + colW - 4, mid - 4, 8.5, bold, MUTED);
+    page.drawLine({
+      start: { x, y: y - BRAND_H + 3 },
+      end: { x: x + colW, y: y - BRAND_H + 3 },
+      thickness: 1.4,
+      color,
+    });
+    y -= BRAND_H;
+  };
+
+  const catHead = (b: CatalogueBrand, g: CatalogueGroup, cont: boolean) => {
+    const x = colX();
+    const color = hex(b.color);
+    const label = (g.crumb ? `${g.crumb}  ›  ${g.title}` : g.title).toUpperCase() + (cont ? "  (SUITE)" : "");
+    const size = cols === 1 ? 8.6 : 7.6;
+    const ty = y - 16;
+    page.drawRectangle({ x, y: ty - 3, width: 3, height: size + 4.5, color });
+    text(page, fit(label, bold, size, colW - 14), x + 9, ty, size, bold, color);
+    y -= CAT_H;
+    zebra = 0;
+  };
+
+  const row = (b: CatalogueBrand, it: CatalogItem) => {
+    const x = colX();
+    const top = y;
+    const bottom = y - h;
+    const mid = (top + bottom) / 2;
+    const xResale = x + colW - boxW;
+    const xSiteEnd = siteEnd(x);
+    if (zebra++ % 2 === 1) page.drawRectangle({ x, y: bottom, width: colW, height: h, color: ZEBRA });
+
+    // photo
+    const ix = x + (cols === 1 ? 6 : 4);
+    const iy = mid - imgS / 2;
+    roundRect(page, ix, iy + imgS, imgS, imgS, 5, { color: WHITE, borderColor: LINE, borderWidth: 0.6 });
+    const photo = it.image ? photos.get(it.image) : null;
+    if (photo) contain(page, photo, ix + 2, iy + 2, imgS - 4, imgS - 4);
+    else center(page, b.name.charAt(0), ix + imgS / 2, mid - imgS * 0.16, imgS * 0.42, bold, LINE);
+
+    // nom, puis (deux colonnes) le format en dessous ; référence si la place le permet
+    const nx = ix + imgS + (cols === 1 ? 10 : 7);
+    const nameEnd = cols === 1 ? xSiteEnd - siteW - formatW - 10 : xSiteEnd - siteW - 4;
+    const nw = nameEnd - nx;
+    const variant = it.variant ? displayVariant(it.variant) : null;
+    const lh = nameSize + 1.8;
+    const extra = cols === 2 && variant ? 11 : 0;
+    const maxLines = Math.max(1, Math.min(3, Math.floor((h - 5 - extra) / lh)));
+    const nameLines = lines(displayTitle(it.title, it.brand), bold, nameSize, nw, maxLines);
+    const showSku = Boolean(it.sku) && cols === 1 && nameLines.length < 3;
+    const blockH = nameLines.length * lh + extra + (showSku ? 10 : 0);
+    let ty = mid + blockH / 2 - nameSize + 1.5;
+    for (const l of nameLines) {
+      page.drawText(l, { x: nx, y: ty, size: nameSize, font: bold, color: INK });
+      ty -= lh;
+    }
+    if (showSku) text(page, fit(`Réf. ${it.sku}`, font, 7.2, nw), nx, ty + 1, 7.2, font, FAINT);
+
+    // format (pastille bleue)
+    const pill = (px: number, py: number, size: number, maxW: number) => {
+      const v = fit(variant!, bold, size, maxW - 10);
+      const vw = bold.widthOfTextAtSize(v, size) + 10;
+      roundRect(page, px, py + size + 3.2, vw, size + 6.5, (size + 6.5) / 2, { color: tint(VARIANT, 0.9) });
+      page.drawText(v, { x: px + 5, y: py, size, font: bold, color: hex(VARIANT) });
     };
-    /** Colonne suivante (ou page suivante). */
-    const nextColumn = () => {
-      if (col + 1 < cols) {
-        col += 1;
-        y = ROWS_TOP;
-        tableHead();
-      } else newPage();
-    };
+    if (cols === 1) {
+      if (variant) pill(xSiteEnd - siteW - formatW, mid - 2.8, 7.8, formatW);
+      else text(page, "—", xSiteEnd - siteW - formatW + 4, mid - 3, 9, font, FAINT);
+    } else if (variant) {
+      pill(nx, ty - 1, 6.4, nw); // sous la dernière ligne du nom, sans la toucher
+    }
 
-    const catHead = (g: CatalogueGroup, cont: boolean) => {
-      const x = colX();
-      const label = (g.crumb ? `${g.crumb}  ›  ${g.title}` : g.title).toUpperCase() + (cont ? "  (SUITE)" : "");
-      const size = cols === 1 ? 8.6 : 7.6;
-      const ty = y - 16;
-      page.drawRectangle({ x, y: ty - 3, width: 3, height: size + 4.5, color });
-      text(page, fit(label, bold, size, colW - 14), x + 9, ty, size, bold, color);
-      y -= CAT_H;
-      zebra = 0;
-    };
-
-    const row = (it: CatalogItem) => {
-      const x = colX();
-      const top = y;
-      const bottom = y - h;
-      const mid = (top + bottom) / 2;
-      const xResale = x + colW - boxW;
-      const xSiteEnd = siteEnd(x);
-      if (zebra++ % 2 === 1)
-        page.drawRectangle({
-          x,
-          y: bottom,
-          width: colW,
-          height: h,
-          color: ZEBRA,
-        });
-
-      // photo
-      const ix = x + (cols === 1 ? 6 : 4);
-      const iy = mid - imgS / 2;
-      roundRect(page, ix, iy + imgS, imgS, imgS, 5, {
-        color: WHITE,
-        borderColor: LINE,
-        borderWidth: 0.6,
-      });
-      const photo = it.image ? photos.get(it.image) : null;
-      if (photo) contain(page, photo, ix + 2, iy + 2, imgS - 4, imgS - 4);
-      else center(page, b.name.charAt(0), ix + imgS / 2, mid - imgS * 0.16, imgS * 0.42, bold, LINE);
-
-      // nom, puis (deux colonnes) le format en dessous ; référence si la place le permet
-      const nx = ix + imgS + (cols === 1 ? 10 : 7);
-      const nameEnd = cols === 1 ? xSiteEnd - siteW - formatW - 10 : xSiteEnd - siteW - 4;
-      const nw = nameEnd - nx;
-      const variant = it.variant ? displayVariant(it.variant) : null;
-      const lh = nameSize + 1.8;
-      const extra = cols === 2 && variant ? 11 : 0;
-      const maxLines = Math.max(1, Math.min(3, Math.floor((h - 5 - extra) / lh)));
-      const nameLines = lines(displayTitle(it.title, it.brand), bold, nameSize, nw, maxLines);
-      const showSku = Boolean(it.sku) && cols === 1 && h >= 40 && nameLines.length < 3;
-      const blockH = nameLines.length * lh + extra + (showSku ? 10 : 0);
-      let ty = mid + blockH / 2 - nameSize + 1.5;
-      for (const l of nameLines) {
-        page.drawText(l, {
-          x: nx,
-          y: ty,
-          size: nameSize,
-          font: bold,
-          color: INK,
-        });
-        ty -= lh;
-      }
-      if (showSku) text(page, fit(`Réf. ${it.sku}`, font, 7.2, nw), nx, ty + 1, 7.2, font, FAINT);
-
-      // format (pastille bleue)
-      const pill = (px: number, py: number, size: number, maxW: number) => {
-        const v = fit(variant!, bold, size, maxW - 10);
-        const vw = bold.widthOfTextAtSize(v, size) + 10;
-        roundRect(page, px, py + size + 3.2, vw, size + 6.5, (size + 6.5) / 2, {
-          color: tint(VARIANT, 0.9),
-        });
-        page.drawText(v, {
-          x: px + 5,
-          y: py,
-          size,
-          font: bold,
-          color: hex(VARIANT),
-        });
-      };
-      if (cols === 1) {
-        if (variant) pill(xSiteEnd - siteW - formatW, mid - 2.8, 7.8, formatW);
-        else text(page, "—", xSiteEnd - siteW - formatW + 4, mid - 3, 9, font, FAINT);
-      } else if (variant) {
-        pill(nx, ty - 1, 6.4, nw); // sous la dernière ligne du nom, sans la toucher
-      }
-
-      // prix du site (+ ancien prix barré si promotion)
-      const ps = cols === 1 ? (h >= 40 ? 11 : 10) : 9;
-      if (it.compareAt) {
-        const old = formatDH(it.compareAt);
-        const os = cols === 1 ? 7.5 : 6.5;
-        right(page, old, xSiteEnd, mid + 4.5, os, font, FAINT);
-        const ow = width(old, font, os);
-        page.drawLine({
-          start: { x: xSiteEnd - ow, y: mid + 4.5 + os * 0.32 },
-          end: { x: xSiteEnd, y: mid + 4.5 + os * 0.32 },
-          thickness: 0.6,
-          color: FAINT,
-        });
-        right(page, formatDH(it.price), xSiteEnd, mid - ps + 1, ps, bold, hex(PROMO));
-      } else {
-        right(page, formatDH(it.price), xSiteEnd, mid - ps / 2 + 2, ps, bold, INK);
-      }
-
-      const bh = Math.min(cols === 1 ? 28 : 24, h - 8);
-      if (mode === "validation") {
-        // case prix revendeur vide, à remplir à la main
-        roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, {
-          color: WHITE,
-          borderColor: tint(PRO, 0.45),
-          borderWidth: 0.9,
-        });
-        right(page, "DH", xResale + boxW - 11, mid - 2.8, cols === 1 ? 8 : 7, bold, tint(PRO, 0.35));
-      } else if (mode === "revendeur") {
-        const price = input.reseller?.prices[it.id];
-        const cx = xResale + boxW / 2;
-        if (price == null) center(page, "—", cx, mid - 3, 10, bold, FAINT);
-        else {
-          const rs = cols === 1 ? 11 : 9;
-          roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, {
-            color: hex("#e8f6ef"),
-          });
-          center(page, formatDH(price), cx, mid - rs / 2 + 2, rs, bold, hex("#075e41"));
-        }
-      }
-
+    // prix public (+ ancien prix barré si promotion)
+    const ps = cols === 1 ? 11 : 9;
+    if (it.compareAt) {
+      const old = formatDH(it.compareAt);
+      const os = cols === 1 ? 7.5 : 6.5;
+      right(page, old, xSiteEnd, mid + 4.5, os, font, FAINT);
+      const ow = width(old, font, os);
       page.drawLine({
-        start: { x, y: bottom },
-        end: { x: x + colW, y: bottom },
-        thickness: 0.4,
-        color: LINE,
+        start: { x: xSiteEnd - ow, y: mid + 4.5 + os * 0.32 },
+        end: { x: xSiteEnd, y: mid + 4.5 + os * 0.32 },
+        thickness: 0.6,
+        color: FAINT,
       });
-      y = bottom;
-    };
+      right(page, formatDH(it.price), xSiteEnd, mid - ps + 1, ps, bold, hex(PROMO));
+    } else {
+      right(page, formatDH(it.price), xSiteEnd, mid - ps / 2 + 2, ps, bold, INK);
+    }
 
-    newPage();
-    for (const g of b.groups) {
-      // pas de titre de catégorie seul en bas de colonne
-      if (y - CAT_H - h < ROWS_BOTTOM) nextColumn();
-      catHead(g, false);
+    const bh = Math.min(cols === 1 ? 28 : 24, h - 8);
+    if (mode === "validation") {
+      // case prix revendeur vide, à remplir à la main
+      roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, {
+        color: WHITE,
+        borderColor: tint(PRO, 0.45),
+        borderWidth: 0.9,
+      });
+      right(page, "DH", xResale + boxW - 11, mid - 2.8, cols === 1 ? 8 : 7, bold, tint(PRO, 0.35));
+    } else if (mode === "revendeur") {
+      const price = input.reseller?.prices[it.id];
+      const cx = xResale + boxW / 2;
+      if (price == null) center(page, "—", cx, mid - 3, 10, bold, FAINT);
+      else {
+        const rs = cols === 1 ? 11 : 9;
+        roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, { color: hex("#e8f6ef") });
+        center(page, formatDH(price), cx, mid - rs / 2 + 2, rs, bold, hex("#075e41"));
+      }
+    }
+
+    page.drawLine({ start: { x, y: bottom }, end: { x: x + colW, y: bottom }, thickness: 0.4, color: LINE });
+    y = bottom;
+  };
+
+  newPage();
+  for (const b of input.brands) {
+    // une marque ne commence pas en bas de colonne : son titre, une catégorie et au moins un produit
+    if (y - BRAND_GAP - BRAND_H - CAT_H - h < ROWS_BOTTOM) nextColumn();
+    brandHead(b, false);
+    const first = pages.length;
+    b.groups.forEach((g, gi) => {
+      if (gi > 0 && y - CAT_H - h < ROWS_BOTTOM) {
+        nextColumn();
+        brandHead(b, true);
+      }
+      catHead(b, g, false);
       for (const it of g.items) {
         if (y - h < ROWS_BOTTOM) {
           nextColumn();
-          catHead(g, true);
+          brandHead(b, true);
+          catHead(b, g, true);
         }
-        row(it);
+        row(b, it);
       }
-    }
-    spans.push({ first: first + 1, last: footers.length });
-  }
-
-  /* ─────────────── Page de garde ─────────────── */
-  cover.drawRectangle({
-    x: 0,
-    y: A4.h - 10,
-    width: A4.w,
-    height: 10,
-    color: hex(GOLD),
-  });
-  let y = A4.h - 70;
-  if (logo) {
-    const lw = 170;
-    const lh = (logo.height / logo.width) * lw;
-    cover.drawImage(logo, {
-      x: (A4.w - lw) / 2,
-      y: y - lh,
-      width: lw,
-      height: lh,
     });
-    y -= lh + 34;
-  } else {
-    center(cover, "Mécafé", A4.w / 2, y - 30, 34, bold, hex(GOLD));
-    y -= 70;
+    spans.push({ first, last: pages.length });
   }
-  const big = title.toUpperCase();
-  const bigSize = Math.min(26, (W - 20) / (width(big, bold, 1) || 1));
-  center(cover, big, A4.w / 2, y, bigSize, bold, INK);
-  y -= 22;
-  const subtitle =
-    mode === "validation"
-      ? "Proposition de prix revendeur — à valider par la direction"
-      : mode === "revendeur" && resellerLabel
-        ? `Revendeur : ${resellerLabel}`
-        : null;
-  if (subtitle) {
-    center(
-      cover,
-      subtitle,
-      A4.w / 2,
-      y,
-      mode === "revendeur" ? 13 : 11.5,
-      mode === "revendeur" ? bold : font,
-      mode === "revendeur" ? hex(PRO) : MUTED,
-    );
-    y -= 22;
-  } else y -= 4;
-  const pillText = `${mode === "public" ? "Prix" : "Prix public"} au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
-  const pw = width(pillText, bold, 9.5) + 28;
-  roundRect(cover, (A4.w - pw) / 2, y, pw, 24, 12, { color: tint(GOLD, 0.88) });
-  center(cover, pillText, A4.w / 2, y - 15.5, 9.5, bold, hex(GOLD));
-  y -= 58;
 
-  // Sommaire
-  const tx0 = M + 30;
-  const tx1 = A4.w - M - 30;
-  text(cover, "SOMMAIRE", tx0, y, 9, bold, MUTED);
-  y -= 10;
-  cover.drawLine({
-    start: { x: tx0, y },
-    end: { x: tx1, y },
-    thickness: 0.8,
-    color: LINE,
-  });
-  const tocBottom = mode === "validation" ? M + 300 : M + 60;
-  const tocH = Math.min(46, Math.max(24, (y - tocBottom) / Math.max(1, input.brands.length)));
-  input.brands.forEach((b, i) => {
-    const count = countOf(b);
-    const top = y - i * tocH;
-    const mid = top - tocH / 2;
-    const ls = Math.min(30, tocH - 12);
-    brandMark(cover, b, tx0, mid - ls / 2, ls);
-    const nx = tx0 + ls + 12;
-    text(cover, b.name, nx, mid - 4.5, 13, bold, hex(b.color));
-    const info = `${count} produit${count > 1 ? "s" : ""}`;
-    const ix = nx + width(b.name, bold, 13) + 10;
-    text(cover, info, ix, mid - 4, 9.5, font, MUTED);
-    const { first, last } = spans[i];
-    const pageLabel = last > first ? `p. ${first}–${last}` : `p. ${first}`;
-    right(cover, pageLabel, tx1, mid - 4, 10.5, bold, INK2);
-    const dotsFrom = ix + width(info, font, 9.5) + 10;
-    const dotsTo = tx1 - width(pageLabel, bold, 10.5) - 10;
-    for (let x = dotsFrom; x < dotsTo; x += 5) cover.drawCircle({ x, y: mid - 1.5, size: 0.6, color: FAINT });
+  /* ─────────────── Page de garde (dessinée en dernier : le sommaire connaît les pages) ─────────────── */
+  {
+    cover.drawRectangle({
+      x: 0,
+      y: A4.h - 10,
+      width: A4.w,
+      height: 10,
+      color: hex(GOLD),
+    });
+    let y = A4.h - 70;
+    if (logo) {
+      const lw = 170;
+      const lh = (logo.height / logo.width) * lw;
+      cover.drawImage(logo, {
+        x: (A4.w - lw) / 2,
+        y: y - lh,
+        width: lw,
+        height: lh,
+      });
+      y -= lh + 34;
+    } else {
+      center(cover, "Mécafé", A4.w / 2, y - 30, 34, bold, hex(GOLD));
+      y -= 70;
+    }
+    const big = title.toUpperCase();
+    const bigSize = Math.min(26, (W - 20) / (width(big, bold, 1) || 1));
+    center(cover, big, A4.w / 2, y, bigSize, bold, INK);
+    y -= 22;
+    const subtitle =
+      mode === "validation"
+        ? "Proposition de prix revendeur — à valider par la direction"
+        : mode === "revendeur" && resellerLabel
+          ? `Revendeur : ${resellerLabel}`
+          : null;
+    if (subtitle) {
+      center(
+        cover,
+        subtitle,
+        A4.w / 2,
+        y,
+        mode === "revendeur" ? 13 : 11.5,
+        mode === "revendeur" ? bold : font,
+        mode === "revendeur" ? hex(PRO) : MUTED,
+      );
+      y -= 22;
+    } else y -= 4;
+    const pillText = `${mode === "public" ? "Prix" : "Prix public"} au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+    const pw = width(pillText, bold, 9.5) + 28;
+    roundRect(cover, (A4.w - pw) / 2, y, pw, 24, 12, { color: tint(GOLD, 0.88) });
+    center(cover, pillText, A4.w / 2, y - 15.5, 9.5, bold, hex(GOLD));
+    y -= 58;
+
+    // Sommaire
+    const tx0 = M + 30;
+    const tx1 = A4.w - M - 30;
+    text(cover, "SOMMAIRE", tx0, y, 9, bold, MUTED);
+    y -= 10;
     cover.drawLine({
-      start: { x: tx0, y: top - tocH },
-      end: { x: tx1, y: top - tocH },
-      thickness: 0.5,
+      start: { x: tx0, y },
+      end: { x: tx1, y },
+      thickness: 0.8,
       color: LINE,
     });
-  });
-
-  // Mode d'emploi + visa de la direction (catalogue « à valider » seulement)
-  if (mode === "validation") {
-    const boxTop = M + 196;
-    roundRect(cover, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
-    text(cover, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
-    text(cover, "Prix public : prix de vente public à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
-    text(
-      cover,
-      "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.",
-      M + 16,
-      boxTop - 54,
-      9.5,
-      font,
-      INK2,
-    );
-    const visaTop = boxTop - 88;
-    text(cover, "VALIDATION", M, visaTop, 9, bold, MUTED);
-    const fw = (W - 2 * 12) / 3;
-    ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
-      const x = M + i * (fw + 12);
-      roundRect(cover, x, visaTop - 10, fw, 84, 8, {
-        borderColor: hex("#c9ced6"),
-        color: WHITE,
+    const tocBottom = mode === "validation" ? M + 300 : M + 60;
+    const tocH = Math.min(46, Math.max(24, (y - tocBottom) / Math.max(1, input.brands.length)));
+    input.brands.forEach((b, i) => {
+      const count = countOf(b);
+      const top = y - i * tocH;
+      const mid = top - tocH / 2;
+      const ls = Math.min(30, tocH - 12);
+      brandMark(cover, b, tx0, mid - ls / 2, ls);
+      const nx = tx0 + ls + 12;
+      text(cover, b.name, nx, mid - 4.5, 13, bold, hex(b.color));
+      const info = `${count} produit${count > 1 ? "s" : ""}`;
+      const ix = nx + width(b.name, bold, 13) + 10;
+      text(cover, info, ix, mid - 4, 9.5, font, MUTED);
+      const { first, last } = spans[i];
+      const pageLabel = last > first ? `p. ${first}–${last}` : `p. ${first}`;
+      right(cover, pageLabel, tx1, mid - 4, 10.5, bold, INK2);
+      const dotsFrom = ix + width(info, font, 9.5) + 10;
+      const dotsTo = tx1 - width(pageLabel, bold, 10.5) - 10;
+      for (let x = dotsFrom; x < dotsTo; x += 5) cover.drawCircle({ x, y: mid - 1.5, size: 0.6, color: FAINT });
+      cover.drawLine({
+        start: { x: tx0, y: top - tocH },
+        end: { x: tx1, y: top - tocH },
+        thickness: 0.5,
+        color: LINE,
       });
-      text(cover, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
     });
+
+    // Mode d'emploi + visa de la direction (catalogue « à valider » seulement)
+    if (mode === "validation") {
+      const boxTop = M + 196;
+      roundRect(cover, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
+      text(cover, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
+      text(cover, "Prix public : prix de vente public à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
+      text(
+        cover,
+        "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.",
+        M + 16,
+        boxTop - 54,
+        9.5,
+        font,
+        INK2,
+      );
+      const visaTop = boxTop - 88;
+      text(cover, "VALIDATION", M, visaTop, 9, bold, MUTED);
+      const fw = (W - 2 * 12) / 3;
+      ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
+        const x = M + i * (fw + 12);
+        roundRect(cover, x, visaTop - 10, fw, 84, 8, {
+          borderColor: hex("#c9ced6"),
+          color: WHITE,
+        });
+        text(cover, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
+      });
+    }
   }
 
   // Pied de page : date, visa, numéro de page
-  const pages = footers.length;
-  footers.forEach(({ page, brand }, i) => {
+  const pageCount = pages.length;
+  pages.forEach((page, i) => {
     const fy = M - 6;
     page.drawLine({
       start: { x: M, y: fy + 14 },
@@ -619,7 +579,7 @@ export async function cataloguePdf(input: {
       font,
       MUTED,
     );
-    if (brand && mode === "validation") {
+    if (i > 0 && mode === "validation") {
       const visa = "Visa direction :";
       const vx = A4.w / 2 + 40;
       text(page, visa, vx, fy, 7.8, bold, MUTED);
@@ -631,7 +591,7 @@ export async function cataloguePdf(input: {
         color: FAINT,
       });
     }
-    right(page, `${i + 1} / ${pages}`, A4.w - M, fy, 8, bold, INK2);
+    right(page, `${i + 1} / ${pageCount}`, A4.w - M, fy, 8, bold, INK2);
   });
 
   return doc.save();
