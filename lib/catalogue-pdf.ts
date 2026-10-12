@@ -1,0 +1,413 @@
+import "server-only";
+import { PDFDocument, StandardFonts, rgb, type Color, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { invoiceDate } from "./cart";
+import { formatDH } from "./format";
+import { safe, wrap } from "./pdf-text";
+import { displayTitle, displayVariant } from "./title";
+import type { CatalogItem } from "./types";
+
+/**
+ * Catalogue revendeurs en PDF (A4) : page de garde (sommaire, mode d'emploi, visa de la direction), puis chaque
+ * marque sur une page, deux au plus : selon le nombre de produits, une ou deux colonnes et la hauteur des lignes
+ * s'adaptent. Pour chaque produit : photo, nom, format, prix du site, et une case « Prix revendeur » vide à
+ * remplir à la main.
+ */
+
+export type CatalogueGroup = { title: string; crumb: string; items: CatalogItem[] };
+export type CatalogueBrand = { name: string; color: string; logo: Uint8Array | null; groups: CatalogueGroup[] };
+/** Photo d'un produit (PNG ou JPEG), par URL. */
+export type ImageBytes = { bytes: Uint8Array; kind: "png" | "jpg" };
+
+const A4 = { w: 595.28, h: 841.89 };
+const M = 34;
+const W = A4.w - 2 * M;
+const GUTTER = 14;
+
+const hex = (h: string): Color => {
+  const n = parseInt(h.replace("#", ""), 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+};
+/** Couleur mélangée avec du blanc (t = part de blanc). */
+const tint = (h: string, t: number): Color => {
+  const n = parseInt(h.replace("#", ""), 16);
+  const c = (v: number) => (v + (255 - v) * t) / 255;
+  return rgb(c((n >> 16) & 255), c((n >> 8) & 255), c(n & 255));
+};
+
+const INK = hex("#121316");
+const INK2 = hex("#3a3f4b");
+const MUTED = hex("#6b7280");
+const FAINT = hex("#9aa1ad");
+const LINE = hex("#e3e6eb");
+const ZEBRA = hex("#f8f9fb");
+const HEAD = hex("#f1f3f6");
+const GOLD = "#a8742a";
+const PRO = "#0b8a5f";
+const VARIANT = "#2563eb";
+const PROMO = "#e11d48";
+const WHITE = rgb(1, 1, 1);
+
+// Hauteurs verticales des pages de marque.
+const TABLE_TOP = A4.h - 112; // haut de l'en-tête du tableau
+const HEAD_H = 22;
+const ROWS_TOP = TABLE_TOP - HEAD_H - 4;
+const ROWS_BOTTOM = M + 30; // au-dessus du pied de page
+const USABLE = ROWS_TOP - ROWS_BOTTOM;
+const CAT_H = 24;
+
+/** Mise en page d'une marque : colonnes par page, nombre de pages, hauteur d'une ligne produit. */
+export type Layout = { cols: 1 | 2; pages: number; rowH: number };
+
+/**
+ * Une page si possible, sinon deux : d'abord une colonne large, puis deux colonnes plus serrées.
+ * La hauteur prévue garde une marge pour les bas de colonne perdus et les titres de catégorie répétés.
+ */
+export function layoutFor(rows: number, groups: number): Layout {
+  const tries: { cols: 1 | 2; pages: number; min: number; max: number }[] = [
+    { cols: 1, pages: 1, min: 40, max: 52 },
+    { cols: 2, pages: 1, min: 34, max: 50 },
+    { cols: 1, pages: 2, min: 40, max: 52 },
+    { cols: 2, pages: 2, min: 28, max: 50 },
+  ];
+  const best = (cols: number, pages: number) => {
+    const columns = cols * pages;
+    return Math.floor((columns * USABLE - (groups + columns - 1) * CAT_H - columns * CAT_H) / (rows + columns));
+  };
+  for (const t of tries) {
+    const h = best(t.cols, t.pages);
+    if (h >= t.min) return { cols: t.cols, pages: t.pages, rowH: Math.min(t.max, h) };
+  }
+  const columns = Math.ceil((rows * 28 + (groups + 1) * CAT_H) / (USABLE - 2 * CAT_H));
+  return { cols: 2, pages: Math.ceil(columns / 2), rowH: 28 };
+}
+
+/** Rectangle à coins arrondis (y = bord du haut). */
+function roundRect(
+  page: PDFPage,
+  x: number,
+  yTop: number,
+  w: number,
+  h: number,
+  r: number,
+  opts: { color?: Color; borderColor?: Color; borderWidth?: number },
+) {
+  const rr = Math.min(r, w / 2, h / 2);
+  const path =
+    `M ${rr} 0 H ${w - rr} Q ${w} 0 ${w} ${rr} V ${h - rr} Q ${w} ${h} ${w - rr} ${h} ` +
+    `H ${rr} Q 0 ${h} 0 ${h - rr} V ${rr} Q 0 0 ${rr} 0 Z`;
+  page.drawSvgPath(path, { x, y: yTop, ...opts, borderWidth: opts.borderColor ? (opts.borderWidth ?? 0.8) : 0 });
+}
+
+export async function cataloguePdf(input: {
+  brands: CatalogueBrand[];
+  images: Map<string, ImageBytes>;
+  logo: Uint8Array | null;
+  date: Date;
+}): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const date = invoiceDate(input.date);
+  doc.setTitle(`Catalogue revendeurs Mécafé — ${date}`);
+  doc.setAuthor("Mécafé");
+  doc.setCreator("Mécafé");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const T = (s: string, f: PDFFont = font) => safe(f, s);
+  const width = (s: string, f: PDFFont, size: number) => f.widthOfTextAtSize(T(s, f), size);
+  const text = (page: PDFPage, s: string, x: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
+    page.drawText(T(s, f), { x, y, size, font: f, color });
+  const right = (page: PDFPage, s: string, xEnd: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
+    page.drawText(T(s, f), { x: xEnd - width(s, f, size), y, size, font: f, color });
+  const center = (page: PDFPage, s: string, cx: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
+    page.drawText(T(s, f), { x: cx - width(s, f, size) / 2, y, size, font: f, color });
+  /** Coupe un texte à la largeur donnée (avec « … »). */
+  const fit = (s: string, f: PDFFont, size: number, w: number) => {
+    let t = T(s, f);
+    if (f.widthOfTextAtSize(t, size) <= w) return t;
+    while (t.length > 1 && f.widthOfTextAtSize(`${t}…`, size) > w) t = t.slice(0, -1);
+    return `${t.trimEnd()}…`;
+  };
+  /** Texte sur `max` lignes au plus (la dernière coupée avec « … »). */
+  const lines = (s: string, f: PDFFont, size: number, w: number, max: number) => {
+    const all = wrap(f, T(s, f), size, w);
+    return all.length <= max ? all.map((l) => fit(l, f, size, w)) : [...all.slice(0, max - 1), fit(all.slice(max - 1).join(" "), f, size, w)];
+  };
+
+  const embed = async (img: ImageBytes | Uint8Array | null | undefined): Promise<PDFImage | null> => {
+    if (!img) return null;
+    const { bytes, kind } = img instanceof Uint8Array ? { bytes: img, kind: "png" as const } : img;
+    try {
+      return kind === "png" ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+    } catch {
+      return null;
+    }
+  };
+  /** Image centrée dans un cadre, sans déformation. */
+  const contain = (page: PDFPage, img: PDFImage, x: number, y: number, w: number, h: number) => {
+    const s = Math.min(w / img.width, h / img.height);
+    page.drawImage(img, { x: x + (w - img.width * s) / 2, y: y + (h - img.height * s) / 2, width: img.width * s, height: img.height * s });
+  };
+  /** Logo rond de la marque, ou initiale sur un disque à sa couleur. */
+  const brandMark = (page: PDFPage, b: CatalogueBrand, x: number, yBottom: number, size: number) => {
+    const img = brandLogos.get(b.name);
+    if (img) return contain(page, img, x, yBottom, size, size);
+    page.drawCircle({ x: x + size / 2, y: yBottom + size / 2, size: size / 2, color: hex(b.color) });
+    center(page, b.name.charAt(0), x + size / 2, yBottom + size / 2 - size * 0.17, size * 0.45, bold, WHITE);
+  };
+
+  const logo = await embed(input.logo);
+  const brandLogos = new Map<string, PDFImage | null>();
+  for (const b of input.brands) brandLogos.set(b.name, await embed(b.logo));
+  const photos = new Map<string, PDFImage | null>();
+  for (const [url, img] of input.images) photos.set(url, await embed(img));
+
+  const countOf = (b: CatalogueBrand) => b.groups.reduce((n, g) => n + g.items.length, 0);
+  const total = input.brands.reduce((n, b) => n + countOf(b), 0);
+
+  const cover = doc.addPage([A4.w, A4.h]);
+  const footers: { page: PDFPage; brand: string | null }[] = [{ page: cover, brand: null }];
+  /** Première et dernière page de chaque marque (pour le sommaire). */
+  const spans: { first: number; last: number }[] = [];
+
+  /* ─────────────── Pages des marques ─────────────── */
+  for (const b of input.brands) {
+    const count = countOf(b);
+    const { cols, rowH: h } = layoutFor(count, b.groups.length);
+    const color = hex(b.color);
+    const colW = cols === 1 ? W : (W - GUTTER) / 2;
+    // Colonnes d'une ligne produit (x relatifs au bord droit de la colonne)
+    const boxW = cols === 1 ? 104 : 66;
+    const siteW = cols === 1 ? 76 : 50;
+    const formatW = cols === 1 ? 84 : 0;
+    const imgS = Math.min(cols === 1 ? 44 : 34, Math.max(20, h - 9));
+    const nameSize = cols === 1 ? (h >= 44 ? 9.8 : 9) : h >= 46 ? 8.2 : 7.6;
+    const headSize = cols === 1 ? 7.8 : 6.8;
+
+    let page!: PDFPage;
+    let col = 0;
+    let y = ROWS_TOP;
+    let zebra = 0;
+    let part = 0;
+    const first = footers.length;
+    const colX = () => M + col * (colW + GUTTER);
+
+    const tableHead = () => {
+      const x = colX();
+      const xResale = x + colW - boxW;
+      const xSiteEnd = xResale - (cols === 1 ? 14 : 8);
+      const hy = TABLE_TOP - 14.5;
+      roundRect(page, x, TABLE_TOP, colW, HEAD_H, 6, { color: HEAD });
+      roundRect(page, xResale, TABLE_TOP, boxW, HEAD_H, 6, { color: hex(PRO) });
+      text(page, "PRODUIT", x + 10, hy, headSize, bold, INK2);
+      if (formatW) text(page, "FORMAT", xSiteEnd - siteW - formatW, hy, headSize, bold, INK2);
+      right(page, "PRIX SITE", xSiteEnd, hy, headSize, bold, INK2);
+      center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+    };
+
+    const newPage = () => {
+      part += 1;
+      page = doc.addPage([A4.w, A4.h]);
+      footers.push({ page, brand: b.name });
+      page.drawRectangle({ x: 0, y: A4.h - 8, width: A4.w, height: 8, color });
+      const top = A4.h - 26;
+      brandMark(page, b, M, top - 44, 44);
+      text(page, b.name, M + 58, top - 22, 22, bold, color);
+      text(page, `${count} produit${count > 1 ? "s" : ""}${part > 1 ? "  ·  suite" : ""}`, M + 58, top - 38, 9.5, font, MUTED);
+      if (logo) {
+        const lw = 78;
+        const lh = (logo.height / logo.width) * lw;
+        page.drawImage(logo, { x: A4.w - M - lw, y: top - 8 - lh, width: lw, height: lh });
+      }
+      right(page, "Catalogue revendeurs", A4.w - M, top - 44, 8.5, bold, MUTED);
+      col = 0;
+      y = ROWS_TOP;
+      tableHead();
+    };
+    /** Colonne suivante (ou page suivante). */
+    const nextColumn = () => {
+      if (col + 1 < cols) {
+        col += 1;
+        y = ROWS_TOP;
+        tableHead();
+      } else newPage();
+    };
+
+    const catHead = (g: CatalogueGroup, cont: boolean) => {
+      const x = colX();
+      const label = (g.crumb ? `${g.crumb}  ›  ${g.title}` : g.title).toUpperCase() + (cont ? "  (SUITE)" : "");
+      const size = cols === 1 ? 8.6 : 7.6;
+      const ty = y - 16;
+      page.drawRectangle({ x, y: ty - 3, width: 3, height: size + 4.5, color });
+      text(page, fit(label, bold, size, colW - 14), x + 9, ty, size, bold, color);
+      y -= CAT_H;
+      zebra = 0;
+    };
+
+    const row = (it: CatalogItem) => {
+      const x = colX();
+      const top = y;
+      const bottom = y - h;
+      const mid = (top + bottom) / 2;
+      const xResale = x + colW - boxW;
+      const xSiteEnd = xResale - (cols === 1 ? 14 : 8);
+      if (zebra++ % 2 === 1) page.drawRectangle({ x, y: bottom, width: colW, height: h, color: ZEBRA });
+
+      // photo
+      const ix = x + (cols === 1 ? 6 : 4);
+      const iy = mid - imgS / 2;
+      roundRect(page, ix, iy + imgS, imgS, imgS, 5, { color: WHITE, borderColor: LINE, borderWidth: 0.6 });
+      const photo = it.image ? photos.get(it.image) : null;
+      if (photo) contain(page, photo, ix + 2, iy + 2, imgS - 4, imgS - 4);
+      else center(page, b.name.charAt(0), ix + imgS / 2, mid - imgS * 0.16, imgS * 0.42, bold, LINE);
+
+      // nom, puis (deux colonnes) le format en dessous ; référence si la place le permet
+      const nx = ix + imgS + (cols === 1 ? 10 : 7);
+      const nameEnd = cols === 1 ? xSiteEnd - siteW - formatW - 10 : xSiteEnd - siteW - 4;
+      const nw = nameEnd - nx;
+      const variant = it.variant ? displayVariant(it.variant) : null;
+      const lh = nameSize + 1.8;
+      const extra = cols === 2 && variant ? 11 : 0;
+      const maxLines = Math.max(1, Math.min(3, Math.floor((h - 5 - extra) / lh)));
+      const nameLines = lines(displayTitle(it.title, it.brand), bold, nameSize, nw, maxLines);
+      const showSku = Boolean(it.sku) && cols === 1 && h >= 40 && nameLines.length < 3;
+      const blockH = nameLines.length * lh + extra + (showSku ? 10 : 0);
+      let ty = mid + blockH / 2 - nameSize + 1.5;
+      for (const l of nameLines) {
+        page.drawText(l, { x: nx, y: ty, size: nameSize, font: bold, color: INK });
+        ty -= lh;
+      }
+      if (showSku) text(page, fit(`Réf. ${it.sku}`, font, 7.2, nw), nx, ty + 1, 7.2, font, FAINT);
+
+      // format (pastille bleue)
+      const pill = (px: number, py: number, size: number, maxW: number) => {
+        const v = fit(variant!, bold, size, maxW - 10);
+        const vw = bold.widthOfTextAtSize(v, size) + 10;
+        roundRect(page, px, py + size + 3.2, vw, size + 6.5, (size + 6.5) / 2, { color: tint(VARIANT, 0.9) });
+        page.drawText(v, { x: px + 5, y: py, size, font: bold, color: hex(VARIANT) });
+      };
+      if (cols === 1) {
+        if (variant) pill(xSiteEnd - siteW - formatW, mid - 2.8, 7.8, formatW);
+        else text(page, "—", xSiteEnd - siteW - formatW + 4, mid - 3, 9, font, FAINT);
+      } else if (variant) {
+        pill(nx, ty - 1, 6.4, nw); // sous la dernière ligne du nom, sans la toucher
+      }
+
+      // prix du site (+ ancien prix barré si promotion)
+      const ps = cols === 1 ? (h >= 40 ? 11 : 10) : 9;
+      if (it.compareAt) {
+        const old = formatDH(it.compareAt);
+        const os = cols === 1 ? 7.5 : 6.5;
+        right(page, old, xSiteEnd, mid + 4.5, os, font, FAINT);
+        const ow = width(old, font, os);
+        page.drawLine({ start: { x: xSiteEnd - ow, y: mid + 4.5 + os * 0.32 }, end: { x: xSiteEnd, y: mid + 4.5 + os * 0.32 }, thickness: 0.6, color: FAINT });
+        right(page, formatDH(it.price), xSiteEnd, mid - ps + 1, ps, bold, hex(PROMO));
+      } else {
+        right(page, formatDH(it.price), xSiteEnd, mid - ps / 2 + 2, ps, bold, INK);
+      }
+
+      // case prix revendeur (vide, à remplir à la main)
+      const bh = Math.min(cols === 1 ? 28 : 24, h - 8);
+      roundRect(page, xResale + 4, mid + bh / 2, boxW - 8, bh, 6, { color: WHITE, borderColor: tint(PRO, 0.45), borderWidth: 0.9 });
+      right(page, "DH", xResale + boxW - 11, mid - 2.8, cols === 1 ? 8 : 7, bold, tint(PRO, 0.35));
+
+      page.drawLine({ start: { x, y: bottom }, end: { x: x + colW, y: bottom }, thickness: 0.4, color: LINE });
+      y = bottom;
+    };
+
+    newPage();
+    for (const g of b.groups) {
+      // pas de titre de catégorie seul en bas de colonne
+      if (y - CAT_H - h < ROWS_BOTTOM) nextColumn();
+      catHead(g, false);
+      for (const it of g.items) {
+        if (y - h < ROWS_BOTTOM) {
+          nextColumn();
+          catHead(g, true);
+        }
+        row(it);
+      }
+    }
+    spans.push({ first: first + 1, last: footers.length });
+  }
+
+  /* ─────────────── Page de garde ─────────────── */
+  cover.drawRectangle({ x: 0, y: A4.h - 10, width: A4.w, height: 10, color: hex(GOLD) });
+  let y = A4.h - 70;
+  if (logo) {
+    const lw = 170;
+    const lh = (logo.height / logo.width) * lw;
+    cover.drawImage(logo, { x: (A4.w - lw) / 2, y: y - lh, width: lw, height: lh });
+    y -= lh + 34;
+  } else {
+    center(cover, "Mécafé", A4.w / 2, y - 30, 34, bold, hex(GOLD));
+    y -= 70;
+  }
+  center(cover, "CATALOGUE REVENDEURS", A4.w / 2, y, 26, bold, INK);
+  y -= 22;
+  center(cover, "Proposition de prix revendeur — à valider par la direction", A4.w / 2, y, 11.5, font, MUTED);
+  y -= 22;
+  const pillText = `Prix du site au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+  const pw = width(pillText, bold, 9.5) + 28;
+  roundRect(cover, (A4.w - pw) / 2, y, pw, 24, 12, { color: tint(GOLD, 0.88) });
+  center(cover, pillText, A4.w / 2, y - 15.5, 9.5, bold, hex(GOLD));
+  y -= 58;
+
+  // Sommaire
+  const tx0 = M + 30;
+  const tx1 = A4.w - M - 30;
+  text(cover, "SOMMAIRE", tx0, y, 9, bold, MUTED);
+  y -= 10;
+  cover.drawLine({ start: { x: tx0, y }, end: { x: tx1, y }, thickness: 0.8, color: LINE });
+  const tocH = Math.min(46, Math.max(24, (y - (M + 300)) / Math.max(1, input.brands.length)));
+  input.brands.forEach((b, i) => {
+    const count = countOf(b);
+    const top = y - i * tocH;
+    const mid = top - tocH / 2;
+    const ls = Math.min(30, tocH - 12);
+    brandMark(cover, b, tx0, mid - ls / 2, ls);
+    const nx = tx0 + ls + 12;
+    text(cover, b.name, nx, mid - 4.5, 13, bold, hex(b.color));
+    const info = `${count} produit${count > 1 ? "s" : ""}`;
+    const ix = nx + width(b.name, bold, 13) + 10;
+    text(cover, info, ix, mid - 4, 9.5, font, MUTED);
+    const { first, last } = spans[i];
+    const pageLabel = last > first ? `p. ${first}–${last}` : `p. ${first}`;
+    right(cover, pageLabel, tx1, mid - 4, 10.5, bold, INK2);
+    const dotsFrom = ix + width(info, font, 9.5) + 10;
+    const dotsTo = tx1 - width(pageLabel, bold, 10.5) - 10;
+    for (let x = dotsFrom; x < dotsTo; x += 5) cover.drawCircle({ x, y: mid - 1.5, size: 0.6, color: FAINT });
+    cover.drawLine({ start: { x: tx0, y: top - tocH }, end: { x: tx1, y: top - tocH }, thickness: 0.5, color: LINE });
+  });
+
+  // Mode d'emploi + visa de la direction
+  const boxTop = M + 196;
+  roundRect(cover, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
+  text(cover, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
+  text(cover, "Prix site : prix public affiché sur mecafe.ma à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
+  text(cover, "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.", M + 16, boxTop - 54, 9.5, font, INK2);
+  const visaTop = boxTop - 88;
+  text(cover, "VALIDATION", M, visaTop, 9, bold, MUTED);
+  const fw = (W - 2 * 12) / 3;
+  ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
+    const x = M + i * (fw + 12);
+    roundRect(cover, x, visaTop - 10, fw, 84, 8, { borderColor: hex("#c9ced6"), color: WHITE });
+    text(cover, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
+  });
+
+  // Pied de page : date, visa, numéro de page
+  const pages = footers.length;
+  footers.forEach(({ page, brand }, i) => {
+    const fy = M - 6;
+    page.drawLine({ start: { x: M, y: fy + 14 }, end: { x: A4.w - M, y: fy + 14 }, thickness: 0.6, color: LINE });
+    text(page, `Mécafé  ·  Catalogue revendeurs  ·  prix du site au ${date}`, M, fy, 7.8, font, MUTED);
+    if (brand) {
+      const visa = "Visa direction :";
+      const vx = A4.w / 2 + 40;
+      text(page, visa, vx, fy, 7.8, bold, MUTED);
+      const vEnd = vx + width(visa, bold, 7.8) + 6;
+      page.drawLine({ start: { x: vEnd, y: fy - 1 }, end: { x: vEnd + 70, y: fy - 1 }, thickness: 0.6, color: FAINT });
+    }
+    right(page, `${i + 1} / ${pages}`, A4.w - M, fy, 8, bold, INK2);
+  });
+
+  return doc.save();
+}

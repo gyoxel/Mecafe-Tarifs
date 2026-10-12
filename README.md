@@ -93,6 +93,12 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
   l'enregistrement garde le même n° et note « Modifiée le … »), **Partager PDF** (feuille de partage du
   téléphone : WhatsApp, e-mail… ; sur ordinateur : téléchargement du PDF) et **Imprimer**. Le PDF est généré
   côté serveur (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
+- **Catalogue PDF** (bouton à côté de « Gestion ») : catalogue A4 à faire valider par la direction. Page de
+  garde (sommaire, mode d'emploi, cases de validation), puis chaque marque sur une page, deux au plus : une ou deux
+  colonnes et la hauteur des lignes s'adaptent au nombre de produits. Par produit : photo, nom, format, prix du
+  site (ancien prix barré si promotion) et une case **Prix revendeur vide** à remplir à la main ; « Visa
+  direction » en bas de chaque page. Généré à la demande côté serveur (`/api/admin/catalogue`, `?marque=` pour
+  une seule marque ; `lib/catalogue-pdf.ts`), toujours avec les prix et les photos actuels de Shopify.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : écart de la base en tête ; ajouter un revendeur
     (écart prérempli avec celui de la base) ; la liste affiche les noms avec **Modifier** et **Supprimer** (avec ses
@@ -123,7 +129,7 @@ proxy.ts                 garde d'accès (/admin et /api/admin/* réservés à l'
 app/page.tsx             catalogue public (prix du site seulement)
 app/admin/page.tsx       catalogue admin (tarif de base puis revendeur choisi, prix revendeurs, stock)
 app/admin/gestion/       Gestion : revendeurs et villes ; prix/ : prix par revendeur ; factures/
-app/api/                 login, logout, admin/{options,prices,import,export}
+app/api/                 login, logout, admin/{options,prices,import,export,invoices,catalogue}
 components/              Catalog, OptionsManager (revendeurs), Cart, Invoice, ProductCard (yeux + animation), AdminPrices…
 lib/shopify.ts           requêtes GraphQL (sans cache : données toujours à jour)
 lib/price-options.ts     revendeurs (nom, ville, écart, ordre ; copie de la base à la création)

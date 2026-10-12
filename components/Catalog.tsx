@@ -15,11 +15,13 @@ import {
 } from "@/lib/cart";
 import type { Draft, SavedInvoice } from "@/lib/invoice-types";
 import { slug } from "@/lib/format";
+import { groupItems, menuLeaves } from "@/lib/groups";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
 import { OPTION_STORAGE_KEY, defaultOption, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
 import { CartFab, CartPanel, CartSheet } from "./Cart";
+import { CatalogueButton } from "./CatalogueButton";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
@@ -404,57 +406,9 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   // Chaque produit est rangé dans la première « feuille » du menu (dans la catégorie affichée) qui le
   // contient : Café en Grains › Mécafé 1kg, puis Mécafé 250g, puis Kimbo… Les promotions passent après
   // les vraies catégories (un pack en promo reste rangé avec son café). Le reste va dans « Autres ».
-  const leaves = useMemo(() => {
-    const regular: { node: MenuNode; crumbs: MenuNode[] }[] = [];
-    const promos: typeof regular = [];
-    const walk = (nodes: MenuNode[], crumbs: MenuNode[], promo: boolean) => {
-      for (const n of nodes) {
-        const isPromo = promo || /promo/i.test(n.title);
-        if (n.children.length) walk(n.children, [...crumbs, n], isPromo);
-        else (isPromo ? promos : regular).push({ node: n, crumbs });
-      }
-    };
-    walk(filterNode ? [filterNode] : menu, [], false);
-    return [...regular, ...promos];
-  }, [menu, filterNode]);
-
-  // Un produit n'apparaît qu'une fois. S'il est dans plusieurs groupes, il va dans le plus précis
-  // (celui qui contient le moins de produits) : Pack Dégustation → Mécafé 250g, sauces → Sauces.
-  // Les promotions ne servent de groupe qu'aux produits qui ne sont dans aucune autre catégorie.
-  const leafSizes = useMemo(
-    () => leaves.map((l) => items.filter((it) => inNode(it.collections, l.node)).length),
-    [leaves, items],
-  );
-  const positions = useMemo(() => {
-    const m = new Map<string, Map<string, number>>();
-    for (const [handle, ids] of Object.entries(order)) m.set(handle, new Map(ids.map((id, i) => [id, i])));
-    return m;
-  }, [order]);
-  /** Rang du produit dans le groupe : ordre de la première collection du groupe qui le contient. */
-  const rankIn = (it: CatalogItem, k: number): number => {
-    const leaf = leaves[k];
-    if (!leaf) return Infinity;
-    for (const h of leaf.node.handles) {
-      const pos = positions.get(h)?.get(it.productId);
-      if (pos !== undefined) return pos;
-    }
-    return Infinity;
-  };
-
-  const sorted = useMemo(() => {
-    const promoStart = leaves.findIndex((l) => /promo/i.test([...l.crumbs, l.node].map((n) => n.title).join(" ")));
-    const keyed = results.map((it, i) => {
-      const ks = leaves.flatMap((l, k) => (inNode(it.collections, l.node) ? [k] : []));
-      const regular = promoStart === -1 ? ks : ks.filter((k) => k < promoStart);
-      const pool = regular.length ? regular : ks;
-      const k = pool.length ? pool.reduce((best, k) => (leafSizes[k] < leafSizes[best] ? k : best)) : leaves.length;
-      return { it, i, k, r: rankIn(it, k) };
-    });
-    // Groupes dans l'ordre du menu ; dans un groupe, ordre de la collection sur le site
-    // (les formats d'un même produit restent ensemble, du moins cher au plus cher).
-    keyed.sort((a, b) => a.k - b.k || (a.r === b.r ? 0 : a.r < b.r ? -1 : 1) || a.i - b.i);
-    return keyed;
-  }, [results, leaves, leafSizes, positions]);
+  const leaves = useMemo(() => menuLeaves(filterNode ? [filterNode] : menu), [menu, filterNode]);
+  // Un produit n'apparaît qu'une fois, dans son groupe le plus précis ; groupes dans l'ordre du menu.
+  const sorted = useMemo(() => groupItems(results, items, leaves, order), [results, items, leaves, order]);
   const groupSizes = useMemo(() => {
     const m = new Map<number, number>();
     for (const { k } of sorted) m.set(k, (m.get(k) ?? 0) + 1);
@@ -677,9 +631,12 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       <main className={`container layout ${panelVisible ? "with-cart" : ""} ${fabVisible ? "has-fab" : ""}`}>
         <aside className="filters" aria-label="Filtres">
           {isAdmin && (
-            <Link href="/admin/gestion" className="admin-link">
-              <SettingsIcon size={16} /> Gestion
-            </Link>
+            <div className="admin-links">
+              <Link href="/admin/gestion" className="admin-link">
+                <SettingsIcon size={16} /> Gestion
+              </Link>
+              <CatalogueButton className="admin-link admin-link-ghost" />
+            </div>
           )}
           <h2 className="side-label">Marques</h2>
           <nav aria-label="Marques" className="rail brand-rail">

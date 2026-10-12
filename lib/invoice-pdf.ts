@@ -3,6 +3,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFP
 import { invoiceDate } from "./cart";
 import { formatDH } from "./format";
 import type { SavedInvoice } from "./invoice-types";
+import { safe, wrap } from "./pdf-text";
 
 /**
  * Facture en PDF (A4, texte vectoriel), même contenu que la facture imprimée :
@@ -13,38 +14,6 @@ const M = 42; // marges
 const INK = rgb(0.07, 0.07, 0.07);
 const MUTED = rgb(0.45, 0.45, 0.45);
 const LINE = rgb(0.86, 0.86, 0.86);
-
-/** Les polices standard PDF ne couvrent que WinAnsi : on remplace / retire le reste (espaces fines, −…). */
-function safe(font: PDFFont, text: string): string {
-  const mapped = text.replace(/[   ]/g, " ").replace(/−/g, "-");
-  let out = "";
-  for (const ch of mapped) {
-    try {
-      font.encodeText(ch);
-      out += ch;
-    } catch {
-      out += "";
-    }
-  }
-  return out;
-}
-
-/** Découpe un texte en lignes tenant dans `width`. */
-function wrap(font: PDFFont, text: string, size: number, width: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    const next = cur ? `${cur} ${w}` : w;
-    if (font.widthOfTextAtSize(next, size) <= width || !cur) cur = next;
-    else {
-      lines.push(cur);
-      cur = w;
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines.length ? lines : [""];
-}
 
 export async function invoicePdf(inv: SavedInvoice, logoPng: Uint8Array | null): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
