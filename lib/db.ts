@@ -122,6 +122,13 @@ export function ensureSchema(): Promise<void> {
         )`;
       await sql`create index if not exists invoices_created_idx on invoices (created_at desc)`;
       await sql`alter table invoices add column if not exists updated_at timestamptz`;
+      // Réglages : codes d'accès modifiés dans Gestion (empreintes scrypt, jamais le code lui-même).
+      await sql`
+        create table if not exists app_settings (
+          key text primary key,
+          value text not null,
+          updated_at timestamptz not null default now()
+        )`;
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel
       throw err;

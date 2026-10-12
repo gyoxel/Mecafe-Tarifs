@@ -11,7 +11,7 @@ export const metadata = { title: "PDF — Gestion — Mécafé Tarifs" };
 
 /** Catalogues PDF : type (prix public, tarifs d'un revendeur, à valider), puis marques / catégories / produits. */
 export default async function GestionPdf() {
-  if (!(await getAdminSession())) redirect("/login");
+  if (!(await getAdminSession())) redirect("/login?admin=1");
 
   const [{ brands }, options] = await Promise.all([catalogueBrands(), getOptions()]);
   // Arbre allégé pour la sélection : rien d'autre que ce que la liste affiche.

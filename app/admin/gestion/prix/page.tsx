@@ -9,7 +9,7 @@ import { getOptions } from "@/lib/price-options";
 export const metadata = { title: "Prix des produits — Gestion — Mécafé Tarifs" };
 
 export default async function GestionPrix() {
-  if (!(await getAdminSession())) redirect("/login");
+  if (!(await getAdminSession())) redirect("/login?admin=1");
 
   const [{ items, source }, prices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const ids = new Set(items.map((i) => i.id));

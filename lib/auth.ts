@@ -1,46 +1,50 @@
 import "server-only";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySessionToken, type Role, type Session } from "./session";
+import { codeConfigured, codeVersion, verifyCode } from "./credentials";
+import { CLIENT_MAX_AGE, SESSION_COOKIE, createSessionToken, verifySessionToken, type Role, type Session } from "./session";
 
-/** Session courante (Server Components / Route Handlers), ou null. */
+/**
+ * Session courante (Server Components / Route Handlers), ou null. Une session ouverte avec un code qui a changé
+ * depuis (Gestion › Codes d'accès) n'est plus valable.
+ */
 export async function getSession(): Promise<Session | null> {
   const jar = await cookies();
-  return verifySessionToken(jar.get(SESSION_COOKIE)?.value);
+  const session = await verifySessionToken(jar.get(SESSION_COOKIE)?.value);
+  if (!session) return null;
+  try {
+    return session.v === (await codeVersion(session.role)) ? session : null;
+  } catch {
+    return null; // codes illisibles (base injoignable) : on refuse
+  }
 }
 
-export function sessionCookieOptions() {
+/** Cookie de session : admin = effacé à la fermeture du navigateur ; client = gardé 30 jours. */
+export function sessionCookieOptions(role?: Role) {
   return {
     name: SESSION_COOKIE,
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
-    // Pas de maxAge : cookie de session, effacé à la fermeture du navigateur (le jeton expire de toute façon
-    // après SESSION_MAX_AGE).
+    ...(role === "client" ? { maxAge: CLIENT_MAX_AGE } : {}),
   };
 }
 
-const digest = (s: string) => createHash("sha256").update(s).digest();
-
-function safeEqual(a: string, b: string): boolean {
-  return timingSafeEqual(digest(a), digest(b));
+/** Cookie de session prêt à poser pour ce rôle (avec l'empreinte du code en vigueur). */
+export async function sessionCookie(role: Role) {
+  return { ...sessionCookieOptions(role), value: await createSessionToken(role, await codeVersion(role)) };
 }
 
-/** Code admin. Le code de démo (« admin ») n'existe qu'en développement. */
-function adminCode(): string | undefined {
-  return process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== "production" ? "admin" : undefined);
-}
-
-export function authConfigured(): boolean {
+export async function authConfigured(): Promise<boolean> {
   const secretOk = Boolean(process.env.SESSION_SECRET) || process.env.NODE_ENV !== "production";
-  return Boolean(adminCode() && secretOk);
+  return secretOk && (await codeConfigured("admin"));
 }
 
-/** Rôle correspondant au code saisi (seul l'admin se connecte), ou null. */
-export function checkPassword(input: string): Role | null {
-  const code = adminCode();
-  return code && safeEqual(input, code) ? "admin" : null;
+/** Rôle correspondant au code saisi (l'admin est testé en premier), ou null. */
+export async function checkPassword(input: string): Promise<Role | null> {
+  if (await verifyCode("admin", input)) return "admin";
+  if (await verifyCode("client", input)) return "client";
+  return null;
 }
 
 /** Session admin courante, ou null. */

@@ -9,7 +9,7 @@ import { storageMode } from "@/lib/prices";
 export const metadata = { title: "Factures — Gestion — Mécafé Tarifs" };
 
 export default async function GestionFactures() {
-  if (!(await getAdminSession())) redirect("/login");
+  if (!(await getAdminSession())) redirect("/login?admin=1");
   const [invoices, options] = await Promise.all([listInvoices(), getOptions()]);
   return (
     <GestionShell active="factures" storage={storageMode()}>

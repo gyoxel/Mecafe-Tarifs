@@ -1,13 +1,22 @@
 import Link from "next/link";
-import { DownloadIcon, FileTextIcon, TagIcon, UsersIcon } from "./Icons";
+import { DownloadIcon, FileTextIcon, LockIcon, TagIcon, UsersIcon } from "./Icons";
 
-type Section = "commerciaux" | "prix" | "factures" | "pdf";
+type Section = "commerciaux" | "prix" | "factures" | "pdf" | "codes";
 
-const SECTIONS: { id: Section; href: string; label: string; hint: string; Icon: typeof TagIcon }[] = [
-  { id: "commerciaux", href: "/admin/gestion", label: "Revendeurs et villes", hint: "Noms, villes, écarts", Icon: UsersIcon },
-  { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", hint: "Par revendeur", Icon: TagIcon },
-  { id: "factures", href: "/admin/gestion/factures", label: "Factures", hint: "Historique", Icon: FileTextIcon },
-  { id: "pdf", href: "/admin/gestion/pdf", label: "PDF", hint: "Catalogues à télécharger", Icon: DownloadIcon },
+/** `short` : libellé des onglets sur téléphone. */
+const SECTIONS: { id: Section; href: string; label: string; short: string; hint: string; Icon: typeof TagIcon }[] = [
+  {
+    id: "commerciaux",
+    href: "/admin/gestion",
+    label: "Revendeurs et villes",
+    short: "Revendeurs",
+    hint: "Noms, villes, écarts",
+    Icon: UsersIcon,
+  },
+  { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", short: "Prix", hint: "Par revendeur", Icon: TagIcon },
+  { id: "factures", href: "/admin/gestion/factures", label: "Factures", short: "Factures", hint: "Historique", Icon: FileTextIcon },
+  { id: "pdf", href: "/admin/gestion/pdf", label: "PDF", short: "PDF", hint: "Catalogues à télécharger", Icon: DownloadIcon },
+  { id: "codes", href: "/admin/gestion/codes", label: "Codes d'accès", short: "Codes", hint: "Clients et admin", Icon: LockIcon },
 ];
 
 /** Cadre des pages Gestion : en-tête + barre latérale (onglets en haut sur mobile). */
@@ -52,11 +61,12 @@ export function GestionShell({
 
       <div className="gestion">
         <nav className="gestion-nav" aria-label="Gestion">
-          {SECTIONS.map(({ id, href, label, hint, Icon }) => (
+          {SECTIONS.map(({ id, href, label, short, hint, Icon }) => (
             <Link key={id} href={href} className="gestion-link" aria-current={active === id ? "page" : undefined}>
               <Icon size={18} />
               <span>
                 <span className="gestion-link-label">{label}</span>
+                <span className="gestion-link-short">{short}</span>
                 <span className="gestion-link-hint">{hint}</span>
               </span>
             </Link>

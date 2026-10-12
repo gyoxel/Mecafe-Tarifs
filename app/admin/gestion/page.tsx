@@ -8,7 +8,7 @@ import { storageMode } from "@/lib/prices";
 export const metadata = { title: "Revendeurs et villes — Gestion — Mécafé Tarifs" };
 
 export default async function GestionCommerciaux() {
-  if (!(await getAdminSession())) redirect("/login");
+  if (!(await getAdminSession())) redirect("/login?admin=1");
   const options = await getOptions();
   return (
     <GestionShell active="commerciaux" storage={storageMode()}>

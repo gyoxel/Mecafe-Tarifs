@@ -1,8 +1,10 @@
 # Mécafé — Tarifs professionnels
 
 Catalogue tarifaire : `tarifs.mecafe.ma`. Shopify reste la source des produits, images et prix publics.
-- **Public** (`/`, sans mot de passe) : le catalogue avec les **prix du site** uniquement ; l'image et le
-  nom ouvrent la page du produit sur mecafe.ma.
+- **Entrée** (`/login`) : le site demande un code, sur un fond de catalogue flouté (factice : rien n'est envoyé
+  avant le code). **Code clients** → catalogue au **prix public** (`/`) ; **code admin** → espace admin.
+- **Clients** (`/`) : le catalogue avec les **prix du site** uniquement ; l'image et le nom ouvrent la page du
+  produit sur mecafe.ma. Session gardée 30 jours sur l'appareil.
 - **Admin** (`/admin`, code admin) : s'ouvre directement sur le tarif de base « Revendeur », puis les **prix
   revendeurs** (prix site − écart, ou prix saisi) avec l'œil et le clic sur le prix ; stock visible.
   **Gestion** (`/admin/gestion`) : revendeurs, villes, écarts, prix, factures.
@@ -16,10 +18,16 @@ Shopify (Storefront API) ──► Vercel (Next.js, lecture en direct) ──►
 ## Principes
 - **Toujours à jour :** pas de cache, chaque affichage relit Shopify (prix, produits, menu, ordre).
 - **Le navigateur ne parle jamais à Shopify.** Le token reste dans les variables d'environnement Vercel.
-- **Catalogue public, prix revendeurs protégés.** La page `/` n'envoie ni prix revendeur, ni nom de revendeur,
+- **Catalogue sous code, prix revendeurs protégés.** La page `/` (code clients) n'envoie ni prix revendeur, ni nom de revendeur,
   ni ville, ni stock. `/admin`, `/admin/gestion` et `/api/admin/*` exigent la session admin (`proxy.ts` + revérification
   côté serveur). L'œil 👁️ est un confort d'affichage (discrétion devant un client), pas la sécurité.
-- **Un seul code** : `ADMIN_PASSWORD`. Le site n'est ni indexé (`noindex`) ni lié depuis mecafe.ma.
+- **Deux codes** : clients et admin. Codes de départ dans Vercel (`APP_PASSWORD`, `ADMIN_PASSWORD`), puis
+  modifiables dans **Gestion › Codes d'accès** (le code admin actuel est demandé pour valider). Un code changé est
+  enregistré en base sous forme d'empreinte scrypt (jamais en clair, table `app_settings`) et remplace celui de
+  Vercel ; les sessions ouvertes avec l'ancien code sont déconnectées (empreinte du code dans la session).
+  **Code oublié** : dans la console Neon (SQL), `delete from app_settings where key = 'password:admin';`
+  (ou `'password:client'`) : le code de Vercel redevient valable. Le site n'est ni indexé (`noindex`) ni lié
+  depuis mecafe.ma.
 - **Prix revendeur indépendant** : stocké dans Postgres par variant Shopify, jamais écrit dans Shopify.
 - **Une carte = un variant (format).** Marque = champ *Fournisseur* (`vendor`, ex. `Orsadrinks` → affiché `ODK`).
 - **Catégories = menu Shopify « Main menu (GX) »** (`main-menu-gx`, Contenu → Menus) : jusqu'à 3 niveaux

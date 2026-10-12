@@ -58,3 +58,11 @@ create table if not exists invoices (
 );
 create index if not exists invoices_created_idx on invoices (created_at desc);
 alter table invoices add column if not exists updated_at timestamptz;  -- modifiée après confirmation
+
+-- Réglages : codes d'accès modifiés dans Gestion › Codes d'accès (empreinte scrypt, jamais le code en clair).
+-- Clés : password:admin, password:client. Sans ligne, le code vient de Vercel (ADMIN_PASSWORD / APP_PASSWORD).
+create table if not exists app_settings (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz not null default now()
+);

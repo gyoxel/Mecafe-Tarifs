@@ -1827,6 +1827,106 @@ body > .admin {
 .login-card {
   text-align: left;
 }
+/* Connexion : catalogue factice flouté derrière la carte (aucune donnée réelle) */
+.login-screen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.login-screen .login-card {
+  position: relative;
+  z-index: 1;
+  box-shadow: var(--shadow-lg);
+}
+.login-backdrop {
+  position: fixed;
+  inset: -24px;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--bg);
+  filter: blur(9px);
+  transform: scale(1.04);
+  pointer-events: none;
+  user-select: none;
+}
+.login-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(244, 245, 247, 0.45);
+}
+.login-backdrop-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 88px;
+  padding: 24px 48px 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.login-backdrop-bar img {
+  width: 120px;
+  height: auto;
+}
+.login-backdrop-bar span {
+  flex: 1;
+  max-width: 560px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+.login-backdrop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 18px;
+  padding: 28px 48px;
+}
+.login-backdrop-card {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.login-backdrop-img {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  background: #f7f7f8;
+}
+.login-backdrop-img img {
+  width: 46%;
+  height: auto;
+  border-radius: 50%;
+}
+.login-backdrop-line {
+  height: 12px;
+  margin: 0 16px;
+  border-radius: 6px;
+  background: var(--line);
+}
+.login-backdrop-line.short {
+  width: 45%;
+}
+.login-backdrop-price {
+  width: 38%;
+  height: 22px;
+  margin: 4px 16px 0;
+  border-radius: 6px;
+  background: var(--line-2);
+}
+@media (max-width: 599px) {
+  .login-backdrop-bar {
+    padding: 20px 16px 0;
+  }
+  .login-backdrop-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px;
+  }
+}
 .login-back {
   display: block;
   margin-top: 16px;
@@ -2666,6 +2766,9 @@ html.scroll-locked {
 @media (max-width: 420px) {
   .gestion-link-hint {
     display: none;
+  }
+  .gestion-link-short {
+    font-size: 11px;
   }
 }
 
@@ -3636,10 +3739,23 @@ button.facture-row:hover {
     color: var(--muted);
   }
 }
-/* Barre latérale Gestion : 4 onglets sur mobile */
+.gestion-link-short {
+  display: none;
+}
+/* Barre latérale Gestion : 5 onglets courts sur mobile */
 @media (max-width: 899px) {
   .gestion-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .gestion-link-label {
+    display: none;
+  }
+  .gestion-link-short {
+    display: block;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.2;
   }
   .gestion-link {
     flex-direction: column;
@@ -4180,5 +4296,97 @@ button.facture-row:hover {
   .pdfb-download {
     flex: 1;
     justify-content: center;
+  }
+}
+
+/* ═════════════ Gestion › Codes d'accès ═════════════ */
+.codes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.codes-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.codes-head {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.codes-head h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 800;
+}
+.codes-head p {
+  margin: 2px 0 0;
+}
+.codes-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--pro-soft);
+  color: var(--pro);
+}
+.codes-status {
+  margin-top: 6px !important;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.codes-field input {
+  height: 46px;
+  padding-right: 46px;
+}
+.codes-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.codes-eye:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.field-control .codes-eye svg {
+  position: static;
+  transform: none;
+}
+.codes-msg {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.codes-msg.error {
+  color: var(--danger);
+}
+.codes-msg.ok {
+  color: var(--pro-ink);
+}
+.codes-submit {
+  height: 46px;
+}
+@media (max-width: 899px) {
+  .codes-grid {
+    grid-template-columns: 1fr;
   }
 }

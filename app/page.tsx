@@ -1,14 +1,17 @@
+import { redirect } from "next/navigation";
 import { Catalog } from "@/components/Catalog";
+import { getSession } from "@/lib/auth";
 import { getCatalog } from "@/lib/catalog";
 import { initialFilters } from "@/lib/url-filters";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
- * Catalogue public (commerciaux, sans mot de passe) : prix du site uniquement.
- * Aucun prix commercial, nom de commercial, ville ni stock n'est envoyé au navigateur.
+ * Catalogue clients (code clients, ou admin) : prix public uniquement.
+ * Aucun prix revendeur, nom de revendeur, ville ni stock n'est envoyé au navigateur.
  */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
+  if (!(await getSession())) redirect("/login");
   const [{ items, source, menu, order }, sp] = await Promise.all([getCatalog(), searchParams]);
   const publicItems = items.map(({ stock: _stock, ...rest }) => rest);
 

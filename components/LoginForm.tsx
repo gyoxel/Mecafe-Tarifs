@@ -4,7 +4,8 @@ import { useState } from "react";
 import { OPTION_STORAGE_KEY } from "@/lib/options";
 import { LockIcon } from "./Icons";
 
-export function LoginForm() {
+/** Code d'accès : clients → catalogue, admin → espace admin. `admin` : seul le code admin est accepté. */
+export function LoginForm({ admin = false }: { admin?: boolean }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -18,10 +19,16 @@ export function LoginForm() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, admin }),
       });
       if (res.ok) {
-        // Chaque connexion repart du tarif de base (« Revendeur ») ; rechargement complet (session lue côté serveur).
+        const { role } = (await res.json().catch(() => ({}))) as { role?: string };
+        // Rechargement complet : la session est lue côté serveur.
+        if (role !== "admin") {
+          window.location.href = "/";
+          return;
+        }
+        // Chaque connexion admin repart du tarif de base (« Revendeur »).
         try {
           localStorage.removeItem(OPTION_STORAGE_KEY);
         } catch {}
@@ -39,7 +46,7 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} className="login-form">
       <label className="field">
-        <span className="field-label">Code admin</span>
+        <span className="field-label">{admin ? "Code admin" : "Code d'accès"}</span>
         <span className="field-control">
           <LockIcon size={18} />
           <input
