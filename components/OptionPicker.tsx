@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { fold } from "@/lib/format";
-import { formatOffset, isBase, matchesOption, type PriceOption } from "@/lib/options";
+import { isBase, matchesOption, type PriceOption } from "@/lib/options";
 import { FilterSelect } from "./FilterSelect";
 import { keepVisible } from "./scroll";
 import { CheckIcon, ChevronIcon, PinIcon, SearchIcon, TagIcon } from "./Icons";
@@ -148,7 +148,7 @@ function CityFilter(props: { cities: string[]; value: string | null; onChange: (
   );
 }
 
-/** Bouton affichant le commercial choisi, avec son écart en petit. */
+/** Bouton affichant le revendeur choisi (l'écart n'est pas affiché). */
 export function OptionTrigger({
   option,
   open,
@@ -170,12 +170,10 @@ export function OptionTrigger({
       aria-haspopup="listbox"
       aria-expanded={open}
       aria-label={`${label} : ${option?.name ?? "aucun"}`}
-      title={option ? `${option.name} : prix site ${formatOffset(option.offset)}` : undefined}
       onClick={onClick}
     >
       <TagIcon size={16} className="opt-trigger-icon" />
       <span className="opt-trigger-name">{option?.name ?? "Choisir…"}</span>
-      {option && <span className="opt-trigger-offset">{formatOffset(option.offset)}</span>}
       <ChevronIcon size={16} className="opt-chevron" />
     </button>
   );
