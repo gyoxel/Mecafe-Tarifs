@@ -82,7 +82,8 @@ function CodeCard({
       : confirm && confirm !== next
         ? "Les deux codes ne sont pas identiques."
         : null;
-  const ready = next.length >= min && confirm === next && current !== "" && !busy;
+  const isAdmin = target === "admin";
+  const ready = next.length >= min && confirm === next && (!isAdmin || current !== "") && !busy;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +94,7 @@ function CodeCard({
       const res = await fetch("/api/admin/codes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, current, next }),
+        body: JSON.stringify({ target, next, current: isAdmin ? current : undefined }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; info?: Info };
       if (!res.ok || !data.info) throw new Error(data.error ?? `Erreur ${res.status}`);
@@ -115,7 +116,6 @@ function CodeCard({
     }
   };
 
-  const isAdmin = target === "admin";
   return (
     <form className="codes-card" onSubmit={submit}>
       <div className="codes-head">
@@ -132,12 +132,9 @@ function CodeCard({
       </div>
       <CodeField label="Nouveau code" value={next} onChange={setNext} autoComplete="new-password" />
       <CodeField label="Confirmer le nouveau code" value={confirm} onChange={setConfirm} autoComplete="new-password" />
-      <CodeField
-        label="Code admin actuel (pour valider)"
-        value={current}
-        onChange={setCurrent}
-        autoComplete="current-password"
-      />
+      {isAdmin && (
+        <CodeField label="Code admin actuel" value={current} onChange={setCurrent} autoComplete="current-password" />
+      )}
       {problem && <p className="codes-msg error">{problem}</p>}
       {msg && (
         <p className={`codes-msg ${msg.kind}`} role={msg.kind === "error" ? "alert" : "status"}>
@@ -152,8 +149,8 @@ function CodeCard({
 }
 
 /**
- * Gestion › Codes d'accès : code clients (catalogue au prix public) et code admin. Le code admin actuel est
- * demandé pour valider chaque changement.
+ * Gestion › Codes d'accès : code clients (catalogue au prix public) et code admin. Le code admin actuel n'est
+ * demandé que pour changer le code admin.
  */
 export function CodesPanel({ info: initial, min }: { info: Info; min: Record<Role, number> }) {
   const [info, setInfo] = useState(initial);
@@ -162,7 +159,8 @@ export function CodesPanel({ info: initial, min }: { info: Info; min: Record<Rol
       <h2 className="admin-section-title">Codes d&apos;accès</h2>
       <p className="muted small admin-options-hint">
         Le site demande un code à l&apos;entrée. Le code clients ouvre le catalogue au prix public ; le code admin
-        ouvre l&apos;espace admin. Changer un code déconnecte les personnes connectées avec l&apos;ancien.
+        ouvre l&apos;espace admin (son code actuel est demandé pour le changer). Changer un code déconnecte les
+        personnes connectées avec l&apos;ancien.
       </p>
       <div className="codes-grid">
         <CodeCard target="client" info={info.client} min={min.client} onSaved={setInfo} />

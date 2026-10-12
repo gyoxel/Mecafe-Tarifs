@@ -22,7 +22,7 @@ Shopify (Storefront API) ──► Vercel (Next.js, lecture en direct) ──►
   ni ville, ni stock. `/admin`, `/admin/gestion` et `/api/admin/*` exigent la session admin (`proxy.ts` + revérification
   côté serveur). L'œil 👁️ est un confort d'affichage (discrétion devant un client), pas la sécurité.
 - **Deux codes** : clients et admin. Codes de départ dans Vercel (`APP_PASSWORD`, `ADMIN_PASSWORD`), puis
-  modifiables dans **Gestion › Codes d'accès** (le code admin actuel est demandé pour valider). Un code changé est
+  modifiables dans **Gestion › Codes d'accès** (le code admin actuel n'est demandé que pour changer le code admin). Un code changé est
   enregistré en base sous forme d'empreinte scrypt (jamais en clair, table `app_settings`) et remplace celui de
   Vercel ; les sessions ouvertes avec l'ancien code sont déconnectées (empreinte du code dans la session).
   **Code oublié** : dans la console Neon (SQL), `delete from app_settings where key = 'password:admin';`

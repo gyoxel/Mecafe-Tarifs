@@ -6,8 +6,8 @@ import { checkLoginAllowed, clearLoginFailures, clientIp, recordLoginFailure } f
 import type { Role } from "@/lib/session";
 
 /**
- * Changer un code d'accès (Gestion › Codes d'accès). Corps : `target` (client | admin), `current` (code admin
- * actuel, demandé dans les deux cas), `next` (nouveau code). Les sessions ouvertes avec l'ancien code sont
+ * Changer un code d'accès (Gestion › Codes d'accès). Corps : `target` (client | admin), `next` (nouveau code),
+ * `current` (code admin actuel : demandé seulement pour changer le code admin). Les sessions ouvertes avec l'ancien code sont
  * déconnectées ; l'admin qui change le code admin reste connecté (nouveau cookie).
  */
 export async function POST(req: Request) {
@@ -16,24 +16,24 @@ export async function POST(req: Request) {
   const down = requireStorage();
   if (down) return down;
 
-  const ip = clientIp(req);
-  const allowed = checkLoginAllowed(ip);
-  if (!allowed.ok) {
-    return NextResponse.json({ error: "Trop de tentatives. Réessayez dans quelques minutes." }, { status: 429 });
-  }
-
   const body = (await req.json().catch(() => null)) as { target?: unknown; current?: unknown; next?: unknown } | null;
   const target: Role | null = body?.target === "admin" || body?.target === "client" ? body.target : null;
   const current = typeof body?.current === "string" ? body.current : "";
   const next = typeof body?.next === "string" ? body.next : "";
   if (!target) return NextResponse.json({ error: "Code inconnu" }, { status: 400 });
 
-  if (!(await verifyCode("admin", current))) {
-    recordLoginFailure(ip);
-    await new Promise((r) => setTimeout(r, 400));
-    return NextResponse.json({ error: "Code admin actuel incorrect" }, { status: 403 });
+  if (target === "admin") {
+    const ip = clientIp(req);
+    if (!checkLoginAllowed(ip).ok) {
+      return NextResponse.json({ error: "Trop de tentatives. Réessayez dans quelques minutes." }, { status: 429 });
+    }
+    if (!(await verifyCode("admin", current))) {
+      recordLoginFailure(ip);
+      await new Promise((r) => setTimeout(r, 400));
+      return NextResponse.json({ error: "Code admin actuel incorrect" }, { status: 403 });
+    }
+    clearLoginFailures(ip);
   }
-  clearLoginFailures(ip);
 
   if (next.trim() !== next) return NextResponse.json({ error: "Pas d'espace au début ni à la fin du code" }, { status: 400 });
   if (next.length < CODE_MIN[target] || next.length > CODE_MAX) {
