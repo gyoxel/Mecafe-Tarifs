@@ -7,6 +7,7 @@ import { formatDH } from "@/lib/format";
 import { DOC_KINDS, KIND_LABEL, KIND_THE, type DocKind } from "@/lib/invoice-types";
 import { displayTitle, displayVariant } from "@/lib/title";
 import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PencilIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
+import { CityPicker } from "./CityPicker";
 import { Price } from "./Price";
 import { Thumb } from "./Thumb";
 import { lockScroll } from "./scroll";
@@ -128,57 +129,88 @@ function UnitPrice({ line, onPrice, label }: { line: ResolvedLine; onPrice: (pri
   );
 }
 
-/* ─────────────── Prix Gros : nom du client pour ce devis ─────────────── */
+/* ─────────────── Prix Gros : infos du client pour ce document ─────────────── */
+
+/** Infos du client tapées dans le panier « Prix Gros » (toutes facultatives). */
+export type ClientInfo = { name: string; city: string | null; phone: string };
+export const EMPTY_CLIENT: ClientInfo = { name: "", city: null, phone: "" };
 
 /**
- * Avec « Prix Gros », le nom affiché se change en un appui : on tape le nom du client, qui va sur le devis et dans
- * l'historique, sans l'ajouter aux revendeurs. Les prix restent ceux de « Prix Gros ».
+ * Avec « Prix Gros » : « Info : Prix Gros » et son crayon. Un appui ouvre nom, ville et téléphone du client
+ * (tous facultatifs) : ils vont sur le devis / la commande et dans l'historique, sans créer de revendeur.
+ * Les prix restent ceux de « Prix Gros ».
  */
-function ClientNameField({ name, priceLabel, onChange }: { name: string; priceLabel: string; onChange: (n: string) => void }) {
+function ClientInfoField({
+  info,
+  priceLabel,
+  cities,
+  onChange,
+}: {
+  info: ClientInfo;
+  priceLabel: string;
+  cities: string[];
+  onChange: (info: ClientInfo) => void;
+}) {
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(name);
-  useEffect(() => setText(name), [name]);
-  const commit = () => {
-    onChange(text);
-    setEditing(false);
+  const [draft, setDraft] = useState(info);
+  const open = () => {
+    setDraft(info);
+    setEditing(true);
   };
+  const detail = [info.city, info.phone].filter(Boolean).join(" · ");
   if (editing) {
     return (
       <form
         className="cart-client-edit"
         onSubmit={(e) => {
           e.preventDefault();
-          commit();
+          onChange(draft);
+          setEditing(false);
         }}
+        onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
       >
         <input
           className="cart-client-input"
-          value={text}
+          value={draft.name}
           maxLength={60}
           placeholder="Nom du client"
           autoFocus
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setText(name);
-              setEditing(false);
-            }
-          }}
-          aria-label="Nom du client sur le devis"
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          aria-label="Nom du client"
         />
+        <CityPicker value={draft.city} choices={cities} onChange={(city) => setDraft({ ...draft, city })} />
+        <input
+          className="cart-client-input"
+          value={draft.phone}
+          type="tel"
+          inputMode="tel"
+          maxLength={30}
+          placeholder="Téléphone"
+          onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+          aria-label="Téléphone du client"
+        />
+        <span className="cart-client-hint">Tout est facultatif. Prix : {priceLabel}.</span>
+        <span className="cart-client-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>
+            Annuler
+          </button>
+          <button type="submit" className="btn btn-gold btn-sm">
+            OK
+          </button>
+        </span>
       </form>
     );
   }
   return (
     <>
-      <button type="button" className="cart-client" onClick={() => setEditing(true)} title="Nom du client sur le devis">
-        <span className={name ? "cart-client-name" : "cart-client-name cart-client-empty"}>
-          {name ? `Client : ${name}` : `Prix : ${priceLabel}`}
+      <button type="button" className="cart-client" onClick={open} title="Infos du client sur le document">
+        <span className="cart-client-name">
+          <span className="cart-client-key">Info :</span> {info.name || priceLabel}
         </span>
         <PencilIcon size={12} className="cart-client-pencil" />
       </button>
-      {name && <span className="cart-client-note">Prix : {priceLabel}</span>}
+      {detail && <span className="cart-client-note">{detail}</span>}
+      {info.name && <span className="cart-client-note">Prix : {priceLabel}</span>}
     </>
   );
 }
@@ -243,9 +275,11 @@ type PanelProps = {
   onQty: (id: string, qty: number) => void;
   /** Prix unitaire saisi à la main (null = prix du revendeur). */
   onPrice: (id: string, price: number | null) => void;
-  /** Prix Gros : nom du client tapé pour ce devis (sinon undefined : revendeur enregistré). */
-  clientName?: string;
-  onClientName?: (name: string) => void;
+  /** Prix Gros : infos du client tapées pour ce document (sinon undefined : revendeur enregistré). */
+  client?: ClientInfo;
+  onClient?: (info: ClientInfo) => void;
+  /** Villes proposées (celles des revendeurs et les grandes villes). */
+  cities?: string[];
   /** Devis ou commande ; onKind absent = type figé (modification d'un document existant). */
   kind: DocKind;
   onKind?: (k: DocKind) => void;
@@ -269,8 +303,9 @@ export function CartPanel({
   lastAdded,
   onQty,
   onPrice,
-  clientName,
-  onClientName,
+  client,
+  onClient,
+  cities = [],
   kind,
   onKind,
   onClear,
@@ -294,8 +329,8 @@ export function CartPanel({
           <h2 className="cart-title">
             Panier <span className="cart-title-count">{count}</span>
           </h2>
-          {onClientName ? (
-            <ClientNameField name={clientName ?? ""} priceLabel={commercial} onChange={onClientName} />
+          {onClient ? (
+            <ClientInfoField info={client ?? EMPTY_CLIENT} priceLabel={commercial} cities={cities} onChange={onClient} />
           ) : (
             <p className="cart-sub">Prix : {commercial}</p>
           )}

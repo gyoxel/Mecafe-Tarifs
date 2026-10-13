@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
   if (!parsed.expected) return NextResponse.json({ error: "Aperçu manquant : ouvrez le devis avant de confirmer." }, { status: 400 });
 
-  const result = await computeDraft(parsed.commercialId, parsed.lines, null, parsed.clientName);
+  const result = await computeDraft(parsed.commercialId, parsed.lines, null, parsed.client);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   const { draft } = result;
   if (!matchesExpected(draft, parsed.expected)) {
@@ -32,6 +32,7 @@ export async function POST(req: Request) {
     commercialId: draft.commercial.id,
     commercial: draft.commercial.name,
     city: draft.commercial.city,
+    phone: draft.commercial.phone,
     rows: draft.rows,
   });
   return NextResponse.json({ ok: true, invoice }, { headers: { "Cache-Control": "no-store" } });

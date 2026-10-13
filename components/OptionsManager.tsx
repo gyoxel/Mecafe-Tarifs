@@ -6,6 +6,7 @@ import {
   BASE_ID,
   NAME_MAX,
   OPTION_STORAGE_KEY,
+  PHONE_MAX,
   SOURCE_LABEL,
   matchesOption,
   type PriceOption,
@@ -55,6 +56,23 @@ async function send(body: Record<string, unknown>): Promise<PriceOption[]> {
   return data.options;
 }
 
+/** Téléphone (facultatif). */
+function PhoneInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  return (
+    <input
+      className="admin-input rv-phone"
+      type="tel"
+      inputMode="tel"
+      value={value}
+      maxLength={PHONE_MAX}
+      placeholder="Téléphone (facultatif)"
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      aria-label="Téléphone"
+    />
+  );
+}
+
 /** Formulaire d'un revendeur (modification en place). */
 function EditRow({
   option,
@@ -66,19 +84,20 @@ function EditRow({
   option: PriceOption;
   cities: string[];
   busy: boolean;
-  onSave: (name: string, city: string | null, source: PriceSource) => void;
+  onSave: (name: string, city: string | null, source: PriceSource, phone: string) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(option.name);
   const [city, setCity] = useState(option.city);
   const [source, setSource] = useState(option.source);
+  const [phone, setPhone] = useState(option.phone ?? "");
   const valid = name.trim() !== "";
   return (
     <form
       className="rv-edit"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valid && !busy) onSave(name.trim(), city, source);
+        if (valid && !busy) onSave(name.trim(), city, source, phone.trim());
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
@@ -91,6 +110,7 @@ function EditRow({
         autoFocus
       />
       <CityPicker value={city} choices={cities} onChange={setCity} disabled={busy} />
+      <PhoneInput value={phone} onChange={setPhone} disabled={busy} />
       <SiteBox value={source} onChange={setSource} disabled={busy} />
       <span className="rv-edit-actions">
         <button type="submit" className="btn btn-gold btn-sm" disabled={busy || !valid}>
@@ -121,6 +141,7 @@ export function OptionsManager({ options, onOptions, onStatus, changes }: Props)
   const [newName, setNewName] = useState("");
   const [newCity, setNewCity] = useState<string | null>(null);
   const [newSource, setNewSource] = useState<PriceSource>("base");
+  const [newPhone, setNewPhone] = useState("");
   const canAdd = newName.trim() !== "";
 
   async function run(body: Record<string, unknown>, ok: string) {
@@ -218,13 +239,14 @@ export function OptionsManager({ options, onOptions, onStatus, changes }: Props)
           if (!canAdd || busy) return;
           const name = newName.trim();
           const ok = await run(
-            { action: "create", name, city: newCity, source: newSource },
+            { action: "create", name, city: newCity, phone: newPhone.trim(), source: newSource },
             `« ${name} » ajouté : il suit ${newSource === "site" ? "le prix du site" : `« ${base?.name ?? "Prix Gros"} »`}.`,
           );
           if (ok) {
             setNewName("");
             setNewCity(null);
             setNewSource("base");
+            setNewPhone("");
           }
         }}
       >
@@ -238,6 +260,7 @@ export function OptionsManager({ options, onOptions, onStatus, changes }: Props)
           aria-label="Nom du nouveau revendeur"
         />
         <CityPicker value={newCity} choices={cities} onChange={setNewCity} disabled={busy} />
+        <PhoneInput value={newPhone} onChange={setNewPhone} disabled={busy} />
         <button type="submit" className="btn btn-gold" disabled={!canAdd || busy}>
           Ajouter
         </button>
@@ -292,9 +315,9 @@ export function OptionsManager({ options, onOptions, onStatus, changes }: Props)
                   cities={cities}
                   busy={busy}
                   onCancel={() => setEditing(null)}
-                  onSave={async (name, city, source) => {
+                  onSave={async (name, city, source, phone) => {
                     const ok = await run(
-                      { action: "update", id: o.id, name, city, source },
+                      { action: "update", id: o.id, name, city, phone, source },
                       `« ${name} » enregistré${city ? ` (${city})` : ""}.`,
                     );
                     if (ok) setEditing(null);
@@ -329,6 +352,7 @@ export function OptionsManager({ options, onOptions, onStatus, changes }: Props)
                 <button type="button" className="rv-name" onClick={() => setEditing(o.id)} title="Modifier">
                   <strong>{o.name}</strong>
                   {o.city && <span className="muted"> · {o.city}</span>}
+                  {o.phone && <span className="muted rv-phone-text"> · {o.phone}</span>}
                   {o.source === "site" && <span className="rv-tag rv-tag-soft">{SOURCE_LABEL.site}</span>}
                 </button>
                 <span className="rv-actions">

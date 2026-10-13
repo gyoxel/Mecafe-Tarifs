@@ -15,6 +15,7 @@ export type InvoiceDoc = {
   rows: InvoiceRow[];
   commercial: string;
   city: string | null;
+  phone?: string | null;
   /** null = brouillon, pas encore confirmé (pas de n°). */
   number: string | null;
   date: Date;
@@ -32,6 +33,7 @@ export const docOf = (inv: SavedInvoice): InvoiceDoc => ({
   rows: inv.rows,
   commercial: inv.commercial,
   city: inv.city,
+  phone: inv.phone,
   number: inv.number,
   date: new Date(inv.createdAt),
   id: inv.id,
@@ -96,6 +98,7 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
                 <span className="invoice-label">Client</span>
                 <strong>{doc.commercial}</strong>
                 {doc.city && <span>{doc.city}</span>}
+                {doc.phone && <span className="invoice-phone">Tél : {doc.phone}</span>}
               </div>
 
               <table className="invoice-table">

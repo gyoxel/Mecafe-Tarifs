@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const original = typeof body?.editId === "number" ? await getInvoice(body.editId) : null;
 
-  const result = await computeDraft(parsed.commercialId, parsed.lines, original, parsed.clientName);
+  const result = await computeDraft(parsed.commercialId, parsed.lines, original, parsed.client);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, draft: result.draft }, { headers: { "Cache-Control": "no-store" } });
 }

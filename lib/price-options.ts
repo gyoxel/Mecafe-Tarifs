@@ -18,12 +18,13 @@ export async function getOptions(): Promise<PriceOption[]> {
   if (!isDbConfigured()) return baseFirst(mem().map((o) => ({ ...o })));
   await ensureSchema();
   const rows = await getSql()`
-    select id, name, city, price_offset, is_default, source from price_options order by position, created_at`;
+    select id, name, city, phone, price_offset, is_default, source from price_options order by position, created_at`;
   return baseFirst(
     rows.map((r) => ({
       id: r.id as string,
       name: r.name as string,
       city: (r.city as string | null) || null,
+      phone: (r.phone as string | null) || null,
       offset: Number(r.price_offset),
       isDefault: Boolean(r.is_default),
       source: r.source === "site" ? ("site" as const) : ("base" as const),
@@ -35,18 +36,23 @@ export async function getOptions(): Promise<PriceOption[]> {
  * Nouveau revendeur, sans prix saisi : il suit son modèle (« Prix Gros », ou le prix du site), produit par
  * produit, jusqu'à ce qu'un prix soit saisi pour lui.
  */
-export async function createOption(name: string, city: string | null, source: PriceSource): Promise<PriceOption[]> {
+export async function createOption(
+  name: string,
+  city: string | null,
+  source: PriceSource,
+  phone: string | null = null,
+): Promise<PriceOption[]> {
   const offset = 0;
   assertDurableStorage();
   const id = randomUUID().slice(0, 8);
   if (!isDbConfigured()) {
-    mem().push({ id, name, city, offset, isDefault: false, source });
+    mem().push({ id, name, city, phone, offset, isDefault: false, source });
     return getOptions();
   }
   await ensureSchema();
   await getSql()`
-    insert into price_options (id, name, city, price_offset, position, source)
-    values (${id}, ${name}, ${city}, ${offset}, (select coalesce(max(position), -1) + 1 from price_options), ${source})`;
+    insert into price_options (id, name, city, phone, price_offset, position, source)
+    values (${id}, ${name}, ${city}, ${phone}, ${offset}, (select coalesce(max(position), -1) + 1 from price_options), ${source})`;
   return getOptions();
 }
 
@@ -56,7 +62,7 @@ export async function createOption(name: string, city: string | null, source: Pr
  */
 export async function updateOption(
   id: string,
-  patch: { name?: string; city?: string | null; offset?: number; source?: PriceSource },
+  patch: { name?: string; city?: string | null; phone?: string | null; offset?: number; source?: PriceSource },
 ): Promise<PriceOption[]> {
   assertDurableStorage();
   const p = id === BASE_ID ? { offset: patch.offset } : patch;
@@ -65,6 +71,7 @@ export async function updateOption(
     if (o) {
       if (p.name !== undefined) o.name = p.name;
       if (p.city !== undefined) o.city = p.city;
+      if (p.phone !== undefined) o.phone = p.phone;
       if (p.offset !== undefined) o.offset = p.offset;
       if (p.source !== undefined) o.source = p.source;
     }
@@ -74,6 +81,7 @@ export async function updateOption(
   await getSql().begin(async (tx) => {
     if (p.name !== undefined) await tx`update price_options set name = ${p.name} where id = ${id}`;
     if (p.city !== undefined) await tx`update price_options set city = ${p.city} where id = ${id}`;
+    if (p.phone !== undefined) await tx`update price_options set phone = ${p.phone} where id = ${id}`;
     if (p.offset !== undefined) await tx`update price_options set price_offset = ${p.offset} where id = ${id}`;
     if (p.source !== undefined) await tx`update price_options set source = ${p.source} where id = ${id}`;
   });

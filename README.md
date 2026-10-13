@@ -110,9 +110,11 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   prix unitaire de chaque ligne se change à la main (le total se recalcule ; « Prix modifié » et ↺ pour revenir
   au prix revendeur) et reste dans le devis, y compris quand on le modifie ensuite. Un produit sans prix revendeur
   est signalé et bloque le devis tant qu'aucun prix n'est saisi (jamais de repli sur le prix du site).
-  Avec **« Prix Gros »**, « Prix : Prix Gros » en haut du panier se touche pour taper le **nom du client** : il va
-  sur le devis et dans l'historique (rangé sous ce nom), sans être ajouté aux revendeurs ; les prix restent ceux
-  de « Prix Gros ». Le nom revient avec le devis quand on le modifie ; il s'efface quand le panier est vidé.
+  Avec **« Prix Gros »**, « Info : Prix Gros » et son crayon en haut du panier ouvrent **nom, ville et téléphone du
+  client** (tous facultatifs) : ils vont sur le devis / la commande et dans l'historique (rangé sous ce nom), sans
+  être ajoutés aux revendeurs ; les prix restent ceux de « Prix Gros ». Ces infos reviennent avec le document quand
+  on le modifie ; elles s'effacent quand le panier est vidé. Un revendeur enregistré a lui aussi un **téléphone**
+  facultatif (Revendeurs et villes), repris sur ses devis et commandes.
   Calculs en centimes entiers (`lib/money.ts`) : prix × quantité et totaux exacts au centime.
   *Voir le devis* : brouillon **calculé par le serveur** (`/api/admin/invoices/preview`, le même calcul que
   l'enregistrement), avec **Modifier** (retour au panier) ou **Confirmer**. À la confirmation, le serveur refait le

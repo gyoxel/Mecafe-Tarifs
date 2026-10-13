@@ -21,7 +21,7 @@ export async function PUT(req: Request, { params }: Ctx) {
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
   if (!parsed.expected) return NextResponse.json({ error: "Aperçu manquant : ouvrez le devis avant d'enregistrer." }, { status: 400 });
 
-  const result = await computeDraft(parsed.commercialId, parsed.lines, original, parsed.clientName);
+  const result = await computeDraft(parsed.commercialId, parsed.lines, original, parsed.client);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   const { draft } = result;
   if (!matchesExpected(draft, parsed.expected)) {
@@ -35,6 +35,7 @@ export async function PUT(req: Request, { params }: Ctx) {
     commercialId: draft.commercial.id,
     commercial: draft.commercial.name,
     city: draft.commercial.city,
+    phone: draft.commercial.phone,
     rows: draft.rows,
   });
   if (!invoice) return NextResponse.json({ error: "Document introuvable" }, { status: 404 });

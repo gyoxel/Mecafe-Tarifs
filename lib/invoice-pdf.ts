@@ -89,12 +89,14 @@ export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | nul
   if (inv.updatedAt) right(page, `Modifié le ${invoiceDate(new Date(inv.updatedAt))}`, M + W, y - 41, 8.5, font, MUTED);
   y -= 62;
 
-  const boxH = inv.city ? 54 : 42;
+  // Client : nom, puis ville et téléphone s'ils sont connus.
+  const extra = [inv.city, inv.phone ? `Tél : ${inv.phone}` : null].filter((x): x is string => !!x);
+  const boxH = 42 + extra.length * 13;
   page.drawRectangle({ x: M, y: y - boxH, width: W * 0.55, height: boxH, color: GOLD_SOFT });
   page.drawRectangle({ x: M, y: y - boxH, width: 3, height: boxH, color: GOLD });
   text(page, "CLIENT", M + 14, y - 15, 7.8, bold, MUTED);
   text(page, inv.commercial, M + 14, y - 31, 12.5, bold, INK);
-  if (inv.city) text(page, inv.city, M + 14, y - 45, 10, font, INK);
+  extra.forEach((t, i) => text(page, t, M + 14, y - 45 - i * 13, 10, font, INK));
   y -= boxH + 22;
 
   tableHead();

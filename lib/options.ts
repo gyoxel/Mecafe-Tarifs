@@ -21,6 +21,8 @@ export type PriceOption = {
   name: string;
   /** Ville de l'option (filtre et recherche dans la liste), ou null. */
   city: string | null;
+  /** Téléphone (facultatif), repris sur ses devis et commandes. */
+  phone: string | null;
   /** Ancien écart en DH (prix site + écart) : 0 une fois figé en prix par produit (lib/price-freeze.ts). */
   offset: number;
   /** Option affichée à l'ouverture tant que l'appareil n'en a pas choisi une autre. */
@@ -42,10 +44,20 @@ export const isBase = (o: { id: string } | null | undefined) => o?.id === BASE_I
 
 /** Créé au premier lancement : la base seule (les revendeurs nommés s'ajoutent dans la gestion). */
 export const SEED_OPTIONS: PriceOption[] = [
-  { id: BASE_ID, name: BASE_NAME, city: null, offset: 0, isDefault: true, source: "base" },
+  { id: BASE_ID, name: BASE_NAME, city: null, phone: null, offset: 0, isDefault: true, source: "base" },
 ];
 
 export const NAME_MAX = 60;
+export const PHONE_MAX = 30;
+
+/** Téléphone saisi : chiffres, espaces, + ( ) - . seulement ; "" si vide ; null si invalide. */
+export function cleanPhone(raw: unknown): string | null {
+  if (raw == null) return "";
+  if (typeof raw !== "string") return null;
+  const s = raw.trim().replace(/\s+/g, " ");
+  if (!s) return "";
+  return s.length <= PHONE_MAX && /^[0-9+()\-. ]+$/.test(s) && /\d/.test(s) ? s : null;
+}
 
 /** Le tarif de base (« Prix Gros »), affiché par défaut. */
 export function defaultOption(options: PriceOption[]): PriceOption | undefined {
@@ -85,7 +97,7 @@ export function pricesFor(option: PriceOption, all: OptionPrices, items: Catalog
 
 /** Recherche sur le nom et la ville ; chaque mot tapé doit se retrouver. */
 export function matchesOption(option: PriceOption, query: string): boolean {
-  const hay = fold(`${option.name} ${option.city ?? ""}`);
+  const hay = fold(`${option.name} ${option.city ?? ""} ${option.phone ?? ""}`);
   return fold(query)
     .split(/\s+/)
     .filter(Boolean)

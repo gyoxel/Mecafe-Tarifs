@@ -37,6 +37,8 @@ export type SavedInvoice = {
   commercialId: string | null;
   commercial: string;
   city: string | null;
+  /** Téléphone du client (facultatif). */
+  phone: string | null;
   rows: InvoiceRow[];
   count: number;
   total: number;
@@ -57,7 +59,7 @@ export type Draft = {
   rows: InvoiceRow[];
   count: number;
   total: number;
-  commercial: { id: string; name: string; city: string | null };
+  commercial: { id: string; name: string; city: string | null; phone: string | null };
   /** Modification : produits dont le prix unitaire a changé par rapport à la facture d'origine. */
   changes: { name: string; variant: string | null; before: number; after: number }[];
 };

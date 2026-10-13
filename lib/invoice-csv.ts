@@ -25,13 +25,14 @@ const csv = (rows: (string | number | null)[][]) => "﻿" + rows.map((r) => r.ma
 
 export function invoicesSummaryCsv(list: SavedInvoice[]): string {
   return csv([
-    ["N°", "Date", "Heure", "Client", "Ville", "Articles", "Total (DH)", "Statut", "Modifié le"],
+    ["N°", "Date", "Heure", "Client", "Ville", "Téléphone", "Articles", "Total (DH)", "Statut", "Modifié le"],
     ...list.map((i) => [
       i.number,
       date(i.createdAt),
       time(i.createdAt),
       i.commercial,
       i.city,
+      i.phone,
       i.count,
       num(i.total),
       "Confirmé",

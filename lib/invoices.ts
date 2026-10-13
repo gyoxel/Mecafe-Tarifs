@@ -6,7 +6,8 @@ import { KIND_PREFIX, isDocKind, sumRows, type DocKind, type Draft, type Invoice
 
 export type { Draft };
 import { lineTotal, sameMoney } from "./money";
-import { NAME_MAX, isBase, pricesFor } from "./options";
+import { CITY_MAX } from "./cities";
+import { NAME_MAX, cleanPhone, isBase, pricesFor } from "./options";
 import { getOptions } from "./price-options";
 import { getPrices } from "./prices";
 import { displayTitle, displayVariant } from "./title";
@@ -40,6 +41,9 @@ function nextNumber(prefix: string, existing: string[]): string {
 
 export const MAX_LINES = 500;
 
+/** Infos tapées dans le panier « Prix Gros » pour un client qui n'est pas un revendeur enregistré. */
+export type ClientInfo = { name?: string; city?: string; phone?: string };
+
 /** Ligne envoyée par le panier : prix unitaire facultatif (saisi à la main, sinon prix du revendeur). */
 export type CartInput = { id: string; qty: number; price?: number };
 export const PRICE_MAX = 1_000_000;
@@ -51,13 +55,15 @@ export const PRICE_MAX = 1_000_000;
 export function parseInvoiceBody(
   body: unknown,
 ):
-  | { commercialId: string; lines: CartInput[]; expected: Expected | null; clientName?: string; kind: DocKind }
+  | { commercialId: string; lines: CartInput[]; expected: Expected | null; client: ClientInfo; kind: DocKind }
   | { error: string } {
   const b = body as {
     commercialId?: unknown;
     lines?: unknown;
     expected?: unknown;
     clientName?: unknown;
+    clientCity?: unknown;
+    clientPhone?: unknown;
     kind?: unknown;
   } | null;
   const lines = Array.isArray(b?.lines) ? b.lines : null;
@@ -87,14 +93,20 @@ export function parseInvoiceBody(
     }
     expected = { total: e.total, rows };
   }
-  // « Prix Gros » : nom du client tapé dans le panier (sans créer de revendeur), facultatif.
-  let clientName: string | undefined;
-  if (b.clientName != null) {
-    if (typeof b.clientName !== "string") return { error: "Nom du client invalide" };
-    clientName = b.clientName.trim().replace(/\s+/g, " ").slice(0, NAME_MAX) || undefined;
+  // « Prix Gros » : nom, ville, téléphone du client tapés dans le panier (sans créer de revendeur), tous facultatifs.
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, max) : "");
+  if ((b.clientName != null && typeof b.clientName !== "string") || (b.clientCity != null && typeof b.clientCity !== "string")) {
+    return { error: "Infos du client invalides" };
   }
+  const phone = cleanPhone(b.clientPhone);
+  if (phone === null) return { error: "Téléphone du client invalide" };
+  const client: ClientInfo = {
+    name: text(b.clientName, NAME_MAX) || undefined,
+    city: text(b.clientCity, CITY_MAX) || undefined,
+    phone: phone || undefined,
+  };
   if (b.kind != null && !isDocKind(b.kind)) return { error: "Type de document invalide" };
-  return { commercialId: b.commercialId, lines: clean, expected, clientName, kind: isDocKind(b.kind) ? b.kind : "devis" };
+  return { commercialId: b.commercialId, lines: clean, expected, client, kind: isDocKind(b.kind) ? b.kind : "devis" };
 }
 
 /**
@@ -106,7 +118,7 @@ export async function computeDraft(
   commercialId: string,
   lines: CartInput[],
   original?: SavedInvoice | null,
-  clientName?: string,
+  client: ClientInfo = {},
 ): Promise<{ draft: Draft } | { error: string }> {
   const [{ items }, allPrices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const option = options.find((o) => o.id === commercialId);
@@ -157,9 +169,10 @@ export async function computeDraft(
     .map((r) => ({ name: r.name, variant: r.variant, before: before.get(r.variantId)!, after: r.unit }));
 
   const { count, total } = sumRows(rows);
-  // Prix Gros avec un nom de client tapé dans le panier : ce nom sur le devis et dans l'historique (prix Prix Gros).
-  const named = isBase(option) && clientName;
-  const commercial = named ? { id: option.id, name: clientName, city: null } : { id: option.id, name: option.name, city: option.city };
+  // Prix Gros avec les infos d'un client tapées dans le panier : sur le devis et dans l'historique (prix Prix Gros).
+  const commercial = isBase(option)
+    ? { id: option.id, name: client.name ?? option.name, city: client.city ?? null, phone: client.phone ?? null }
+    : { id: option.id, name: option.name, city: option.city, phone: option.phone };
   return { draft: { rows, count, total, commercial, changes } };
 }
 
@@ -183,6 +196,7 @@ export async function saveInvoice(input: {
   commercialId: string;
   commercial: string;
   city: string | null;
+  phone: string | null;
   rows: InvoiceRow[];
 }): Promise<SavedInvoice> {
   assertDurableStorage();
@@ -199,6 +213,7 @@ export async function saveInvoice(input: {
       commercialId: input.commercialId,
       commercial: input.commercial,
       city: input.city,
+      phone: input.phone,
       rows: input.rows,
       count,
       total,
@@ -218,9 +233,10 @@ export async function saveInvoice(input: {
     const taken = await tx<{ number: string }[]>`
       select number from invoices where number like ${`${prefix}%`}`;
     const [inserted] = await tx`
-      insert into invoices (number, kind, commercial_id, commercial_name, commercial_city, lines, item_count, total, status)
+      insert into invoices (number, kind, commercial_id, commercial_name, commercial_city, commercial_phone, lines,
+                            item_count, total, status)
       values (${nextNumber(prefix, taken.map((t) => t.number))}, ${input.kind}, ${input.commercialId}, ${input.commercial},
-              ${input.city}, ${tx.json(input.rows as never)}, ${count}, ${total}, 'confirmee')
+              ${input.city}, ${input.phone}, ${tx.json(input.rows as never)}, ${count}, ${total}, 'confirmee')
       returning *`;
     return inserted;
   });
@@ -238,7 +254,7 @@ export async function getInvoice(id: number): Promise<SavedInvoice | null> {
 /** Modifier un devis confirmé : mêmes n° et date de création, nouvelles lignes / commercial. */
 export async function updateInvoice(
   id: number,
-  input: { commercialId: string; commercial: string; city: string | null; rows: InvoiceRow[] },
+  input: { commercialId: string; commercial: string; city: string | null; phone: string | null; rows: InvoiceRow[] },
 ): Promise<SavedInvoice | null> {
   assertDurableStorage();
   const { count, total } = sumRows(input.rows);
@@ -249,6 +265,7 @@ export async function updateInvoice(
       commercialId: input.commercialId,
       commercial: input.commercial,
       city: input.city,
+      phone: input.phone,
       rows: input.rows,
       count,
       total,
@@ -261,7 +278,7 @@ export async function updateInvoice(
   const [row] = await sql`
     update invoices
        set commercial_id = ${input.commercialId}, commercial_name = ${input.commercial},
-           commercial_city = ${input.city}, lines = ${sql.json(input.rows as never)},
+           commercial_city = ${input.city}, commercial_phone = ${input.phone}, lines = ${sql.json(input.rows as never)},
            item_count = ${count}, total = ${total}, updated_at = now()
      where id = ${id} and status <> 'supprime'
      returning *`;
@@ -310,6 +327,7 @@ function fromRow(r: Record<string, unknown>): SavedInvoice {
     commercialId: (r.commercial_id as string | null) ?? null,
     commercial: String(r.commercial_name),
     city: (r.commercial_city as string | null) ?? null,
+    phone: (r.commercial_phone as string | null) ?? null,
     rows: (typeof r.lines === "string" ? JSON.parse(r.lines) : r.lines) as InvoiceRow[],
     count: Number(r.item_count),
     total: Number(r.total),

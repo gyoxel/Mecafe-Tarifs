@@ -26,6 +26,7 @@ import {
   BASE_NAME,
   NAME_MAX,
   OPTION_STORAGE_KEY,
+  PHONE_MAX,
   defaultOption,
   isBase,
   pricesFor,
@@ -33,7 +34,8 @@ import {
   type PriceOption,
 } from "@/lib/options";
 import { parsePrice } from "@/lib/csv";
-import { CartFab, CartPanel, CartSheet } from "./Cart";
+import { CartFab, CartPanel, CartSheet, EMPTY_CLIENT, type ClientInfo } from "./Cart";
+import { cityChoices } from "@/lib/cities";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
@@ -317,30 +319,56 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   }, []);
   const kind: DocKind = editing ? kindOfNumber(editing.number) : docKind;
 
-  // Prix Gros : nom du client pour ce devis (tapé dans le panier, sans l'ajouter aux revendeurs).
-  const [clientName, setClientName] = useState("");
-  useEffect(() => {
-    if (!admin) return;
+  // Prix Gros : infos du client pour ce document (tapées dans le panier, sans l'ajouter aux revendeurs).
+  const [client, setClient] = useState<ClientInfo>(EMPTY_CLIENT);
+  const clientFromDoc = (d: { commercialId?: string | null; commercial: string; city: string | null; phone?: string | null }) =>
+    d.commercialId === BASE_ID
+      ? { name: d.commercial !== BASE_NAME ? d.commercial : "", city: d.city, phone: d.phone ?? "" }
+      : EMPTY_CLIENT;
+  const changeClient = useCallback((info: ClientInfo) => {
+    const clean: ClientInfo = {
+      name: info.name.trim().replace(/\s+/g, " ").slice(0, NAME_MAX),
+      city: info.city || null,
+      phone: info.phone.trim().replace(/\s+/g, " ").slice(0, PHONE_MAX),
+    };
+    setClient(clean);
     try {
-      const inv = admin.edit;
-      // Devis Prix Gros remis dans le panier : son nom de client revient avec lui.
-      if (inv && inv.commercialId === BASE_ID && inv.commercial !== BASE_NAME) setClientName(inv.commercial);
-      else setClientName(localStorage.getItem(CLIENT_STORAGE_KEY) ?? "");
-    } catch {}
-  }, [admin]);
-  const changeClientName = useCallback((name: string) => {
-    const clean = name.trim().replace(/\s+/g, " ").slice(0, NAME_MAX);
-    setClientName(clean);
-    try {
-      if (clean) localStorage.setItem(CLIENT_STORAGE_KEY, clean);
+      if (clean.name || clean.city || clean.phone) localStorage.setItem(CLIENT_STORAGE_KEY, JSON.stringify(clean));
       else localStorage.removeItem(CLIENT_STORAGE_KEY);
     } catch {}
   }, []);
+  useEffect(() => {
+    if (!admin) return;
+    // Document « Prix Gros » remis dans le panier : ses infos client reviennent avec lui.
+    if (admin.edit) return setClient(clientFromDoc({ ...admin.edit }));
+    try {
+      const raw = localStorage.getItem(CLIENT_STORAGE_KEY);
+      if (!raw) return;
+      let v: Partial<ClientInfo> | string;
+      try {
+        v = JSON.parse(raw) as Partial<ClientInfo>;
+      } catch {
+        v = raw; // ancien format : le nom seul
+      }
+      if (typeof v === "string") setClient({ ...EMPTY_CLIENT, name: v });
+      else if (v && typeof v === "object")
+        setClient({
+          name: typeof v.name === "string" ? v.name : "",
+          city: typeof v.city === "string" ? v.city : null,
+          phone: typeof v.phone === "string" ? v.phone : "",
+        });
+    } catch {}
+  }, [admin]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cities = useMemo(() => cityChoices(options.map((o) => o.city)), [options]);
   const baseSelected = isBase(currentOption);
+  // Envoyé au serveur seulement avec « Prix Gros » (un revendeur a ses propres nom, ville, téléphone).
+  const clientFields = baseSelected
+    ? { clientName: client.name || undefined, clientCity: client.city || undefined, clientPhone: client.phone || undefined }
+    : {};
   const clearCart = () => {
     setCart([]);
     setEditing(null);
-    changeClientName("");
+    changeClient(EMPTY_CLIENT);
   };
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [bump, setBump] = useState(0); // relance l'animation du bouton panier à chaque ajout
@@ -413,6 +441,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     rows: d.rows,
     commercial: d.commercial.name,
     city: d.commercial.city,
+    phone: d.commercial.phone,
     number: null,
     date: new Date(),
     editing: editing?.number,
@@ -433,7 +462,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
           commercialId: currentOption.id,
           lines: cart,
           editId: editing?.id,
-          clientName: baseSelected && clientName ? clientName : undefined,
+          ...clientFields,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; draft?: Draft };
@@ -459,7 +488,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         body: JSON.stringify({
           kind,
           commercialId: draft.commercial.id,
-          clientName: baseSelected && clientName ? clientName : undefined,
+          ...clientFields,
           lines: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })),
           expected: { total: draft.total, rows: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, unit: r.unit })) },
         }),
@@ -489,7 +518,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       return;
     setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })));
     setEditing({ id: doc.id, number: doc.number });
-    changeClientName(doc.commercialId === BASE_ID && doc.commercial !== BASE_NAME ? doc.commercial : "");
+    changeClient(clientFromDoc(doc));
     const o = options.find((x) => x.id === doc.commercialId);
     if (o) pickCommercial(o);
     setInvoiceView(null);
@@ -1064,8 +1093,9 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               onPrice={setCartPrice}
               kind={kind}
               onKind={editing ? undefined : pickKind}
-              clientName={baseSelected ? clientName : undefined}
-              onClientName={baseSelected ? changeClientName : undefined}
+              client={baseSelected ? client : undefined}
+              cities={cities}
+              onClient={baseSelected ? changeClient : undefined}
               onClear={clearCart}
               editing={editing?.number ?? null}
               error={cartError}
@@ -1101,8 +1131,9 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             onPrice={setCartPrice}
             kind={kind}
             onKind={editing ? undefined : pickKind}
-            clientName={baseSelected ? clientName : undefined}
-            onClientName={baseSelected ? changeClientName : undefined}
+            client={baseSelected ? client : undefined}
+              cities={cities}
+            onClient={baseSelected ? changeClient : undefined}
             onClear={clearCart}
             editing={editing?.number ?? null}
             error={cartError}
