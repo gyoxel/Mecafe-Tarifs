@@ -135,9 +135,9 @@ export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | nul
   if (y - (note ? 74 : 56) < BOTTOM) newPage();
   y -= 14;
   const totalText = formatDH(inv.total);
-  const boxW = Math.max(190, bold.widthOfTextAtSize(T(totalText, bold), 16) + 110);
+  const boxW = Math.max(210, bold.widthOfTextAtSize(T(totalText, bold), 16) + 135);
   page.drawRectangle({ x: M + W - boxW, y: y - 34, width: boxW, height: 34, color: GOLD });
-  text(page, "TOTAL", M + W - boxW + 14, y - 21.5, 10.5, bold, WHITE);
+  text(page, "TOTAL TTC", M + W - boxW + 14, y - 21.5, 10.5, bold, WHITE);
   right(page, totalText, M + W - 14, y - 22.5, 16, bold, WHITE);
   text(page, `${inv.count} article${inv.count > 1 ? "s" : ""}`, M, y - 21.5, 10.5, bold, INK);
   y -= 34;

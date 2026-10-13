@@ -143,7 +143,7 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
                   {count} article{count > 1 ? "s" : ""}
                 </span>
                 <span className="invoice-sum-total">
-                  <span className="invoice-total-label">Total</span>
+                  <span className="invoice-total-label">Total TTC</span>
                   <span className="invoice-total">{formatDH(total)}</span>
                 </span>
               </div>
