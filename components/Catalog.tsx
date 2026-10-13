@@ -851,7 +851,12 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       </main>
 
       <footer className="footer">
-        <p className="footer-note">© {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec mecafe.ma</p>
+        <p className="footer-note">
+          © {new Date().getFullYear()}, TARIFS MÉCAFÉ - synchronisés avec{" "}
+          <a href="https://mecafe.ma" target="_blank" rel="noopener noreferrer" className="footer-link">
+            mecafe.ma
+          </a>
+        </p>
       </footer>
 
       {fabVisible && !sheetOpen && (
