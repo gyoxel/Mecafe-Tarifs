@@ -93,6 +93,12 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   navigateur, 12 h au plus) : le catalogue s'ouvre sur « Prix Gros » (prix de base), sans fenêtre de choix. Le nom
   en haut ouvre une liste déroulante (recherche par nom ou ville, filtre par ville) pour passer à un autre
   revendeur.
+- **Crayon sur le prix revendeur** (catalogue admin, prix revendeurs affichés) : un petit crayon dans le coin du
+  prix revendeur ouvre la saisie du prix pour ce produit (sur téléphone, la saisie prend toute la barre, prix du
+  site en repère). On peut en modifier plusieurs : une barre flottante en bas (« N prix modifiés · revendeur »)
+  reste affichée, avec **Annuler** ou **Enregistrer** (tout d'un coup, pour le revendeur affiché, comme dans Prix
+  des produits ; case vidée = le revendeur suit de nouveau son modèle). Changer de revendeur avant d'enregistrer
+  demande confirmation.
 - **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui

@@ -4916,3 +4916,236 @@ html.scroll-locked {
   margin-top: 3px;
   font-size: 11.5px;
 }
+
+/* ═════════════ Catalogue admin : prix revendeur modifié au crayon ═════════════ */
+.price-bar-wrap {
+  position: relative;
+}
+.price-edit-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--pro) 30%, transparent);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--pro-ink);
+  cursor: pointer;
+  animation: chooser-fade 0.3s var(--ease) 0.15s both;
+  transition: background 0.15s, color 0.15s, transform 0.12s var(--ease);
+}
+.price-edit-btn:hover {
+  background: var(--pro);
+  color: #fff;
+}
+.price-edit-btn:active {
+  transform: scale(0.92);
+}
+/* Doigt : zone de toucher plus grande que le rond visible */
+@media (pointer: coarse) {
+  .price-edit-btn::after {
+    content: "";
+    position: absolute;
+    inset: -9px;
+  }
+}
+.price-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.price-bar-wrap .price-edit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  padding: 0 4px 0 8px;
+  border-top: 1px solid var(--line);
+  background: var(--pro-soft);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--pro) 25%, transparent);
+}
+.price-edit-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  height: 36px;
+  padding: 0 7px 0 2px;
+  border: 1.5px solid var(--pro);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pro) 14%, transparent);
+}
+.price-edit[data-changed="true"] .price-edit-field {
+  border-color: var(--alert);
+  background: var(--alert-soft);
+  box-shadow: none;
+}
+.price-edit[data-invalid="true"] .price-edit-field {
+  border-color: var(--danger);
+  box-shadow: none;
+}
+.price-edit-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--pro-ink);
+  font: inherit;
+  font-size: 16px; /* pas de zoom automatique sur iPhone */
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.price-edit[data-invalid="true"] .price-edit-input {
+  color: var(--danger);
+}
+.price-edit-cur {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--pro);
+}
+.price-edit-cancel {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.price-edit-cancel:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+.price-edit-hint {
+  display: none;
+}
+/* Téléphone : la saisie prend toute la barre de prix, le prix du site reste en repère à gauche */
+@media (max-width: 520px) {
+  .price-bar-wrap .price-edit {
+    left: 0;
+    padding-left: 10px;
+  }
+  .price-edit-hint {
+    display: block;
+    flex: none;
+    max-width: 38%;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: normal;
+  }
+}
+/* Vue liste */
+.row-pro-cell {
+  position: relative;
+}
+.row-pro-cell .price-edit-field {
+  height: 44px;
+}
+.row-pro-cell .price-edit-btn {
+  top: -7px;
+  right: -7px;
+}
+/* Barre flottante : Enregistrer / Annuler */
+.select-bar-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pro);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.select-bar-save:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.price-save-bar {
+  max-width: calc(100vw - 24px);
+}
+.price-save-bar .select-bar-count {
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.2;
+}
+@media (max-width: 520px) {
+  /* téléphone : toute la largeur, boutons plus serrés */
+  .price-save-bar {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+    justify-content: flex-end;
+    padding-left: 14px;
+    transform: none;
+    animation: price-save-in 0.22s var(--ease);
+  }
+  .price-save-bar .select-bar-count {
+    margin-right: auto;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .price-save-bad {
+    display: none; /* la case en rouge suffit */
+  }
+  .price-save-bar .select-bar-cancel,
+  .price-save-bar .select-bar-save {
+    padding: 0 13px;
+  }
+}
+@keyframes price-save-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.price-save-bar .select-bar-count[data-error="true"] {
+  max-width: 46vw;
+  color: #ffb4b4;
+  font-size: 13px;
+  white-space: normal;
+}
+.price-save-who {
+  opacity: 0.7;
+}
+.price-save-bad {
+  color: #ffb4b4;
+}
+.price-save-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 10px;
+}
+@media (max-width: 1099px) {
+  /* au-dessus du bouton panier (en bas à droite) */
+  .price-save-bar {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 420px) {
+  .price-save-who {
+    display: none;
+  }
+}

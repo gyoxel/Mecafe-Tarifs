@@ -7,6 +7,7 @@ import { displayTitle, displayVariant } from "@/lib/title";
 import type { CatalogItem } from "@/lib/types";
 import { CartControl } from "./Cart";
 import { Price } from "./Price";
+import { PriceDraftInput, PriceEditButton } from "./PriceEdit";
 import { StockBadge } from "./StockBadge";
 import { Thumb } from "./Thumb";
 
@@ -24,9 +25,32 @@ type Props = {
   /** Le prix commercial est-il affiché ? (calculé par le parent : interrupteur global + exception individuelle) */
   revealed: boolean;
   onToggle: (id: string, next: boolean) => void;
+  /** Admin : crayon pour modifier le prix revendeur (absent = pas de modification possible). */
+  priceEdit?: PriceEditProps;
 };
 
-function ProductCardBase({ item, commercial, proLabel, cartQty = 0, onCartQty, revealable, revealed, onToggle }: Props) {
+/** Modification du prix revendeur depuis le catalogue (valeur en attente jusqu'à « Enregistrer »). */
+export type PriceEditProps = {
+  /** Texte saisi, ou undefined si ce produit n'est pas en cours de modification. */
+  draft: string | undefined;
+  invalid: boolean;
+  changed: boolean;
+  onStart: (id: string) => void;
+  onDraft: (id: string, text: string) => void;
+  onCancel: (id: string) => void;
+};
+
+function ProductCardBase({
+  item,
+  commercial,
+  proLabel,
+  cartQty = 0,
+  onCartQty,
+  revealable,
+  revealed,
+  onToggle,
+  priceEdit,
+}: Props) {
   const name = item.variant ? `${item.title}, ${item.variant}` : item.title;
   // Image et nom ouvrent la page du produit sur mecafe.ma (nouvel onglet, sans référent : le site des tarifs
   // n'apparaît pas côté boutique).
@@ -46,7 +70,11 @@ function ProductCardBase({ item, commercial, proLabel, cartQty = 0, onCartQty, r
   );
 
   return (
-    <article className="card" data-revealed={revealed} style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}>
+    <article
+      className="card"
+      data-revealed={revealed}
+      style={{ "--brand": brandStyle(item.brand).color } as React.CSSProperties}
+    >
       <div className="card-media">
         {link ? (
           <a {...link} className="card-media-link">
@@ -78,21 +106,37 @@ function ProductCardBase({ item, commercial, proLabel, cartQty = 0, onCartQty, r
       {/* Barre de prix : un appui la partage en deux (prix site | prix commercial), un second la referme.
           La carte ne change jamais de taille. Catalogue public : prix du site seul, sans clic. */}
       {revealable ? (
-        <button
-          type="button"
-          className="price-bar"
-          aria-pressed={revealed}
-          aria-label={`${revealed ? "Masquer" : "Afficher"} le prix revendeur : ${name}`}
-          onClick={() => onToggle(item.id, !revealed)}
-        >
-          {siteCell}
-          <span className="price-cell price-cell-pro" aria-hidden={!revealed}>
-            <span className="price-cell-inner">
-              {commercial == null ? <span className="amount amount-empty">—</span> : <Price value={commercial} />}
-              <span className="label">{commercial == null ? "Non défini" : proLabel}</span>
+        <div className="price-bar-wrap">
+          <button
+            type="button"
+            className="price-bar"
+            aria-pressed={revealed}
+            aria-label={`${revealed ? "Masquer" : "Afficher"} le prix revendeur : ${name}`}
+            onClick={() => onToggle(item.id, !revealed)}
+          >
+            {siteCell}
+            <span className="price-cell price-cell-pro" aria-hidden={!revealed}>
+              <span className="price-cell-inner">
+                {commercial == null ? <span className="amount amount-empty">—</span> : <Price value={commercial} />}
+                <span className="label">{commercial == null ? "Non défini" : proLabel}</span>
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+          {priceEdit && revealed && priceEdit.draft === undefined && (
+            <PriceEditButton label={`${proLabel}, ${name}`} onClick={() => priceEdit.onStart(item.id)} />
+          )}
+          {priceEdit && priceEdit.draft !== undefined && (
+            <PriceDraftInput
+              value={priceEdit.draft}
+              invalid={priceEdit.invalid}
+              changed={priceEdit.changed}
+              label={`${proLabel}, ${name}`}
+              hint={`Site ${formatDH(item.price)}`}
+              onChange={(t) => priceEdit.onDraft(item.id, t)}
+              onCancel={() => priceEdit.onCancel(item.id)}
+            />
+          )}
+        </div>
       ) : (
         <div className="price-bar price-bar-static">{siteCell}</div>
       )}

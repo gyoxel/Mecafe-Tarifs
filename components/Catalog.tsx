@@ -19,14 +19,15 @@ import { groupItems, menuLeaves } from "@/lib/groups";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import { OPTION_STORAGE_KEY, defaultOption, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import { OPTION_STORAGE_KEY, defaultOption, isBase, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import { parsePrice } from "@/lib/csv";
 import { CartFab, CartPanel, CartSheet } from "./Cart";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
-import { CloseIcon, DownloadIcon, EyeIcon, FileTextIcon, UsersIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
-import { ProductCard } from "./ProductCard";
+import { CheckIcon, CloseIcon, DownloadIcon, EyeIcon, FileTextIcon, UsersIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
+import { ProductCard, type PriceEditProps } from "./ProductCard";
 import { ProductRow } from "./ProductRow";
 
 const PAGE_SIZE = 60;
@@ -145,6 +146,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     else if (saved && admin.options.some((o) => o.id === saved)) setOption(saved);
   }, [admin]);
   const pickCommercial = (o: PriceOption) => {
+    if (o.id !== option && !discardPriceDrafts()) return;
     setOption(o.id);
     try {
       localStorage.setItem(OPTION_STORAGE_KEY, o.id);
@@ -152,12 +154,105 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   };
   // Prix du revendeur choisi : ceux saisis produit par produit (sans prix saisi : pas de prix revendeur).
   const currentOption = options.find((o) => o.id === option);
-  const optionPrices = admin?.prices;
+  // Prix enregistrés (mis à jour sur place après une modification au crayon).
+  const [optionPrices, setOptionPrices] = useState<OptionPrices | undefined>(admin?.prices);
+  useEffect(() => setOptionPrices(admin?.prices), [admin?.prices]);
   const prices = useMemo(
     () => (currentOption && optionPrices ? pricesFor(currentOption, optionPrices, items) : {}),
     [currentOption, optionPrices, items],
   );
   const proLabel = currentOption?.name ?? "Revendeur";
+
+  // ── Prix revendeur modifié depuis le catalogue (crayon) ──────────
+  // Valeurs en attente par produit ; la barre flottante les enregistre toutes d'un coup pour le revendeur affiché.
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [priceSaving, setPriceSaving] = useState(false);
+  const [priceMsg, setPriceMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const priceText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
+  const pricesRef = useRef(prices);
+  pricesRef.current = prices;
+  const startPriceEdit = useCallback((id: string) => {
+    setPriceMsg(null);
+    setPriceDrafts((d) => (id in d ? d : { ...d, [id]: priceText(pricesRef.current[id]) }));
+  }, []);
+  const changePriceDraft = useCallback((id: string, text: string) => setPriceDrafts((d) => ({ ...d, [id]: text })), []);
+  const cancelPriceDraft = useCallback(
+    (id: string) =>
+      setPriceDrafts((d) => {
+        const { [id]: _drop, ...rest } = d;
+        return rest;
+      }),
+    [],
+  );
+  // Ce qui changera vraiment : vide = effacer le prix saisi (le revendeur suit alors son modèle ; Prix Gros : « — »).
+  const own = (currentOption && optionPrices?.[currentOption.id]) || {};
+  const priceChanges = Object.entries(priceDrafts).flatMap<{ variantId: string; price: number | null }>(([id, text]) => {
+    const target = parsePrice(text);
+    if (target === null) return own[id] != null ? [{ variantId: id, price: null }] : [];
+    if (Number.isNaN(target) || target === prices[id]) return [];
+    return [{ variantId: id, price: target }];
+  });
+  const priceInvalid = Object.values(priceDrafts).filter((t) => Number.isNaN(parsePrice(t))).length;
+  const priceDraftCount = Object.keys(priceDrafts).length;
+  const changedSet = new Set(priceChanges.map((c) => c.variantId));
+  function discardPriceDrafts(): boolean {
+    if (!priceDraftCount) return true;
+    if (priceChanges.length && !window.confirm("Les prix modifiés non enregistrés seront perdus. Continuer ?")) return false;
+    setPriceDrafts({});
+    return true;
+  }
+  useEffect(() => {
+    if (!priceChanges.length) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [priceChanges.length]);
+  const savePriceDrafts = async () => {
+    if (!currentOption || priceSaving || priceInvalid) return;
+    if (!priceChanges.length) return setPriceDrafts({});
+    setPriceSaving(true);
+    setPriceMsg(null);
+    try {
+      const res = await fetch("/api/admin/prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ option: currentOption.id, updates: priceChanges }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
+      setOptionPrices((prev) => {
+        const next = { ...(prev?.[currentOption.id] ?? {}) };
+        for (const c of priceChanges) {
+          if (c.price == null) delete next[c.variantId];
+          else next[c.variantId] = c.price;
+        }
+        return { ...prev, [currentOption.id]: next };
+      });
+      setPriceDrafts({});
+      const n = priceChanges.length;
+      setPriceMsg({ kind: "ok", text: `${n} prix enregistré${n > 1 ? "s" : ""} pour ${currentOption.name}.` });
+    } catch (e) {
+      setPriceMsg({ kind: "error", text: e instanceof Error ? e.message : "Échec de l'enregistrement" });
+    }
+    setPriceSaving(false);
+  };
+  useEffect(() => {
+    if (priceMsg?.kind !== "ok") return;
+    const t = setTimeout(() => setPriceMsg(null), 2500);
+    return () => clearTimeout(t);
+  }, [priceMsg]);
+  const canEditPrices = Boolean(admin && currentOption && !admin.storageDown);
+  // Même objet pour tous les produits sans saisie en cours : les cartes non touchées ne se redessinent pas.
+  const idleEdit = useMemo<PriceEditProps>(
+    () => ({ draft: undefined, invalid: false, changed: false, onStart: startPriceEdit, onDraft: changePriceDraft, onCancel: cancelPriceDraft }),
+    [startPriceEdit, changePriceDraft, cancelPriceDraft],
+  );
+  const priceEditOf = (id: string): PriceEditProps | undefined => {
+    if (!canEditPrices) return undefined;
+    const draft = priceDrafts[id];
+    if (draft === undefined) return idleEdit;
+    return { ...idleEdit, draft, invalid: Number.isNaN(parsePrice(draft)), changed: changedSet.has(id) };
+  };
 
   // ── Panier (admin seulement), mémorisé sur l'appareil ────────────
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -821,8 +916,10 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                   cartQty={qtyById.get(item.id) ?? 0}
                   onCartQty={isAdmin ? setCartQty : undefined}
                   revealable={isAdmin}
-                  revealed={overrides[item.id] ?? globalOn}
+                  revealed={priceDrafts[item.id] !== undefined || (overrides[item.id] ?? globalOn)}
                   onToggle={toggleOne}
+                  priceEdit={priceEditOf(item.id)}
+                  proLabel={proLabel}
                 />
               </Fragment>
             ))}
@@ -839,8 +936,9 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                   cartQty={qtyById.get(item.id) ?? 0}
                   onCartQty={isAdmin ? setCartQty : undefined}
                   revealable={isAdmin}
-                  revealed={overrides[item.id] ?? globalOn}
+                  revealed={priceDrafts[item.id] !== undefined || (overrides[item.id] ?? globalOn)}
                   onToggle={toggleOne}
+                  priceEdit={priceEditOf(item.id)}
                 />
               </Fragment>
             ))}
@@ -848,6 +946,50 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         )}
         {hasMore && <div ref={sentinel} className="sentinel" aria-hidden="true" />}
         </section>
+
+        {/* Prix modifiés au crayon : enregistrer ou annuler, tous d'un coup, pour le revendeur affiché. */}
+        {isAdmin && (priceDraftCount > 0 || priceMsg) && (
+          <div className="select-bar price-save-bar" role="region" aria-label="Prix modifiés" aria-live="polite">
+            {priceDraftCount > 0 ? (
+              <>
+                <span className="select-bar-count" data-error={priceMsg?.kind === "error"}>
+                  {priceMsg?.kind === "error" ? (
+                    priceMsg.text
+                  ) : (
+                    <>
+                      <strong>{priceChanges.length}</strong> prix modifié{priceChanges.length > 1 ? "s" : ""}
+                      <span className="price-save-who"> · {proLabel}</span>
+                      {priceInvalid > 0 && <span className="price-save-bad"> · {priceInvalid} invalide{priceInvalid > 1 ? "s" : ""}</span>}
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="select-bar-cancel"
+                  disabled={priceSaving}
+                  onClick={() => {
+                    setPriceDrafts({});
+                    setPriceMsg(null);
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  className="select-bar-save"
+                  onClick={savePriceDrafts}
+                  disabled={priceSaving || priceInvalid > 0}
+                >
+                  <CheckIcon size={15} /> {priceSaving ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </>
+            ) : (
+              <span className="select-bar-count price-save-done">
+                <CheckIcon size={15} /> {priceMsg?.text}
+              </span>
+            )}
+          </div>
+        )}
 
         {panelVisible && (
           <aside className="cart-panel" aria-label="Panier">
