@@ -250,6 +250,9 @@ export async function cataloguePdf(input: {
   let page!: PDFPage;
   let col = 0;
   let y = ROWS_TOP;
+  // Haut du tableau sur la page en cours (plus bas sous le titre de la première page, catalogue d'un revendeur)
+  let tableTop = TABLE_TOP;
+  let rowsTop = ROWS_TOP;
   let zebra = 0;
   const colX = () => M + col * (colW + GUTTER);
   /** Fin (bord droit) de la colonne « Prix public » ; la colonne revendeur, s'il y en a une, suit. */
@@ -259,20 +262,58 @@ export async function cataloguePdf(input: {
     const x = colX();
     const xResale = x + colW - boxW;
     const xSiteEnd = siteEnd(x);
-    const hy = TABLE_TOP - 14.5;
-    roundRect(page, x, TABLE_TOP, colW, HEAD_H, 6, { color: HEAD });
+    const hy = tableTop - 14.5;
+    roundRect(page, x, tableTop, colW, HEAD_H, 6, { color: HEAD });
     text(page, "PRODUIT", x + 10, hy, headSize, bold, INK2);
     if (formatW) text(page, "FORMAT", xSiteEnd - siteW - formatW, hy, headSize, bold, INK2);
     right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
     if (hasResale) {
-      roundRect(page, xResale, TABLE_TOP, boxW, HEAD_H, 6, { color: hex(PRO) });
+      roundRect(page, xResale, tableTop, boxW, HEAD_H, 6, { color: hex(PRO) });
       center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
     }
   };
 
+  /**
+   * Titre en haut de la première page quand il n'y a pas de page de garde (catalogue d'un revendeur) :
+   * logo, titre, nom du revendeur, date et nombre de produits ; les produits commencent juste dessous.
+   */
+  const firstPageTitle = () => {
+    page.drawRectangle({ x: 0, y: A4.h - 8, width: A4.w, height: 8, color: hex(GOLD) });
+    let ty = A4.h - 34;
+    if (logo) {
+      const lw = 120;
+      const lh = (logo.height / logo.width) * lw;
+      page.drawImage(logo, { x: (A4.w - lw) / 2, y: ty - lh, width: lw, height: lh });
+      ty -= lh + 26;
+    }
+    const big = title.toUpperCase();
+    center(page, big, A4.w / 2, ty, Math.min(20, (W - 20) / (width(big, bold, 1) || 1)), bold, INK);
+    ty -= 20;
+    if (resellerLabel) {
+      center(page, `Revendeur : ${resellerLabel}`, A4.w / 2, ty, 12, bold, hex(PRO));
+      ty -= 18;
+    }
+    const pill = `Prix public au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+    const pw = width(pill, bold, 8.5) + 24;
+    roundRect(page, (A4.w - pw) / 2, ty, pw, 20, 10, { color: tint(GOLD, 0.88) });
+    center(page, pill, A4.w / 2, ty - 13.5, 8.5, bold, hex(GOLD));
+    return ty - 34;
+  };
+
   const newPage = () => {
+    const first = pages.length === 0; // pas de page de garde : cette page porte le titre
     page = doc.addPage([A4.w, A4.h]);
     pages.push(page);
+    if (first) {
+      tableTop = firstPageTitle();
+      rowsTop = tableTop - HEAD_H - 4;
+      col = 0;
+      y = rowsTop;
+      tableHead();
+      return;
+    }
+    tableTop = TABLE_TOP;
+    rowsTop = ROWS_TOP;
     page.drawRectangle({ x: 0, y: A4.h - 6, width: A4.w, height: 6, color: hex(GOLD) });
     const top = A4.h - 20;
     if (logo) {
@@ -284,21 +325,21 @@ export async function cataloguePdf(input: {
     if (tag)
       right(page, fit(tag, bold, 8.5, 260), A4.w - M, top - 26, 8.5, bold, mode === "revendeur" ? hex(PRO) : MUTED);
     col = 0;
-    y = ROWS_TOP;
+    y = rowsTop;
     tableHead();
   };
   /** Colonne suivante (ou page suivante). */
   const nextColumn = () => {
     if (col + 1 < cols) {
       col += 1;
-      y = ROWS_TOP;
+      y = rowsTop;
       tableHead();
     } else newPage();
   };
 
   /** Titre de marque dans la colonne : logo, nom à sa couleur, nombre de produits. */
   const brandHead = (b: CatalogueBrand, cont: boolean) => {
-    if (y < ROWS_TOP) y -= BRAND_GAP;
+    if (y < rowsTop) y -= BRAND_GAP;
     const x = colX();
     const color = hex(b.color);
     const mid = y - BRAND_H / 2 + 2;
