@@ -5362,3 +5362,12 @@ html.scroll-locked {
 .invoice-phone {
   font-variant-numeric: tabular-nums;
 }
+
+/* « TTC » en petit, à côté de « Total » */
+.invoice-ttc {
+  margin-left: 2px;
+  font-size: 0.68em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
