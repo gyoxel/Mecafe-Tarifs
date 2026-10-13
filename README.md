@@ -127,7 +127,7 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Devis - Historique* (`/admin/gestion/factures`) : devis confirmés, chacun avec **Modifier** (retour au
-    panier) ; pour supprimer : cocher les devis (ou tout cocher), puis **Supprimer** ou **Annuler** dans la barre
+    panier) et une petite icône **Imprimer** (impression directe sur l'en-tête) ; pour supprimer : cocher les devis (ou tout cocher), puis **Supprimer** ou **Annuler** dans la barre
     flottante en bas (confirmation demandée). Un devis supprimé quitte l'historique, mais la ligne reste en base
     (statut « supprime ») pour que son n° ne soit jamais redonné ; recherche (n°, revendeur,
     ville, produit), filtre par revendeur (liste avec recherche par nom ou ville, y compris les revendeurs supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,

@@ -8,7 +8,7 @@ import type { SavedInvoice } from "@/lib/invoice-types";
 import type { PriceOption } from "@/lib/options";
 import { CommercialFilter } from "./CommercialFilter";
 import { invoicesDetailCsv, invoicesSummaryCsv, downloadText } from "@/lib/invoice-csv";
-import { CalendarIcon, DownloadIcon, FileTextIcon, PencilIcon, SearchIcon, TrashIcon } from "./Icons";
+import { CalendarIcon, DownloadIcon, FileTextIcon, PencilIcon, PrinterIcon, SearchIcon, TrashIcon } from "./Icons";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -301,6 +301,15 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
               <span role="cell" className="facture-actions" onClick={(e) => e.stopPropagation()}>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => edit(inv)}>
                   <PencilIcon size={14} /> Modifier
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn facture-print"
+                  onClick={() => printDoc(setPrinting, docOf(inv), flushSync)}
+                  aria-label={`Imprimer ${inv.number}`}
+                  title="Imprimer"
+                >
+                  <PrinterIcon size={16} />
                 </button>
               </span>
             </div>

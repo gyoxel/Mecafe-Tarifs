@@ -3767,7 +3767,7 @@ html.scroll-locked {
 }
 .facture-row {
   display: grid;
-  grid-template-columns: 22px 150px 140px minmax(0, 1fr) 70px 110px 110px;
+  grid-template-columns: 22px 150px 140px minmax(0, 1fr) 70px 110px 156px;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -3890,6 +3890,13 @@ html.scroll-locked {
   gap: 6px;
   cursor: default;
 }
+.facture-print {
+  flex: none;
+}
+.facture-print:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
 .facture-delete:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger);
@@ -3958,6 +3965,10 @@ html.scroll-locked {
   .facture-actions .btn {
     flex: 1;
     justify-content: center;
+  }
+  .facture-actions .facture-print {
+    width: 44px;
+    height: 36px;
   }
   .facture-date {
     grid-area: date;
