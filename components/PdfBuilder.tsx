@@ -1,17 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fold, formatDH } from "@/lib/format";
 import { defaultOption, OPTION_STORAGE_KEY, type PriceOption } from "@/lib/options";
 import { BrandBadge } from "./BrandLogo";
-import { CheckIcon, ChevronIcon, DownloadIcon, FileTextIcon, SearchIcon, TagIcon, UsersIcon } from "./Icons";
+import {
+  CheckIcon,
+  ChevronIcon,
+  DownloadIcon,
+  EyeIcon,
+  FileTextIcon,
+  SearchIcon,
+  ShareIcon,
+  TagIcon,
+  UsersIcon,
+} from "./Icons";
 import { OptionPicker } from "./OptionPicker";
+import { PdfViewer } from "./PdfViewer";
 
 export type PdfItem = { id: string; name: string; variant: string | null; sku: string | null; price: number };
 export type PdfGroup = { key: string; title: string; crumb: string; items: PdfItem[] };
 export type PdfBrand = { name: string; groups: PdfGroup[] };
 
 type Mode = "public" | "revendeur" | "validation";
+type Job = "view" | "share" | "download";
 
 const MODES: { id: Mode; title: string; text: string; Icon: typeof TagIcon }[] = [
   { id: "public", title: "Catalogue de prix", text: "Prix public seulement.", Icon: TagIcon },
@@ -58,7 +70,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`;
 
 /**
  * Page Gestion › PDF : type de catalogue, revendeur (tarifs revendeurs), contenu (tout, ou marques / catégories /
- * produits cochés), puis téléchargement. Le PDF est fabriqué par le serveur (/api/admin/catalogue).
+ * produits cochés), puis aperçu, partage ou téléchargement. Le PDF est fabriqué par le serveur (/api/admin/catalogue).
  */
 export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: PriceOption[] }) {
   const allIds = useMemo(() => brands.flatMap((b) => b.groups.flatMap((g) => g.items.map((it) => it.id))), [brands]);
@@ -68,8 +80,14 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
   const [selected, setSelected] = useState<Set<string>>(() => new Set(allIds));
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<Job | null>(null);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const [viewing, setViewing] = useState(false);
+  const [viewFile, setViewFile] = useState<File | null>(null);
+  const [shareLater, setShareLater] = useState<File | null>(null);
+  const cache = useRef<{ key: string; file: File } | null>(null);
+  const busy = job !== null;
 
   // Dernier type et revendeur choisis sur cet appareil.
   useEffect(() => {
@@ -98,13 +116,17 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
   const shown = brands
     .map((b) => ({
       ...b,
-      groups: b.groups.map((g) => ({ ...g, items: g.items.filter((it) => matches(b, g, it)) })).filter((g) => g.items.length),
+      groups: b.groups
+        .map((g) => ({ ...g, items: g.items.filter((it) => matches(b, g, it)) }))
+        .filter((g) => g.items.length),
     }))
     .filter((b) => b.groups.length);
   const searching = words.length > 0;
 
   const ids = custom ? allIds.filter((id) => selected.has(id)) : allIds;
-  const brandCount = brands.filter((b) => b.groups.some((g) => g.items.some((it) => !custom || selected.has(it.id)))).length;
+  const brandCount = brands.filter((b) =>
+    b.groups.some((g) => g.items.some((it) => !custom || selected.has(it.id))),
+  ).length;
 
   const toggle = (list: string[]) =>
     setSelected((cur) => {
@@ -125,41 +147,96 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
     });
   const visibleIds = shown.flatMap((b) => b.groups.flatMap((g) => g.items.map((it) => it.id)));
 
-  const download = async () => {
-    if (!ids.length || busy) return;
-    setBusy(true);
-    setError("");
+  const request = { mode, option: mode === "revendeur" ? option : undefined, ids: custom ? ids : null };
+  const requestKey = JSON.stringify(request);
+  useEffect(() => setShareLater(null), [requestKey]); // autre choix : l'ancien PDF prêt ne vaut plus
+  const title = MODES.find((m) => m.id === mode)?.title ?? "Catalogue";
+
+  // Le PDF est fabriqué une fois par choix (type, revendeur, contenu) : voir, puis partager ou télécharger,
+  // ne le refait pas. La barre avance pendant que le serveur le prépare (durée inconnue), puis se complète.
+  const getPdf = async (kind: Job): Promise<File> => {
+    if (cache.current?.key === requestKey) return cache.current.file;
+    setJob(kind);
+    setProgress(0.04);
+    const tick = setInterval(() => setProgress((p) => p + (0.95 - p) * 0.05), 120);
     try {
       const res = await fetch("/api/admin/catalogue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, option: mode === "revendeur" ? option : undefined, ids: custom ? ids : null }),
+        body: requestKey,
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error ?? `Erreur ${res.status}`);
       }
-      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "Catalogue-Mecafe.pdf";
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Le PDF n'a pas pu être préparé. Réessayez.");
+      const name =
+        /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "Catalogue-Mecafe.pdf";
+      const file = new File([await res.blob()], name, { type: "application/pdf" });
+      cache.current = { key: requestKey, file };
+      setProgress(1);
+      return file;
     } finally {
-      setBusy(false);
+      clearInterval(tick);
     }
   };
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : "Le PDF n'a pas pu être préparé. Réessayez.");
+
+  const save = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
+
+  /** Feuille de partage du téléphone (WhatsApp, e-mail…) ; sans partage de fichiers (ordinateur), téléchargement. */
+  const shareFile = async (file: File) => {
+    setShareLater(null);
+    if (!navigator.canShare?.({ files: [file] })) return save(file);
+    try {
+      await navigator.share({ files: [file], title });
+    } catch (e) {
+      const name = (e as Error)?.name;
+      // Partage lancé trop longtemps après le toucher (préparation du PDF) : le navigateur demande un nouveau toucher.
+      if (name === "NotAllowedError") setShareLater(file);
+      else if (name !== "AbortError") save(file);
+    }
+  };
+
+  const run = async (kind: Job) => {
+    if (!ids.length || busy) return;
+    setError("");
+    setShareLater(null);
+    if (kind === "view") {
+      setViewFile(cache.current?.key === requestKey ? cache.current.file : null);
+      setViewing(true);
+    }
+    try {
+      const file = await getPdf(kind);
+      if (kind === "download") save(file);
+      else if (kind === "share") await shareFile(file);
+      else setViewFile(file);
+    } catch (e) {
+      fail(e);
+      if (kind === "view") setViewing(false);
+    } finally {
+      setJob(null);
+    }
+  };
+  const closeViewer = useCallback(() => {
+    setViewing(false);
+    setViewFile(null);
+  }, []);
 
   return (
     <section className="admin-options pdfb">
       <h2 className="admin-section-title">PDF</h2>
       <p className="muted small admin-options-hint">
-        Choisissez le type de catalogue et son contenu, puis téléchargez-le. Prix et photos à jour depuis le site.
+        Choisissez le type de catalogue et son contenu, puis voyez-le, partagez-le ou téléchargez-le. Prix et photos à
+        jour depuis le site.
       </p>
 
       <h3 className="pdfb-step">
@@ -249,8 +326,17 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
               return (
                 <li key={b.name} className="pdfb-brand">
                   <div className="pdfb-row pdfb-row-brand">
-                    <TriCheck state={stateOf(bIds, selected)} onChange={() => toggle(bIds)} label={`Marque ${b.name}`} />
-                    <button type="button" className="pdfb-open" onClick={() => toggleOpen(b.name)} aria-expanded={bOpen}>
+                    <TriCheck
+                      state={stateOf(bIds, selected)}
+                      onChange={() => toggle(bIds)}
+                      label={`Marque ${b.name}`}
+                    />
+                    <button
+                      type="button"
+                      className="pdfb-open"
+                      onClick={() => toggleOpen(b.name)}
+                      aria-expanded={bOpen}
+                    >
                       <BrandBadge brand={b.name} className="brand-badge-xs" />
                       <span className="pdfb-name">{b.name}</span>
                       <span className="pdfb-count">
@@ -267,8 +353,17 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
                         return (
                           <li key={g.key} className="pdfb-group">
                             <div className="pdfb-row pdfb-row-group">
-                              <TriCheck state={stateOf(gIds, selected)} onChange={() => toggle(gIds)} label={`Catégorie ${g.title}`} />
-                              <button type="button" className="pdfb-open" onClick={() => toggleOpen(g.key)} aria-expanded={gOpen}>
+                              <TriCheck
+                                state={stateOf(gIds, selected)}
+                                onChange={() => toggle(gIds)}
+                                label={`Catégorie ${g.title}`}
+                              />
+                              <button
+                                type="button"
+                                className="pdfb-open"
+                                onClick={() => toggleOpen(g.key)}
+                                aria-expanded={gOpen}
+                              >
                                 <span className="pdfb-name">
                                   {g.crumb && <span className="pdfb-crumb">{g.crumb} › </span>}
                                   {g.title}
@@ -316,16 +411,71 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
           <strong>{plural(ids.length, "produit")}</strong>
           {ids.length > 0 && <span className="muted"> · {plural(brandCount, "marque")}</span>}
         </span>
-        <button type="button" className="btn btn-gold pdfb-download" onClick={download} disabled={busy || !ids.length}>
-          {busy ? <span className="spinner" aria-hidden="true" /> : <DownloadIcon size={17} />}
-          {busy ? "Préparation du PDF…" : "Télécharger le PDF"}
-        </button>
+        <div className="pdfb-actions">
+          <button
+            type="button"
+            className="btn btn-ghost pdfb-icon"
+            onClick={() => run("view")}
+            disabled={busy || !ids.length}
+            aria-label="Voir le PDF"
+            title="Voir le PDF"
+          >
+            {job === "view" ? <span className="spinner" aria-hidden="true" /> : <EyeIcon size={19} />}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost pdfb-icon"
+            onClick={() => (shareLater ? shareFile(shareLater) : run("share"))}
+            disabled={(busy || !ids.length) && !shareLater}
+            aria-label="Partager le PDF"
+            title="Partager le PDF"
+          >
+            {job === "share" ? <span className="spinner" aria-hidden="true" /> : <ShareIcon size={18} />}
+          </button>
+          <button
+            type="button"
+            className="btn btn-gold pdfb-download"
+            onClick={() => run("download")}
+            disabled={busy || !ids.length}
+          >
+            {job === "download" ? <span className="spinner" aria-hidden="true" /> : <DownloadIcon size={17} />}
+            Télécharger le PDF
+          </button>
+        </div>
+        {busy && job !== "view" && (
+          <div
+            className="pdfb-progress"
+            role="progressbar"
+            aria-label="Préparation du PDF"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progress * 100)}
+          >
+            <span style={{ transform: `scaleX(${progress})` }} />
+            <em>Préparation du PDF… {Math.round(progress * 100)} %</em>
+          </div>
+        )}
+        {shareLater && (
+          <button type="button" className="btn btn-gold pdfb-share-ready" onClick={() => shareFile(shareLater)}>
+            <ShareIcon size={17} /> PDF prêt : toucher pour partager
+          </button>
+        )}
         {error && (
           <p className="pdfb-error" role="alert">
             {error}
           </p>
         )}
       </div>
+      {viewing && (
+        <PdfViewer
+          title={title}
+          file={viewFile}
+          progress={progress}
+          onClose={closeViewer}
+          onShare={() => viewFile && shareFile(viewFile)}
+          onDownload={() => viewFile && save(viewFile)}
+        />
+      )}
     </section>
   );
 }

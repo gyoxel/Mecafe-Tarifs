@@ -121,6 +121,9 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   commence par son titre (logo, nom, nombre de produits), répété « (suite) » en haut de page ; une seule colonne
   large par page. Photo, nom, format, prix public (promotion barrée). Généré à la demande
   côté serveur (`POST /api/admin/catalogue`, `lib/catalogue-pdf.ts`) avec les prix et photos actuels de Shopify.
+  Trois boutons : **voir** (icône œil : aperçu plein écran dans la page, pages dessinées avec pdf.js, barre de
+  progression pendant la préparation), **partager** (icône : feuille de partage du téléphone avec le fichier PDF ;
+  téléchargement sur ordinateur) et **Télécharger le PDF**. Un même choix n'est fabriqué qu'une fois.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : « Prix Gros » en tête (lien vers ses prix) ;
     ajouter un revendeur (nom, ville ; il part des prix de « Prix Gros ») ; la liste affiche les noms avec
