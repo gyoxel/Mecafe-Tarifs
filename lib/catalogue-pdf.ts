@@ -78,13 +78,9 @@ const BRAND_GAP = 12; // espace avant une nouvelle marque (sauf en haut de colon
 /** Mise en page : colonnes par page et hauteur d'une ligne produit (la même pour tout le document). */
 export type Layout = { cols: 1 | 2; rowH: number };
 
-/**
- * Les marques se suivent sans saut de page. Une colonne large si tout tient sur une page, sinon deux colonnes
- * (moins de pages à imprimer).
- */
-export function layoutFor(rows: number, groups: number, brands: number): Layout {
-  const oneColumn = rows * 48 + groups * CAT_H + brands * (BRAND_H + BRAND_GAP) <= USABLE;
-  return oneColumn ? { cols: 1, rowH: 48 } : { cols: 2, rowH: 42 };
+/** Une seule colonne large par page (lisible, photo et prix bien visibles) ; les marques se suivent sans saut de page. */
+export function layoutFor(_rows: number, _groups: number, _brands: number): Layout {
+  return { cols: 1, rowH: 46 };
 }
 
 /** Rectangle à coins arrondis (y = bord du haut). */

@@ -76,8 +76,8 @@ Il n'y a plus d'écart automatique (prix site − N DH).
 et ne se supprime pas. **Un nouveau revendeur part d'une copie des prix de « Prix Gros »** (copie faite à la
 création : changer « Prix Gros » ensuite ne modifie pas les revendeurs existants), puis se règle produit par produit.
 
-Passage depuis l'ancien écart (automatique, une seule fois, `lib/price-freeze.ts`) : pour chaque revendeur qui avait
-un écart, chaque produit sans prix saisi reçoit le prix que l'écart donnait (rien ne change à l'écran), puis l'écart
+Passage depuis l'ancien écart (automatique, une seule fois, `lib/price-freeze.ts`, marque `prices_frozen` en base) :
+pour chaque revendeur (écart nul compris = prix du site), chaque produit sans prix saisi reçoit le prix que l'écart donnait (rien ne change à l'écran), puis l'écart
 est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
 
 - **Admin** (bouton « Admin » en haut du catalogue → code, demandé à chaque fois ; session fermée avec le
@@ -118,8 +118,8 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   Page de garde avec sommaire (sauf *Catalogue des tarifs* : pas de sommaire, le titre — logo, « Client : … », « Tarifs au … » — est en haut
   de la première page et les produits commencent juste dessous),
   puis les marques à la suite, sans saut de page (moins de papier) : chaque marque
-  commence par son titre (logo, nom, nombre de produits), répété « (suite) » en haut de colonne ; deux colonnes,
-  ou une seule si tout tient sur une page. Photo, nom, format, prix public (promotion barrée). Généré à la demande
+  commence par son titre (logo, nom, nombre de produits), répété « (suite) » en haut de page ; une seule colonne
+  large par page. Photo, nom, format, prix public (promotion barrée). Généré à la demande
   côté serveur (`POST /api/admin/catalogue`, `lib/catalogue-pdf.ts`) avec les prix et photos actuels de Shopify.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : « Prix Gros » en tête (lien vers ses prix) ;
