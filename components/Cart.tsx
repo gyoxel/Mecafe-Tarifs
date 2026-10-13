@@ -188,13 +188,13 @@ export function CartPanel({
         <div className="cart-editing">
           <PencilIcon size={15} />
           <span>
-            Modification de la facture <strong>{editing}</strong>
+            Modification du devis <strong>{editing}</strong>
           </span>
           <button
             type="button"
             className="link-btn"
             onClick={() => {
-              if (window.confirm(`Annuler la modification de ${editing} ? La facture reste telle quelle.`)) onClear();
+              if (window.confirm(`Annuler la modification de ${editing} ? Le devis reste tel quel.`)) onClear();
             }}
           >
             Annuler
@@ -258,10 +258,10 @@ export function CartPanel({
         </div>
         <div className="cart-actions">
           <button type="button" className="btn cart-btn" onClick={onInvoice} disabled={busy || missing.length > 0}>
-            <FileTextIcon size={17} /> {busy ? "Calcul…" : "Voir la facture"}
+            <FileTextIcon size={17} /> {busy ? "Calcul…" : "Voir le devis"}
           </button>
           <button type="button" className="btn btn-gold cart-btn" onClick={onPrint} disabled={busy || missing.length > 0}>
-            <PrinterIcon size={17} /> Imprimer la facture
+            <PrinterIcon size={17} /> Imprimer le devis
           </button>
         </div>
       </div>

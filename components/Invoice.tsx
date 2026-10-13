@@ -8,7 +8,7 @@ import { sumRows, type InvoiceRow, type SavedInvoice } from "@/lib/invoice-types
 import { CheckIcon, CloseIcon, PencilIcon, PrinterIcon, ShareIcon } from "./Icons";
 import { lockScroll } from "./scroll";
 
-/** Ce qu'affiche une facture : brouillon (pas de n°) ou confirmée. */
+/** Ce qu'affiche un devis : brouillon (pas de n°) ou confirmé. */
 export type InvoiceDoc = {
   rows: InvoiceRow[];
   commercial: string;
@@ -16,15 +16,15 @@ export type InvoiceDoc = {
   /** null = brouillon, pas encore confirmé (pas de n°). */
   number: string | null;
   date: Date;
-  /** Facture enregistrée : id (PDF, modification), commercial d'origine, date de modification. */
+  /** Devis enregistré : id (PDF, modification), commercial d'origine, date de modification. */
   id?: number;
   commercialId?: string | null;
   updatedAt?: Date | null;
-  /** Brouillon qui modifie une facture existante : son n°. */
+  /** Brouillon qui modifie un devis existant : son n°. */
   editing?: string;
 };
 
-/** Facture enregistrée → document affichable. */
+/** Devis enregistré → document affichable. */
 export const docOf = (inv: SavedInvoice): InvoiceDoc => ({
   rows: inv.rows,
   commercial: inv.commercial,
@@ -36,87 +36,123 @@ export const docOf = (inv: SavedInvoice): InvoiceDoc => ({
   updatedAt: inv.updatedAt ? new Date(inv.updatedAt) : null,
 });
 
+/**
+ * Devis sur l'en-tête officiel de Mécafé (public/entete.svg, copie de assets/devis/entete.pdf).
+ * Écran : haut et bas de l'en-tête, feuille au moins aussi haute qu'une page A4.
+ * Impression : l'en-tête entier est fixé sur chaque page A4 ; les lignes du cadre (thead / tfoot répétés)
+ * réservent sa place en haut et en bas de chaque page, le contenu s'écrit entre les deux.
+ */
 export function Invoice({ doc }: { doc: InvoiceDoc }) {
   const { count, total } = sumRows(doc.rows);
   const anySite = doc.rows.some((r) => r.sitePrice);
   return (
     <article className="invoice" data-draft={doc.number == null}>
-      <header className="invoice-head">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="invoice-lh-print" src="/entete.svg" alt="" />
+      <div className="invoice-lh-head" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="invoice-logo" src="/mecafe-logo.png" alt="Mécafé 1988" width={1126} height={366} />
-        <div className="invoice-id">
-          <h2>Facture</h2>
-          {doc.number ? (
-            <p>
-              N° <strong>{doc.number}</strong>
-            </p>
-          ) : doc.editing ? (
-            <p className="invoice-draft">Modification de {doc.editing} · non enregistrée</p>
-          ) : (
-            <p className="invoice-draft">Brouillon · non confirmée</p>
-          )}
-          <p>Date : {invoiceDate(doc.date)}</p>
-          {doc.updatedAt && <p className="invoice-updated">Modifiée le {invoiceDate(doc.updatedAt)}</p>}
-        </div>
-      </header>
-
-      <div className="invoice-party">
-        <span className="invoice-label">Revendeur</span>
-        <strong>{doc.commercial}</strong>
-        {doc.city && <span>{doc.city}</span>}
+        <img src="/entete.svg" alt="" />
       </div>
-
-      <table className="invoice-table">
+      <table className="invoice-frame">
         <thead>
           <tr>
-            <th className="num">#</th>
-            <th>Produit</th>
-            <th className="invoice-format">Format</th>
-            <th className="num">Qté</th>
-            <th className="num">
-              <span className="invoice-pu-long">Prix unitaire</span>
-              <span className="invoice-pu-short">P.U.</span>
-            </th>
-            <th className="num">Total</th>
+            <td>
+              <div className="invoice-frame-top" />
+            </td>
           </tr>
         </thead>
+        <tfoot>
+          <tr>
+            <td>
+              <div className="invoice-frame-bottom" />
+            </td>
+          </tr>
+        </tfoot>
         <tbody>
-          {doc.rows.map((r, i) => (
-            <tr key={r.variantId}>
-              <td className="num">{i + 1}</td>
-              <td>
-                <span className="invoice-brand">{r.brand}</span> {r.name}
-                {r.sku && <span className="invoice-sku"> · {r.sku}</span>}
-                {r.variant && <span className="invoice-format-inline">{r.variant}</span>}
-              </td>
-              <td className="invoice-format">{r.variant ?? "—"}</td>
-              <td className="num">{r.qty}</td>
-              <td className="num">
-                {formatDH(r.unit)}
-                {r.sitePrice && "*"}
-              </td>
-              <td className="num">{formatDH(r.total)}</td>
-            </tr>
-          ))}
+          <tr>
+            <td className="invoice-body">
+              <header className="invoice-head">
+                <div>
+                  <h2>Devis</h2>
+                  <span className="invoice-head-bar" />
+                </div>
+                <div className="invoice-id">
+                  {doc.number ? (
+                    <p className="invoice-number">N° {doc.number}</p>
+                  ) : doc.editing ? (
+                    <p className="invoice-draft">Modification de {doc.editing} · non enregistrée</p>
+                  ) : (
+                    <p className="invoice-draft">Brouillon · non confirmé</p>
+                  )}
+                  <p>Date : {invoiceDate(doc.date)}</p>
+                  {doc.updatedAt && <p className="invoice-updated">Modifié le {invoiceDate(doc.updatedAt)}</p>}
+                </div>
+              </header>
+
+              <div className="invoice-party">
+                <span className="invoice-label">Client</span>
+                <strong>{doc.commercial}</strong>
+                {doc.city && <span>{doc.city}</span>}
+              </div>
+
+              <table className="invoice-table">
+                <thead>
+                  <tr>
+                    <th className="num">#</th>
+                    <th>Produit</th>
+                    <th className="invoice-format">Format</th>
+                    <th className="num">Qté</th>
+                    <th className="num">
+                      <span className="invoice-pu-long">Prix unitaire</span>
+                      <span className="invoice-pu-short">P.U.</span>
+                    </th>
+                    <th className="num">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doc.rows.map((r, i) => (
+                    <tr key={r.variantId}>
+                      <td className="num">{i + 1}</td>
+                      <td>
+                        <span className="invoice-brand">{r.brand}</span> {r.name}
+                        {r.sku && <span className="invoice-sku"> · {r.sku}</span>}
+                        {r.variant && <span className="invoice-format-inline">{r.variant}</span>}
+                      </td>
+                      <td className="invoice-format">{r.variant ?? "—"}</td>
+                      <td className="num">{r.qty}</td>
+                      <td className="num">
+                        {formatDH(r.unit)}
+                        {r.sitePrice && "*"}
+                      </td>
+                      <td className="num">{formatDH(r.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="invoice-sum">
+                <span>
+                  {count} article{count > 1 ? "s" : ""}
+                </span>
+                <span className="invoice-sum-total">
+                  <span className="invoice-total-label">Total</span>
+                  <span className="invoice-total">{formatDH(total)}</span>
+                </span>
+              </div>
+              {anySite && <p className="invoice-note">* Prix public (pas de prix revendeur pour ce produit).</p>}
+            </td>
+          </tr>
         </tbody>
       </table>
-      <div className="invoice-sum">
-        <span>
-          {count} article{count > 1 ? "s" : ""}
-        </span>
-        <span className="invoice-sum-total">
-          <span className="invoice-total-label">Total</span>
-          <span className="invoice-total">{formatDH(total)}</span>
-        </span>
+      <div className="invoice-lh-foot" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/entete.svg" alt="" />
       </div>
-      {anySite && <p className="invoice-note">* Prix du site (pas de prix revendeur pour ce produit).</p>}
-      <footer className="invoice-foot">Mécafé · mecafe.ma</footer>
     </article>
   );
 }
 
 /**
- * Partage la facture en PDF : feuille de partage du téléphone (WhatsApp, e-mail…) si le navigateur sait
+ * Partage le devis en PDF : feuille de partage du téléphone (WhatsApp, e-mail…) si le navigateur sait
  * partager un fichier, sinon téléchargement. Le PDF est préparé dès l'ouverture : le partage part tout de
  * suite au clic (certains navigateurs refusent un partage lancé après une attente).
  */
@@ -130,7 +166,7 @@ function usePdf(id: number | undefined, number: string | null) {
       .then((r) => (r.ok ? r.blob() : Promise.reject()))
       .then((b) => {
         if (!alive) return;
-        const f = new File([b], `Facture-${number}.pdf`, { type: "application/pdf" });
+        const f = new File([b], `Devis-${number}.pdf`, { type: "application/pdf" });
         setFile(f);
         setCanShare(Boolean(navigator.canShare?.({ files: [f] })));
       })
@@ -144,12 +180,12 @@ function usePdf(id: number | undefined, number: string | null) {
     if (id == null || !number) return;
     const f: File =
       file ??
-      new File([await fetch(`/api/admin/invoices/${id}/pdf`).then((r) => r.blob())], `Facture-${number}.pdf`, {
+      new File([await fetch(`/api/admin/invoices/${id}/pdf`).then((r) => r.blob())], `Devis-${number}.pdf`, {
         type: "application/pdf",
       });
     if (navigator.canShare?.({ files: [f] })) {
       try {
-        await navigator.share({ files: [f], title: `Facture ${number}` });
+        await navigator.share({ files: [f], title: `Devis ${number}` });
         return;
       } catch (e) {
         if ((e as Error)?.name === "AbortError") return; // partage annulé
@@ -168,7 +204,7 @@ function usePdf(id: number | undefined, number: string | null) {
 }
 
 /**
- * Facture à l'écran. Brouillon : « Modifier » (retour au panier) ou « Confirmer » (enregistrée dans
+ * Devis à l'écran. Brouillon : « Modifier » (retour au panier) ou « Confirmer » (enregistrée dans
  * l'historique, numérotée). Confirmée : « Modifier » (la remet dans le panier), PDF (partage / téléchargement),
  * « Imprimer ».
  */
@@ -195,7 +231,7 @@ export function InvoiceModal({
   confirmLabel?: string;
   busy?: boolean;
   error?: string;
-  /** Modification : prix unitaires qui ont changé depuis la facture d'origine. */
+  /** Modification : prix unitaires qui ont changé depuis le devis d'origine. */
   changes?: { name: string; variant: string | null; before: number; after: number }[];
 }) {
   const draft = doc.number == null;
@@ -212,13 +248,13 @@ export function InvoiceModal({
 
   return (
     <div className="invoice-backdrop" onPointerDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="invoice-modal" role="dialog" aria-modal="true" aria-label="Facture">
+      <div className="invoice-modal" role="dialog" aria-modal="true" aria-label="Devis">
         <div className="invoice-bar">
           {draft ? (
             <span className="invoice-status draft">{doc.editing ? `Modification · ${doc.editing}` : "Brouillon"}</span>
           ) : (
             <span className="invoice-status ok">
-              <CheckIcon size={15} /> Confirmée · {doc.number}
+              <CheckIcon size={15} /> Confirmé · {doc.number}
             </span>
           )}
           <span className="invoice-bar-actions">
@@ -239,7 +275,7 @@ export function InvoiceModal({
                   </button>
                 )}
                 {doc.id != null && (
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={pdf.share} title="Fichier PDF de la facture">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={pdf.share} title="Fichier PDF du devis">
                     <ShareIcon size={15} /> {pdf.canShare ? "Partager PDF" : "Télécharger PDF"}
                   </button>
                 )}
@@ -259,7 +295,7 @@ export function InvoiceModal({
         {draft && changes && changes.length > 0 && (
           <div className="invoice-changes">
             <strong>
-              Prix changé{changes.length > 1 ? "s" : ""} depuis la facture d&apos;origine ({changes.length}) :
+              Prix changé{changes.length > 1 ? "s" : ""} depuis le devis d&apos;origine ({changes.length}) :
             </strong>
             <ul>
               {changes.map((c) => (
@@ -293,7 +329,7 @@ export function PrintInvoice({ doc }: { doc: InvoiceDoc | null }) {
 export function printDoc(setDoc: (d: InvoiceDoc) => void, doc: InvoiceDoc, flush: (fn: () => void) => void) {
   flush(() => setDoc(doc));
   const title = document.title;
-  if (doc.number) document.title = `Facture ${doc.number}`; // nom proposé pour « Enregistrer en PDF »
+  if (doc.number) document.title = `Devis ${doc.number}`; // nom proposé pour « Enregistrer en PDF »
   window.print();
   document.title = title;
 }

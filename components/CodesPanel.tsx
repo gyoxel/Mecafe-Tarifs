@@ -124,7 +124,7 @@ function CodeCard({
           <h3>{isAdmin ? "Code admin" : "Code clients"}</h3>
           <p className="muted small">
             {isAdmin
-              ? "Ouvre l'espace admin : prix revendeurs, panier, factures, Gestion."
+              ? "Ouvre l'espace admin : prix revendeurs, panier, devis, Gestion."
               : "À donner aux clients : catalogue au prix public seulement."}
           </p>
           <p className="codes-status">{status(info)}</p>

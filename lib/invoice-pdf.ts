@@ -1,135 +1,146 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 import { invoiceDate } from "./cart";
 import { formatDH } from "./format";
 import type { SavedInvoice } from "./invoice-types";
 import { safe, wrap } from "./pdf-text";
 
 /**
- * Facture en PDF (A4, texte vectoriel), même contenu que la facture imprimée :
- * logo, n°, date, commercial, lignes, total. Plusieurs pages si besoin (en-tête du tableau répété).
+ * Devis en PDF (A4) sur l'en-tête officiel de Mécafé (assets/devis/entete.pdf), reproduit tel quel sur chaque
+ * page : logo et raison sociale en haut, coordonnées en bas de la feuille. Le devis s'écrit entre les deux :
+ * n°, date, client, lignes, total. Plusieurs pages si besoin (en-tête du tableau répété).
  */
 const A4 = { w: 595.28, h: 841.89 };
-const M = 42; // marges
-const INK = rgb(0.07, 0.07, 0.07);
-const MUTED = rgb(0.45, 0.45, 0.45);
-const LINE = rgb(0.86, 0.86, 0.86);
+const M = 64; // marges gauche / droite, alignées sur le logo de l'en-tête
+const W = A4.w - 2 * M;
+const TOP = A4.h - 112; // sous le filet du haut de l'en-tête
+const BOTTOM = 104; // au-dessus du filet du bas (coordonnées de la société)
 
-export async function invoicePdf(inv: SavedInvoice, logoPng: Uint8Array | null): Promise<Uint8Array> {
+const INK = rgb(0.07, 0.07, 0.07);
+const MUTED = rgb(0.42, 0.42, 0.42);
+const LINE = rgb(0.86, 0.86, 0.86);
+const GOLD = rgb(156 / 255, 141 / 255, 79 / 255); // doré de l'en-tête
+const GOLD_SOFT = rgb(0.965, 0.953, 0.918);
+const ZEBRA = rgb(0.985, 0.98, 0.968);
+const WHITE = rgb(1, 1, 1);
+
+export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | null): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.setTitle(`Facture ${inv.number}`);
+  doc.setTitle(`Devis ${inv.number}`);
   doc.setAuthor("Mécafé");
   doc.setCreator("Mécafé");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  let logo: PDFImage | null = null;
+  let paper: PDFEmbeddedPage | null = null;
   try {
-    logo = logoPng ? await doc.embedPng(logoPng) : null;
+    paper = letterhead ? (await doc.embedPdf(letterhead, [0]))[0] : null;
   } catch {
-    logo = null;
+    paper = null;
   }
 
   const T = (s: string, f: PDFFont = font) => safe(f, s);
-  const right = (page: PDFPage, s: string, x: number, y: number, size: number, f: PDFFont = font, color = INK) =>
+  const text = (page: PDFPage, s: string, x: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
+    page.drawText(T(s, f), { x, y, size, font: f, color });
+  const right = (page: PDFPage, s: string, x: number, y: number, size: number, f: PDFFont = font, color: Color = INK) =>
     page.drawText(T(s, f), { x: x - f.widthOfTextAtSize(T(s, f), size), y, size, font: f, color });
 
-  // Colonnes du tableau (x de départ ; les montants sont alignés à droite sur `end`).
-  const W = A4.w - 2 * M;
+  // Colonnes du tableau (montants alignés à droite sur leur fin).
   const col = {
-    num: M,
-    product: M + 22,
-    productW: W * 0.46,
-    format: M + 22 + W * 0.46 + 8,
-    qtyEnd: M + W * 0.73,
-    unitEnd: M + W * 0.87,
-    totalEnd: M + W,
+    num: M + 8,
+    product: M + 30,
+    productW: W * 0.44,
+    format: M + 30 + W * 0.44 + 8,
+    qtyEnd: M + W * 0.72,
+    unitEnd: M + W * 0.86,
+    totalEnd: M + W - 8,
   };
 
-  let page = doc.addPage([A4.w, A4.h]);
-  let y = A4.h - M;
-
-  // En-tête : logo + bloc facture
-  if (logo) {
-    const lw = 130;
-    const lh = (logo.height / logo.width) * lw;
-    page.drawImage(logo, { x: M, y: y - lh, width: lw, height: lh });
-  } else {
-    page.drawText("Mécafé", { x: M, y: y - 24, size: 24, font: bold, color: rgb(0.66, 0.45, 0.16) });
-  }
-  right(page, "FACTURE", A4.w - M, y - 20, 22, bold);
-  right(page, `N° ${inv.number}`, A4.w - M, y - 40, 11, bold);
-  right(page, `Date : ${invoiceDate(new Date(inv.createdAt))}`, A4.w - M, y - 55, 10, font, MUTED);
-  if (inv.updatedAt) right(page, `Modifiée le ${invoiceDate(new Date(inv.updatedAt))}`, A4.w - M, y - 68, 9, font, MUTED);
-  y -= 84;
-  page.drawLine({ start: { x: M, y }, end: { x: A4.w - M, y }, thickness: 1.6, color: INK });
-  y -= 24;
-
-  // Commercial
-  page.drawText("REVENDEUR", { x: M, y, size: 8, font: bold, color: MUTED });
-  y -= 15;
-  page.drawText(T(inv.commercial, bold), { x: M, y, size: 12, font: bold, color: INK });
-  if (inv.city) {
-    y -= 14;
-    page.drawText(T(inv.city), { x: M, y, size: 10.5, font, color: INK });
-  }
-  y -= 28;
+  const pages: PDFPage[] = [];
+  let page!: PDFPage;
+  let y = TOP;
+  const newPage = () => {
+    page = doc.addPage([A4.w, A4.h]);
+    pages.push(page);
+    if (paper) page.drawPage(paper, { x: 0, y: 0, width: A4.w, height: A4.h });
+    y = TOP;
+  };
 
   const tableHead = () => {
-    const s = 8;
-    page.drawText("#", { x: col.num, y, size: s, font: bold, color: MUTED });
-    page.drawText("PRODUIT", { x: col.product, y, size: s, font: bold, color: MUTED });
-    page.drawText("FORMAT", { x: col.format, y, size: s, font: bold, color: MUTED });
-    right(page, "QTÉ", col.qtyEnd, y, s, bold, MUTED);
-    right(page, "PRIX UNITAIRE", col.unitEnd, y, s, bold, MUTED);
-    right(page, "TOTAL", col.totalEnd, y, s, bold, MUTED);
-    y -= 7;
-    page.drawLine({ start: { x: M, y }, end: { x: A4.w - M, y }, thickness: 0.9, color: INK });
-    y -= 15;
+    const h = 22;
+    page.drawRectangle({ x: M, y: y - h, width: W, height: h, color: GOLD });
+    const ty = y - 14.5;
+    const s = 7.8;
+    text(page, "#", col.num, ty, s, bold, WHITE);
+    text(page, "PRODUIT", col.product, ty, s, bold, WHITE);
+    text(page, "FORMAT", col.format, ty, s, bold, WHITE);
+    right(page, "QTÉ", col.qtyEnd, ty, s, bold, WHITE);
+    right(page, "PRIX UNITAIRE", col.unitEnd, ty, s, bold, WHITE);
+    right(page, "TOTAL", col.totalEnd, ty, s, bold, WHITE);
+    y -= h + 4;
   };
+
+  /* ── Première page : titre, n°, date, client ── */
+  newPage();
+  text(page, "DEVIS", M, y - 26, 26, bold, INK);
+  page.drawRectangle({ x: M, y: y - 38, width: 46, height: 3, color: GOLD });
+  right(page, `N° ${inv.number}`, M + W, y - 12, 12, bold, GOLD);
+  right(page, `Date : ${invoiceDate(new Date(inv.createdAt))}`, M + W, y - 28, 10, font, INK);
+  if (inv.updatedAt) right(page, `Modifié le ${invoiceDate(new Date(inv.updatedAt))}`, M + W, y - 41, 8.5, font, MUTED);
+  y -= 62;
+
+  const boxH = inv.city ? 54 : 42;
+  page.drawRectangle({ x: M, y: y - boxH, width: W * 0.55, height: boxH, color: GOLD_SOFT });
+  page.drawRectangle({ x: M, y: y - boxH, width: 3, height: boxH, color: GOLD });
+  text(page, "CLIENT", M + 14, y - 15, 7.8, bold, MUTED);
+  text(page, inv.commercial, M + 14, y - 31, 12.5, bold, INK);
+  if (inv.city) text(page, inv.city, M + 14, y - 45, 10, font, INK);
+  y -= boxH + 22;
+
   tableHead();
 
-  const size = 9.5;
+  const size = 9.3;
   inv.rows.forEach((r, i) => {
     const label = `${r.brand.toUpperCase()}  ${r.name}${r.sku ? ` · ${r.sku}` : ""}`;
     const lines = wrap(font, T(label), size, col.productW);
-    const h = lines.length * 12 + 8;
-    if (y - h < M + 60) {
-      page = doc.addPage([A4.w, A4.h]);
-      y = A4.h - M;
+    const h = lines.length * 11.5 + 11;
+    if (y - h < BOTTOM) {
+      newPage();
+      text(page, `Devis N° ${inv.number} (suite)`, M, y - 4, 9, bold, MUTED);
+      y -= 18;
       tableHead();
     }
-    page.drawText(String(i + 1), { x: col.num, y, size, font, color: MUTED });
-    lines.forEach((l, k) => page.drawText(l, { x: col.product, y: y - k * 12, size, font, color: INK }));
-    page.drawText(T(r.variant ?? "—"), { x: col.format, y, size, font, color: INK });
-    right(page, String(r.qty), col.qtyEnd, y, size);
-    right(page, `${formatDH(r.unit)}${r.sitePrice ? "*" : ""}`, col.unitEnd, y, size);
-    right(page, formatDH(r.total), col.totalEnd, y, size, bold);
-    y -= h - 4;
-    page.drawLine({ start: { x: M, y: y + 4 }, end: { x: A4.w - M, y: y + 4 }, thickness: 0.5, color: LINE });
-    y -= 7;
+    if (i % 2 === 1) page.drawRectangle({ x: M, y: y - h, width: W, height: h, color: ZEBRA });
+    const ty = y - 14;
+    text(page, String(i + 1), col.num, ty, size, font, MUTED);
+    lines.forEach((l, k) => page.drawText(l, { x: col.product, y: ty - k * 11.5, size, font, color: INK }));
+    text(page, r.variant ?? "—", col.format, ty, size, font, INK);
+    right(page, String(r.qty), col.qtyEnd, ty, size);
+    right(page, `${formatDH(r.unit)}${r.sitePrice ? "*" : ""}`, col.unitEnd, ty, size);
+    right(page, formatDH(r.total), col.totalEnd, ty, size, bold);
+    y -= h;
+    page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: LINE });
   });
 
-  // Total
-  if (y < M + 70) {
-    page = doc.addPage([A4.w, A4.h]);
-    y = A4.h - M;
-  }
-  y -= 6;
-  page.drawText(`${inv.count} article${inv.count > 1 ? "s" : ""}`, { x: M, y, size: 10.5, font: bold, color: INK });
-  right(page, formatDH(inv.total), col.totalEnd, y - 1, 15, bold);
-  const totalW = bold.widthOfTextAtSize(T(formatDH(inv.total), bold), 15);
-  right(page, "TOTAL", col.totalEnd - totalW - 16, y, 10.5, bold);
-  if (inv.rows.some((r) => r.sitePrice)) {
-    y -= 22;
-    page.drawText("* Prix du site (pas de prix revendeur pour ce produit).", { x: M, y, size: 8.5, font, color: MUTED });
+  /* ── Total ── */
+  const note = inv.rows.some((r) => r.sitePrice);
+  if (y - (note ? 74 : 56) < BOTTOM) newPage();
+  y -= 14;
+  const totalText = formatDH(inv.total);
+  const boxW = Math.max(190, bold.widthOfTextAtSize(T(totalText, bold), 16) + 110);
+  page.drawRectangle({ x: M + W - boxW, y: y - 34, width: boxW, height: 34, color: GOLD });
+  text(page, "TOTAL", M + W - boxW + 14, y - 21.5, 10.5, bold, WHITE);
+  right(page, totalText, M + W - 14, y - 22.5, 16, bold, WHITE);
+  text(page, `${inv.count} article${inv.count > 1 ? "s" : ""}`, M, y - 21.5, 10.5, bold, INK);
+  y -= 34;
+  if (note) {
+    y -= 18;
+    text(page, "* Prix public (pas de prix revendeur pour ce produit).", M, y, 8.5, font, MUTED);
   }
 
-  // Pied de page sur chaque page
-  const pages = doc.getPages();
-  pages.forEach((p, i) => {
-    const foot = T(`Mécafé · mecafe.ma${pages.length > 1 ? `   —   ${i + 1}/${pages.length}` : ""}`);
-    p.drawText(foot, { x: (A4.w - font.widthOfTextAtSize(foot, 8.5)) / 2, y: M - 14, size: 8.5, font, color: MUTED });
-  });
+  // N° de page, au-dessus des coordonnées de la société (seulement s'il y a plusieurs pages)
+  if (pages.length > 1) {
+    pages.forEach((p, i) => right(p, `Page ${i + 1} / ${pages.length}`, M + W, BOTTOM - 22, 8, font, MUTED));
+  }
 
   return doc.save();
 }

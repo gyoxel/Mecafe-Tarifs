@@ -173,7 +173,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     const inv = admin.edit;
     if (inv && edit?.id !== inv.id) {
       const replace =
-        lines.length === 0 || window.confirm(`Modifier la facture ${inv.number} ? Le panier en cours sera remplacé.`);
+        lines.length === 0 || window.confirm(`Modifier le devis ${inv.number} ? Le panier en cours sera remplacé.`);
       if (replace) {
         lines = inv.rows.map((r) => ({ id: r.variantId, qty: r.qty }));
         edit = { id: inv.id, number: inv.number };
@@ -276,7 +276,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       if (!res.ok || !data.draft) throw new Error(data.error ?? `Erreur ${res.status}`);
       setInvoiceView({ printAfter, draft: data.draft, doc: draftDoc(data.draft) });
     } catch (e) {
-      setCartError(e instanceof Error ? e.message : "Impossible de calculer la facture");
+      setCartError(e instanceof Error ? e.message : "Impossible de calculer le devis");
     }
     setPreviewing(false);
   };
@@ -319,7 +319,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   const startEdit = (doc: InvoiceDoc) => {
     if (doc.id == null || !doc.number) return;
     const same = editing?.id === doc.id;
-    if (cart.length && !same && !window.confirm(`Modifier la facture ${doc.number} ? Le panier en cours sera remplacé.`)) return;
+    if (cart.length && !same && !window.confirm(`Modifier le devis ${doc.number} ? Le panier en cours sera remplacé.`)) return;
     setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty })));
     setEditing({ id: doc.id, number: doc.number });
     const o = options.find((x) => x.id === doc.commercialId);
@@ -622,7 +622,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
 
       {admin?.storageDown && (
         <div className="storage-down-banner" role="alert">
-          Base de données non connectée : les factures ne peuvent pas être enregistrées. Vérifiez DATABASE_URL dans
+          Base de données non connectée : les devis ne peuvent pas être enregistrés. Vérifiez DATABASE_URL dans
           Vercel.
         </div>
       )}

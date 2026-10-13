@@ -12,13 +12,28 @@ import { getPrices } from "./prices";
 import { displayTitle, displayVariant } from "./title";
 
 /**
- * Historique des factures confirmées : Postgres si DATABASE_URL est défini, mémoire sinon (démo).
- * Le n° est attribué à l'enregistrement : F{année}-{id sur 5 chiffres}, unique.
+ * Historique des devis confirmés : Postgres si DATABASE_URL est défini, mémoire sinon (démo).
+ * Le n° est attribué à l'enregistrement : D{mois}{année}-{rang dans le mois sur 3 chiffres}, ex. D102026-001,
+ * compté à l'heure du Maroc et repartant à 001 chaque mois. (Les anciennes factures gardent leur n° F….)
  */
 const g = globalThis as unknown as { __memInvoices?: SavedInvoice[] };
 const mem = () => (g.__memInvoices ??= []);
 
-const numberOf = (id: number, d: Date) => `F${d.getFullYear()}-${String(id).padStart(5, "0")}`;
+/** « D102026- » : préfixe du mois (heure du Maroc). */
+function monthPrefix(d: Date): string {
+  const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Africa/Casablanca", month: "2-digit", year: "numeric" })
+    .formatToParts(d)
+    .reduce<Record<string, string>>((acc, p) => ((acc[p.type] = p.value), acc), {});
+  return `D${parts.month}${parts.year}-`;
+}
+/** N° suivant du mois, d'après les n° déjà attribués (« D102026-007 » → « D102026-008 »). */
+function nextNumber(prefix: string, existing: string[]): string {
+  const max = existing.reduce((m, n) => {
+    const k = n.startsWith(prefix) ? Number(n.slice(prefix.length)) : 0;
+    return Number.isInteger(k) && k > m ? k : m;
+  }, 0);
+  return `${prefix}${String(max + 1).padStart(3, "0")}`;
+}
 
 export const MAX_LINES = 500;
 
@@ -141,7 +156,7 @@ export async function saveInvoice(input: {
     const id = list.length + 1;
     const inv: SavedInvoice = {
       id,
-      number: numberOf(id, now),
+      number: nextNumber(monthPrefix(now), list.map((i) => i.number)),
       commercialId: input.commercialId,
       commercial: input.commercial,
       city: input.city,
@@ -157,14 +172,20 @@ export async function saveInvoice(input: {
   }
 
   await ensureSchema();
-  const sql = getSql();
-  const [{ id }] = await sql`select nextval(pg_get_serial_sequence('invoices', 'id'))::int as id`;
-  const [row] = await sql`
-    insert into invoices (id, number, commercial_id, commercial_name, commercial_city, lines, item_count, total, status)
-    values (${id}, ${numberOf(id, now)}, ${input.commercialId}, ${input.commercial}, ${input.city},
-            ${sql.json(input.rows as never)}, ${count}, ${total}, 'confirmee')
-    returning *`;
-  return fromRow(row);
+  const prefix = monthPrefix(now);
+  // Verrou le temps de compter et d'insérer : deux confirmations simultanées n'ont jamais le même n°.
+  const row = await getSql().begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(727010)`;
+    const taken = await tx<{ number: string }[]>`
+      select number from invoices where number like ${`${prefix}%`}`;
+    const [inserted] = await tx`
+      insert into invoices (number, commercial_id, commercial_name, commercial_city, lines, item_count, total, status)
+      values (${nextNumber(prefix, taken.map((t) => t.number))}, ${input.commercialId}, ${input.commercial},
+              ${input.city}, ${tx.json(input.rows as never)}, ${count}, ${total}, 'confirmee')
+      returning *`;
+    return inserted;
+  });
+  return fromRow(row as Record<string, unknown>);
 }
 
 export async function getInvoice(id: number): Promise<SavedInvoice | null> {
@@ -175,7 +196,7 @@ export async function getInvoice(id: number): Promise<SavedInvoice | null> {
   return row ? fromRow(row) : null;
 }
 
-/** Modifier une facture confirmée : mêmes n° et date de création, nouvelles lignes / commercial. */
+/** Modifier un devis confirmé : mêmes n° et date de création, nouvelles lignes / commercial. */
 export async function updateInvoice(
   id: number,
   input: { commercialId: string; commercial: string; city: string | null; rows: InvoiceRow[] },

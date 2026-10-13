@@ -7,12 +7,12 @@ Catalogue tarifaire : `tarifs.mecafe.ma`. Shopify reste la source des produits, 
   produit sur mecafe.ma. Session gardée 30 jours sur l'appareil.
 - **Admin** (`/admin`, code admin) : s'ouvre directement sur le tarif de base « Revendeur », puis les **prix
   revendeurs** (prix site − écart, ou prix saisi) avec l'œil et le clic sur le prix ; stock visible.
-  **Gestion** (`/admin/gestion`) : revendeurs, villes, écarts, prix, factures.
+  **Gestion** (`/admin/gestion`) : revendeurs, villes, écarts, prix, devis.
 
 ```
 Shopify (Storefront API) ──► Vercel (Next.js, lecture en direct) ──► tarifs.mecafe.ma
                                    │
-                                   └──► Postgres (revendeurs, prix revendeurs, factures)
+                                   └──► Postgres (revendeurs, prix revendeurs, devis)
 ```
 
 ## Principes
@@ -44,7 +44,7 @@ Sans variables d'environnement : catalogue de **démonstration**, code admin `ad
 (non persistants).
 
 ## Sans base de données = rien n'est enregistré (production)
-En production, si `DATABASE_URL` manque, **toutes les écritures sont refusées** (factures, modifications, prix,
+En production, si `DATABASE_URL` manque, **toutes les écritures sont refusées** (devis, modifications, prix,
 revendeurs : erreur 503 « Base de données non connectée… ») et un bandeau rouge s'affiche dans l'admin. Rien n'est
 gardé en mémoire puis perdu en silence. Le stockage en mémoire n'existe qu'en développement local (démo).
 
@@ -87,20 +87,24 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
   ouvre une grande fenêtre qu'on redescend. Prix = **toujours** ceux du revendeur choisi : un produit sans prix
-  revendeur est signalé dans le panier et bloque la facture (jamais de repli sur le prix du site).
+  revendeur est signalé dans le panier et bloque le devis (jamais de repli sur le prix du site).
   Calculs en centimes entiers (`lib/money.ts`) : prix × quantité et totaux exacts au centime.
-  *Voir la facture* : brouillon **calculé par le serveur** (`/api/admin/invoices/preview`, le même calcul que
+  *Voir le devis* : brouillon **calculé par le serveur** (`/api/admin/invoices/preview`, le même calcul que
   l'enregistrement), avec **Modifier** (retour au panier) ou **Confirmer**. À la confirmation, le serveur refait le
   calcul et le compare au brouillon affiché : s'il diffère (prix changé entre-temps), rien n'est enregistré et le
-  nouveau brouillon est affiché pour vérification. En modification, les prix qui ont changé depuis la facture
-  d'origine sont listés (ancien → nouveau) avant d'enregistrer. Une facture confirmée est
-  numérotée (F2026-00001), figée (prix recalculés et enregistrés côté serveur), ajoutée à l'historique, et le
-  panier repart à zéro. *Imprimer la facture* = confirmer puis imprimer (A4, seule la facture sort ; « Enregistrer
-  en PDF » du navigateur pour un fichier). Seule une facture confirmée s'imprime.
-  Facture confirmée : **Modifier** (elle revient dans le panier, bandeau « Modification de la facture … » ;
-  l'enregistrement garde le même n° et note « Modifiée le … »), **Partager PDF** (feuille de partage du
+  nouveau brouillon est affiché pour vérification. En modification, les prix qui ont changé depuis le devis
+  d'origine sont listés (ancien → nouveau) avant d'enregistrer. Un devis confirmé est numéroté par mois
+  (**D102026-001** : D, mois, année, puis rang dans le mois, à l'heure du Maroc ; les anciennes factures gardent
+  leur n° F…), figé (prix recalculés et enregistrés côté serveur), ajouté à l'historique, et le panier repart à zéro.
+  **En-tête officiel** : le devis s'écrit sur l'en-tête de la société (`assets/devis/entete.pdf`, copie
+  `public/entete.svg` pour l'écran et l'impression), en A4 : logo et raison sociale en haut, coordonnées en bas de
+  la feuille sur chaque page, même avec peu de produits ; le nom du client est sous « Client ».
+  *Imprimer le devis* = confirmer puis imprimer (A4, seul le devis sort ; « Enregistrer en PDF » du navigateur pour
+  un fichier). Seul un devis confirmé s'imprime.
+  Devis confirmé : **Modifier** (il revient dans le panier, bandeau « Modification du devis … » ;
+  l'enregistrement garde le même n° et note « Modifié le … »), **Partager PDF** (feuille de partage du
   téléphone : WhatsApp, e-mail… ; sur ordinateur : téléchargement du PDF) et **Imprimer**. Le PDF est généré
-  côté serveur (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
+  côté serveur sur l'en-tête (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
 - **PDF** (bouton « PDF » sous « Gestion », ou Gestion › PDF, `/admin/gestion/pdf`) : catalogues A4 à télécharger.
   1. Choisir le type :
      - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
@@ -116,20 +120,20 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : écart de la base en tête ; ajouter un revendeur
     (écart prérempli avec celui de la base) ; la liste affiche les noms avec **Modifier** et **Supprimer** (avec ses
-    prix saisis ; ses factures restent) ; un clic sur le nom l'ouvre aussi en modification (nom, ville, écart ;
+    prix saisis ; ses devis restent) ; un clic sur le nom l'ouvre aussi en modification (nom, ville, écart ;
     Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches ↑ ↓ au clavier) pour changer
     l'ordre, repris dans les listes déroulantes. L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
-  - *Factures* (`/admin/gestion/factures`) : historique des factures confirmées ; recherche (n°, revendeur,
+  - *Devis* (`/admin/gestion/factures`) : historique des devis confirmés ; recherche (n°, revendeur,
     ville, produit), filtre par revendeur (liste avec recherche par nom ou ville, y compris les revendeurs supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
-    réimprimer, partager en PDF ou **modifier** une facture ; **exporter** (Excel / CSV, selon les filtres) les
-    factures (une ligne par facture) ou le détail (une ligne par produit) (retour au catalogue avec la facture dans le panier) ;
+    réimprimer, partager en PDF ou **modifier** un devis ; **exporter** (Excel / CSV, selon les filtres) les
+    devis (une ligne par devis) ou le détail (une ligne par produit) (modifier : retour au catalogue avec le devis dans le panier) ;
   - *Prix des produits* (`/admin/gestion/prix`) : choisir le revendeur (ou la base), puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
     retour au prix automatique) ; **Exporter / Importer CSV** pour ce revendeur (colonne `prix_revendeur`, `prix_commercial` accepté pour les anciens fichiers,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).
 
-Tables : `price_options` (revendeurs, `base` = tarif de base), `option_prices` (prix saisis), `invoices` (factures confirmées), historique
+Tables : `price_options` (revendeurs, `base` = tarif de base), `option_prices` (prix saisis), `invoices` (devis confirmés), historique
 des prix dans `commercial_price_history`.
 
 ## Personnaliser
@@ -142,7 +146,7 @@ des prix dans `commercial_price_history`.
 proxy.ts                 garde d'accès (/admin et /api/admin/* réservés à l'admin)
 app/page.tsx             catalogue public (prix du site seulement)
 app/admin/page.tsx       catalogue admin (tarif de base puis revendeur choisi, prix revendeurs, stock)
-app/admin/gestion/       Gestion : revendeurs et villes ; prix/ : prix par revendeur ; factures/
+app/admin/gestion/       Gestion : revendeurs et villes ; prix/ : prix par revendeur ; factures/ (devis)
 app/api/                 login, logout, admin/{options,prices,import,export,invoices,catalogue}
 components/              Catalog, OptionsManager (revendeurs), Cart, Invoice, ProductCard (yeux + animation), AdminPrices…
 lib/shopify.ts           requêtes GraphQL (sans cache : données toujours à jour)

@@ -25,7 +25,7 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "month", label: "Ce mois" },
 ];
 
-/** Gestion › Factures : historique des factures confirmées, avec recherche et filtres. */
+/** Gestion › Devis : historique des devis confirmés, avec recherche et filtres. */
 /** Clé du commercial d'une facture : son id, ou son nom s'il a été supprimé depuis. */
 const keyOf = (inv: SavedInvoice) => inv.commercialId ?? `nom:${inv.commercial}`;
 
@@ -102,9 +102,9 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
 
   return (
     <section className="admin-options factures">
-      <h2 className="admin-section-title">Factures</h2>
+      <h2 className="admin-section-title">Devis</h2>
       <p className="muted small admin-options-hint">
-        Les factures confirmées depuis le panier. Elles sont figées : les prix ne changent plus.
+        Les devis confirmés depuis le panier. Ils sont figés : les prix ne changent plus.
       </p>
 
       <div className="factures-tools">
@@ -115,7 +115,7 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher : n°, revendeur, ville, produit…"
-            aria-label="Rechercher une facture"
+            aria-label="Rechercher un devis"
           />
         </label>
         <div className="factures-commercial">
@@ -144,7 +144,7 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
 
       <div className="factures-summary">
         <span>
-          <strong>{shown.length}</strong> facture{shown.length > 1 ? "s" : ""}
+          <strong>{shown.length}</strong> devis
           {filtered && invoices.length !== shown.length && <span className="muted"> sur {invoices.length}</span>}
         </span>
         <span>
@@ -158,15 +158,15 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
           type="button"
           className="btn btn-ghost btn-sm"
           disabled={!shown.length}
-          onClick={() => downloadText(`factures-${dayKey(new Date())}.csv`, invoicesSummaryCsv(shown))}
+          onClick={() => downloadText(`devis-${dayKey(new Date())}.csv`, invoicesSummaryCsv(shown))}
         >
-          <DownloadIcon size={15} /> Exporter les factures
+          <DownloadIcon size={15} /> Exporter les devis
         </button>
         <button
           type="button"
           className="btn btn-ghost btn-sm"
           disabled={!shown.length}
-          onClick={() => downloadText(`factures-detail-${dayKey(new Date())}.csv`, invoicesDetailCsv(shown))}
+          onClick={() => downloadText(`devis-detail-${dayKey(new Date())}.csv`, invoicesDetailCsv(shown))}
         >
           <DownloadIcon size={15} /> Exporter le détail (produits)
         </button>
@@ -176,10 +176,10 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
       {shown.length === 0 ? (
         <div className="factures-empty">
           <FileTextIcon size={26} />
-          <p>{invoices.length ? "Aucune facture ne correspond aux filtres." : "Aucune facture confirmée pour le moment."}</p>
+          <p>{invoices.length ? "Aucun devis ne correspond aux filtres." : "Aucun devis confirmé pour le moment."}</p>
         </div>
       ) : (
-        <div className="factures-list" role="table" aria-label="Factures">
+        <div className="factures-list" role="table" aria-label="Devis">
           <div className="facture-row facture-head" role="row">
             <span role="columnheader">N°</span>
             <span role="columnheader">Date</span>
@@ -212,11 +212,11 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
               </span>
               <span role="cell">
                 <span className="facture-status">
-                  <CheckIcon size={13} /> Confirmée
+                  <CheckIcon size={13} /> Confirmé
                 </span>
                 {inv.updatedAt && (
-                  <span className="facture-updated" title={`Modifiée le ${dateTime(new Date(inv.updatedAt))}`}>
-                    modifiée
+                  <span className="facture-updated" title={`Modifié le ${dateTime(new Date(inv.updatedAt))}`}>
+                    modifié
                   </span>
                 )}
               </span>

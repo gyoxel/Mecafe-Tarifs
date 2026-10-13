@@ -3,7 +3,7 @@ import { requireAdmin, requireStorage } from "@/lib/guard";
 import { computeDraft, matchesExpected, parseInvoiceBody, saveInvoice } from "@/lib/invoices";
 
 /**
- * Confirmer une facture : { commercialId, lines: [{ id, qty }], expected }.
+ * Confirmer un devis : { commercialId, lines: [{ id, qty }], expected }.
  * Les prix sont recalculés ici ; si le calcul diffère du brouillon affiché (`expected`), rien n'est enregistré
  * (409) et le nouveau brouillon est renvoyé pour vérification.
  */
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
   const parsed = parseInvoiceBody(await req.json().catch(() => null));
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  if (!parsed.expected) return NextResponse.json({ error: "Aperçu manquant : ouvrez la facture avant de confirmer." }, { status: 400 });
+  if (!parsed.expected) return NextResponse.json({ error: "Aperçu manquant : ouvrez le devis avant de confirmer." }, { status: 400 });
 
   const result = await computeDraft(parsed.commercialId, parsed.lines);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });

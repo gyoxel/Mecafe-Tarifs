@@ -14,7 +14,7 @@ const SECTIONS: { id: Section; href: string; label: string; short: string; hint:
     Icon: UsersIcon,
   },
   { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", short: "Prix", hint: "Par revendeur", Icon: TagIcon },
-  { id: "factures", href: "/admin/gestion/factures", label: "Factures", short: "Factures", hint: "Historique", Icon: FileTextIcon },
+  { id: "factures", href: "/admin/gestion/factures", label: "Devis", short: "Devis", hint: "Historique", Icon: FileTextIcon },
   { id: "pdf", href: "/admin/gestion/pdf", label: "PDF", short: "PDF", hint: "Catalogues à télécharger", Icon: DownloadIcon },
   { id: "codes", href: "/admin/gestion/codes", label: "Codes d'accès", short: "Codes", hint: "Clients et admin", Icon: LockIcon },
 ];
@@ -47,7 +47,7 @@ export function GestionShell({
 
       {storage === "down" ? (
         <p className="notice warn storage-down" role="alert">
-          <strong>Base de données non connectée.</strong> Rien ne peut être enregistré (factures, prix, revendeurs) tant
+          <strong>Base de données non connectée.</strong> Rien ne peut être enregistré (devis, prix, revendeurs) tant
           qu&apos;elle n&apos;est pas rétablie : vérifiez DATABASE_URL dans Vercel (Settings → Environment Variables).
         </p>
       ) : (

@@ -346,7 +346,7 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
                     className="btn btn-ghost btn-sm rv-delete"
                     disabled={busy}
                     onClick={() => {
-                      if (window.confirm(`Supprimer « ${o.name} » et ses prix saisis ? (ses factures restent dans l'historique)`)) {
+                      if (window.confirm(`Supprimer « ${o.name} » et ses prix saisis ? (ses devis restent dans l'historique)`)) {
                         run({ action: "delete", id: o.id }, `« ${o.name} » supprimé.`);
                       }
                     }}
