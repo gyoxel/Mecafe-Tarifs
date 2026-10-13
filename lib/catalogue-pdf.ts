@@ -269,7 +269,8 @@ export async function cataloguePdf(input: {
     right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
     if (hasResale) {
       roundRect(page, xResale, tableTop, boxW, HEAD_H, 6, { color: hex(PRO) });
-      center(page, "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+      // Catalogue des tarifs : « Prix Gros » ; à valider : « Prix revendeur »
+      center(page, mode === "revendeur" ? "PRIX GROS" : "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
     }
   };
 
