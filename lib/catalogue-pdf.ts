@@ -7,7 +7,7 @@ import { displayTitle, displayVariant } from "./title";
 import type { CatalogItem } from "./types";
 
 /**
- * Catalogue en PDF (A4) : page de garde (sommaire), puis chaque marque sur une page, deux au plus : selon le
+ * Catalogue en PDF (A4) : page de garde (sommaire ; sauf le catalogue d'un revendeur), puis chaque marque sur une page, deux au plus : selon le
  * nombre de produits, une ou deux colonnes et la hauteur des lignes s'adaptent. Pour chaque produit : photo, nom,
  * format, prix public, et selon le type :
  * - « public » : rien de plus (catalogue de prix, sans mention des revendeurs) ;
@@ -227,8 +227,10 @@ export async function cataloguePdf(input: {
   const countOf = (b: CatalogueBrand) => b.groups.reduce((n, g) => n + g.items.length, 0);
   const total = input.brands.reduce((n, b) => n + countOf(b), 0);
 
-  const cover = doc.addPage([A4.w, A4.h]);
-  const pages: PDFPage[] = [cover];
+  // Page de garde (titre, sommaire) : pas pour le catalogue d'un revendeur, qui commence par les produits.
+  const withCover = mode !== "revendeur";
+  const coverPage = withCover ? doc.addPage([A4.w, A4.h]) : null;
+  const pages: PDFPage[] = coverPage ? [coverPage] : [];
   /** Première et dernière page de chaque marque (pour le sommaire). */
   const spans: { first: number; last: number }[] = [];
 
@@ -442,7 +444,8 @@ export async function cataloguePdf(input: {
   }
 
   /* ─────────────── Page de garde (dessinée en dernier : le sommaire connaît les pages) ─────────────── */
-  {
+  if (coverPage) {
+    const cover = coverPage;
     cover.drawRectangle({
       x: 0,
       y: A4.h - 10,
@@ -579,7 +582,7 @@ export async function cataloguePdf(input: {
       font,
       MUTED,
     );
-    if (i > 0 && mode === "validation") {
+    if (page !== coverPage && mode === "validation") {
       const visa = "Visa direction :";
       const vx = A4.w / 2 + 40;
       text(page, visa, vx, fy, 7.8, bold, MUTED);
