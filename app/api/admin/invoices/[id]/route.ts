@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireStorage } from "@/lib/guard";
-import { computeDraft, getInvoice, matchesExpected, parseInvoiceBody, updateInvoice } from "@/lib/invoices";
+import { computeDraft, deleteInvoice, getInvoice, matchesExpected, parseInvoiceBody, updateInvoice } from "@/lib/invoices";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -39,4 +39,16 @@ export async function PUT(req: Request, { params }: Ctx) {
   });
   if (!invoice) return NextResponse.json({ error: "Devis introuvable" }, { status: 404 });
   return NextResponse.json({ ok: true, invoice }, { headers: { "Cache-Control": "no-store" } });
+}
+
+/** Supprimer un devis (retiré de l'historique ; son n° n'est pas réutilisé). */
+export async function DELETE(req: Request, { params }: Ctx) {
+  const denied = await requireAdmin(req, { write: true });
+  if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
+
+  const ok = await deleteInvoice(Number((await params).id));
+  if (!ok) return NextResponse.json({ error: "Devis introuvable" }, { status: 404 });
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

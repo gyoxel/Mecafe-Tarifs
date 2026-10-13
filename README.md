@@ -105,6 +105,7 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
   l'enregistrement garde le même n° et note « Modifié le … »), **Partager PDF** (feuille de partage du
   téléphone : WhatsApp, e-mail… ; sur ordinateur : téléchargement du PDF) et **Imprimer**. Le PDF est généré
   côté serveur sur l'en-tête (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
+- **Raccourcis sous « Gestion »** (catalogue admin) : *Revendeurs et villes*, *Devis - Historique*, *PDF*.
 - **PDF** (bouton « PDF » sous « Gestion », ou Gestion › PDF, `/admin/gestion/pdf`) : catalogues A4 à télécharger.
   1. Choisir le type :
      - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
@@ -125,7 +126,9 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
     l'ordre, repris dans les listes déroulantes. L'écart
     s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
-  - *Devis* (`/admin/gestion/factures`) : historique des devis confirmés ; recherche (n°, revendeur,
+  - *Devis - Historique* (`/admin/gestion/factures`) : devis confirmés, chacun avec **Modifier** (retour au
+    panier) et **Supprimer** (retiré de l'historique ; la ligne reste en base avec le statut « supprime » pour
+    que son n° ne soit jamais redonné) ; recherche (n°, revendeur,
     ville, produit), filtre par revendeur (liste avec recherche par nom ou ville, y compris les revendeurs supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
     réimprimer, partager en PDF ou **modifier** un devis ; **exporter** (Excel / CSV, selon les filtres) les
     devis (une ligne par devis) ou le détail (une ligne par produit) (modifier : retour au catalogue avec le devis dans le panier) ;

@@ -8,7 +8,7 @@ import type { SavedInvoice } from "@/lib/invoice-types";
 import type { PriceOption } from "@/lib/options";
 import { CommercialFilter } from "./CommercialFilter";
 import { invoicesDetailCsv, invoicesSummaryCsv, downloadText } from "@/lib/invoice-csv";
-import { CalendarIcon, CheckIcon, DownloadIcon, FileTextIcon, SearchIcon } from "./Icons";
+import { CalendarIcon, DownloadIcon, FileTextIcon, PencilIcon, SearchIcon, TrashIcon } from "./Icons";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
 
 const p2 = (n: number) => String(n).padStart(2, "0");
@@ -29,7 +29,10 @@ const PERIODS: { id: Period; label: string }[] = [
 /** Clé du commercial d'une facture : son id, ou son nom s'il a été supprimé depuis. */
 const keyOf = (inv: SavedInvoice) => inv.commercialId ?? `nom:${inv.commercial}`;
 
-export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[]; options: PriceOption[] }) {
+export function FacturesPanel({ invoices: initial, options }: { invoices: SavedInvoice[]; options: PriceOption[] }) {
+  const [invoices, setInvoices] = useState(initial);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [commercial, setCommercial] = useState<string | null>(null);
   const [from, setFrom] = useState("");
@@ -98,11 +101,32 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
     });
   }, [invoices, haystacks, query, commercial, from, to]);
   const sum = sumMoney(shown.map((i) => i.total));
+
+  /** Retour au catalogue admin, le devis remis dans le panier pour le modifier. */
+  const edit = (inv: SavedInvoice) => {
+    window.location.href = `/admin?modifier=${inv.id}`;
+  };
+  const remove = async (inv: SavedInvoice) => {
+    if (!window.confirm(`Supprimer le devis ${inv.number} (${inv.commercial}, ${formatDH(inv.total)}) ?\nIl disparaît de l'historique ; son n° ne sera pas redonné.`)) return;
+    setDeleting(inv.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/invoices/${inv.id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? `Erreur ${res.status}`);
+      setInvoices((list) => list.filter((i) => i.id !== inv.id));
+      if (open?.id === inv.id) setOpen(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Suppression impossible");
+    } finally {
+      setDeleting(null);
+    }
+  };
   const filtered = Boolean(query.trim() || commercial || from || to);
 
   return (
     <section className="admin-options factures">
-      <h2 className="admin-section-title">Devis</h2>
+      <h2 className="admin-section-title">Devis - Historique</h2>
       <p className="muted small admin-options-hint">
         Les devis confirmés depuis le panier. Ils sont figés : les prix ne changent plus.
       </p>
@@ -190,12 +214,22 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
             <span role="columnheader" className="num">
               Total
             </span>
-            <span role="columnheader">Statut</span>
+            <span role="columnheader" className="facture-actions-head">
+              Actions
+            </span>
           </div>
           {shown.map((inv) => (
-            <button key={inv.id} type="button" className="facture-row" role="row" onClick={() => setOpen(inv)}>
+            // Un clic sur la ligne ouvre le devis ; Modifier / Supprimer à droite.
+            <div key={inv.id} className="facture-row" role="row" onClick={() => setOpen(inv)}>
               <span role="cell" className="facture-number">
-                {inv.number}
+                <button type="button" className="facture-open" onClick={() => setOpen(inv)} title="Voir le devis">
+                  {inv.number}
+                </button>
+                {inv.updatedAt && (
+                  <span className="facture-updated" title={`Modifié le ${dateTime(new Date(inv.updatedAt))}`}>
+                    modifié
+                  </span>
+                )}
               </span>
               <span role="cell" className="facture-date">
                 {dateTime(new Date(inv.createdAt))}
@@ -210,19 +244,27 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
               <span role="cell" className="num facture-total">
                 {formatDH(inv.total)}
               </span>
-              <span role="cell">
-                <span className="facture-status">
-                  <CheckIcon size={13} /> Confirmé
-                </span>
-                {inv.updatedAt && (
-                  <span className="facture-updated" title={`Modifié le ${dateTime(new Date(inv.updatedAt))}`}>
-                    modifié
-                  </span>
-                )}
+              <span role="cell" className="facture-actions" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => edit(inv)} disabled={deleting === inv.id}>
+                  <PencilIcon size={14} /> Modifier
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm facture-delete"
+                  onClick={() => remove(inv)}
+                  disabled={deleting === inv.id}
+                >
+                  <TrashIcon size={14} /> {deleting === inv.id ? "Suppression…" : "Supprimer"}
+                </button>
               </span>
-            </button>
+            </div>
           ))}
         </div>
+      )}
+      {error && (
+        <p className="notice warn" role="alert">
+          {error}
+        </p>
       )}
 
       {open && (
@@ -230,10 +272,8 @@ export function FacturesPanel({ invoices, options }: { invoices: SavedInvoice[];
           doc={docOf(open)}
           onClose={() => setOpen(null)}
           onPrint={() => printDoc(setPrinting, docOf(open), flushSync)}
-          onEdit={() => {
-            // Retour au catalogue admin, la facture remise dans le panier.
-            window.location.href = `/admin?modifier=${open.id}`;
-          }}
+          onEdit={() => edit(open)}
+          onDelete={() => remove(open)}
         />
       )}
       <PrintInvoice doc={printing} />

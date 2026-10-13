@@ -25,7 +25,7 @@ import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./
 import { OptionPicker } from "./OptionPicker";
 import { brandStyle } from "@/lib/brands";
 import { BrandBadge } from "./BrandLogo";
-import { CloseIcon, DownloadIcon, EyeIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
+import { CloseIcon, DownloadIcon, EyeIcon, FileTextIcon, UsersIcon, GridIcon, ListIcon, LockIcon, LogoutIcon, SearchIcon, SettingsIcon } from "./Icons";
 import { ProductCard } from "./ProductCard";
 import { ProductRow } from "./ProductRow";
 
@@ -633,6 +633,14 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             <div className="admin-links">
               <Link href="/admin/gestion" className="admin-link">
                 <SettingsIcon size={16} /> Gestion
+              </Link>
+              <Link href="/admin/gestion" className="admin-link admin-link-ghost">
+                <UsersIcon size={16} /> <span className="admin-link-long">Revendeurs et villes</span>
+                <span className="admin-link-short">Revendeurs</span>
+              </Link>
+              <Link href="/admin/gestion/factures" className="admin-link admin-link-ghost">
+                <FileTextIcon size={16} /> <span className="admin-link-long">Devis - Historique</span>
+                <span className="admin-link-short">Devis</span>
               </Link>
               <Link href="/admin/gestion/pdf" className="admin-link admin-link-ghost">
                 <DownloadIcon size={16} /> PDF

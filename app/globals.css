@@ -1774,9 +1774,16 @@ body > .admin {
 }
 .admin-links {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 14px;
+}
+/* Téléphone : « Gestion » sur toute la largeur, puis Revendeurs / Devis / PDF côte à côte */
+.admin-links > .admin-link:first-child {
+  grid-column: 1 / -1;
+}
+.admin-link-long {
+  display: none;
 }
 .admin-links .admin-link {
   margin: 0;
@@ -1809,6 +1816,12 @@ body > .admin {
   .admin-links {
     grid-template-columns: 1fr;
     margin-bottom: 20px;
+  }
+  .admin-link-long {
+    display: inline;
+  }
+  .admin-link-short {
+    display: none;
   }
   .admin-link {
     justify-content: flex-start;
@@ -3754,7 +3767,7 @@ html.scroll-locked {
 }
 .facture-row {
   display: grid;
-  grid-template-columns: 140px 150px minmax(0, 1fr) 80px 120px 120px;
+  grid-template-columns: 150px 140px minmax(0, 1fr) 70px 110px 228px;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -3769,12 +3782,38 @@ html.scroll-locked {
 .facture-row:last-child {
   border-bottom: 0;
 }
-button.facture-row {
+.facture-row:not(.facture-head) {
   cursor: pointer;
   transition: background 0.15s;
 }
-button.facture-row:hover {
+.facture-row:not(.facture-head):hover {
   background: #fafafb;
+}
+.facture-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.facture-open:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.facture-actions-head {
+  text-align: right;
+}
+.facture-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  cursor: default;
+}
+.facture-delete:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 .facture-head {
   padding-top: 9px;
@@ -3807,17 +3846,6 @@ button.facture-row:hover {
 .facture-total {
   font-weight: 800;
 }
-.facture-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--pro-soft);
-  color: var(--pro-ink);
-  font-size: 12px;
-  font-weight: 800;
-}
 /* Mobile : chaque facture en carte */
 @media (max-width: 760px) {
   .facture-head {
@@ -3827,8 +3855,9 @@ button.facture-row:hover {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "number total"
-      "commercial status"
-      "date count";
+      "commercial count"
+      "date date"
+      "actions actions";
     gap: 4px 10px;
   }
   .facture-number {
@@ -3840,9 +3869,13 @@ button.facture-row:hover {
   .facture-commercial {
     grid-area: commercial;
   }
-  .facture-row > span:last-child {
-    grid-area: status;
-    justify-self: end;
+  .facture-actions {
+    grid-area: actions;
+    margin-top: 6px;
+  }
+  .facture-actions .btn {
+    flex: 1;
+    justify-content: center;
   }
   .facture-date {
     grid-area: date;

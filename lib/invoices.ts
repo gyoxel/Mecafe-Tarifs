@@ -16,8 +16,10 @@ import { displayTitle, displayVariant } from "./title";
  * Le n° est attribué à l'enregistrement : D{mois}{année}-{rang dans le mois sur 3 chiffres}, ex. D102026-001,
  * compté à l'heure du Maroc et repartant à 001 chaque mois. (Les anciennes factures gardent leur n° F….)
  */
-const g = globalThis as unknown as { __memInvoices?: SavedInvoice[] };
+const g = globalThis as unknown as { __memInvoices?: SavedInvoice[]; __memDeleted?: Set<number> };
 const mem = () => (g.__memInvoices ??= []);
+/** Démo : devis supprimés (gardés dans `mem` pour la numérotation). */
+const deletedMem = () => (g.__memDeleted ??= new Set<number>());
 
 /** « D102026- » : préfixe du mois (heure du Maroc). */
 function monthPrefix(d: Date): string {
@@ -190,9 +192,9 @@ export async function saveInvoice(input: {
 
 export async function getInvoice(id: number): Promise<SavedInvoice | null> {
   if (!Number.isSafeInteger(id) || id < 1) return null;
-  if (!isDbConfigured()) return mem().find((i) => i.id === id) ?? null;
+  if (!isDbConfigured()) return mem().find((i) => i.id === id && !deletedMem().has(i.id)) ?? null;
   await ensureSchema();
-  const [row] = await getSql()`select * from invoices where id = ${id}`;
+  const [row] = await getSql()`select * from invoices where id = ${id} and status <> 'supprime'`;
   return row ? fromRow(row) : null;
 }
 
@@ -204,7 +206,7 @@ export async function updateInvoice(
   assertDurableStorage();
   const { count, total } = sumRows(input.rows);
   if (!isDbConfigured()) {
-    const inv = mem().find((i) => i.id === id);
+    const inv = mem().find((i) => i.id === id && !deletedMem().has(i.id));
     if (!inv) return null;
     Object.assign(inv, {
       commercialId: input.commercialId,
@@ -224,16 +226,35 @@ export async function updateInvoice(
        set commercial_id = ${input.commercialId}, commercial_name = ${input.commercial},
            commercial_city = ${input.city}, lines = ${sql.json(input.rows as never)},
            item_count = ${count}, total = ${total}, updated_at = now()
-     where id = ${id}
+     where id = ${id} and status <> 'supprime'
      returning *`;
   return row ? fromRow(row) : null;
 }
 
 export async function listInvoices(limit = 2000): Promise<SavedInvoice[]> {
-  if (!isDbConfigured()) return mem().slice(0, limit);
+  if (!isDbConfigured()) return mem().filter((i) => !deletedMem().has(i.id)).slice(0, limit);
   await ensureSchema();
-  const rows = await getSql()`select * from invoices order by created_at desc, id desc limit ${limit}`;
+  const rows = await getSql()`
+    select * from invoices where status <> 'supprime' order by created_at desc, id desc limit ${limit}`;
   return rows.map(fromRow);
+}
+
+/**
+ * Supprimer un devis : il disparaît de l'historique, mais la ligne est gardée (statut « supprime ») pour que son
+ * n° ne soit jamais redonné à un autre devis. Retourne false s'il n'existe pas (ou est déjà supprimé).
+ */
+export async function deleteInvoice(id: number): Promise<boolean> {
+  assertDurableStorage();
+  if (!Number.isSafeInteger(id) || id < 1) return false;
+  if (!isDbConfigured()) {
+    if (!mem().some((i) => i.id === id) || deletedMem().has(id)) return false;
+    deletedMem().add(id);
+    return true;
+  }
+  await ensureSchema();
+  const rows = await getSql()`
+    update invoices set status = 'supprime', updated_at = now() where id = ${id} and status <> 'supprime' returning id`;
+  return rows.length > 0;
 }
 
 function fromRow(r: Record<string, unknown>): SavedInvoice {
