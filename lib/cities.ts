@@ -1,4 +1,4 @@
-import { fold } from "./format";
+import { capFirst, fold } from "./format";
 
 /** Villes du Maroc (grandes et petites), proposées pour les revendeurs et les clients (d'autres peuvent être ajoutées). */
 export const MOROCCO_CITIES = [
@@ -205,5 +205,5 @@ export function cityChoices(extra: (string | null | undefined)[]): string[] {
 /** Nom de ville nettoyé (espaces) et, s'il existe déjà dans la liste, écrit comme dans la liste. */
 export function normalizeCity(raw: string, known: string[] = MOROCCO_CITIES): string {
   const c = raw.trim().replace(/\s+/g, " ");
-  return known.find((k) => fold(k) === fold(c)) ?? c;
+  return known.find((k) => fold(k) === fold(c)) ?? capFirst(c);
 }

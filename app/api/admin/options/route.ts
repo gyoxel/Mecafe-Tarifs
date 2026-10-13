@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fold } from "@/lib/format";
+import { capFirst, fold } from "@/lib/format";
 import { requireAdmin, requireStorage } from "@/lib/guard";
 import { BASE_ID, NAME_MAX, PHONE_MAX, cleanPhone, type PriceSource } from "@/lib/options";
 import { CITY_MAX, cityChoices, normalizeCity } from "@/lib/cities";
@@ -37,7 +37,8 @@ export async function POST(req: Request) {
   const options = await getOptions();
   const target = typeof body.id === "string" ? options.find((o) => o.id === body.id) : undefined;
 
-  const name = typeof body.name === "string" ? body.name.trim().replace(/\s+/g, " ") : undefined;
+  // Première lettre toujours en majuscule.
+  const name = typeof body.name === "string" ? capFirst(body.name.trim().replace(/\s+/g, " ")) : undefined;
   if (name !== undefined) {
     if (!name || name.length > NAME_MAX) return fail(`Nom requis (${NAME_MAX} caractères au plus)`);
     if (options.some((o) => o.id !== target?.id && fold(o.name) === fold(name))) {

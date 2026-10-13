@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoiceDate } from "@/lib/cart";
-import { formatDH } from "@/lib/format";
+import { capFirst, formatDH } from "@/lib/format";
 import { KIND_LABEL, sumRows, type DocKind, type InvoiceRow, type SavedInvoice } from "@/lib/invoice-types";
 import { CheckIcon, CloseIcon, PencilIcon, PrinterIcon, ShareIcon } from "./Icons";
 import { lockScroll } from "./scroll";
@@ -94,11 +94,14 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
                 </div>
               </header>
 
+              {/* « Client : Nom », puis la ville et le téléphone alignés sous le nom */}
               <div className="invoice-party">
-                <span className="invoice-label">Client</span>
-                <strong>{doc.commercial}</strong>
-                {doc.city && <span>{doc.city}</span>}
-                {doc.phone && <span className="invoice-phone">Tél : {doc.phone}</span>}
+                <span className="invoice-label">Client :</span>
+                <span className="invoice-party-lines">
+                  <strong>{capFirst(doc.commercial)}</strong>
+                  {doc.city && <span>{capFirst(doc.city)}</span>}
+                  {doc.phone && <span className="invoice-phone">Tél : {doc.phone}</span>}
+                </span>
               </div>
 
               <table className="invoice-table">

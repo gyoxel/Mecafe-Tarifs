@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cityChoices } from "@/lib/cities";
+import { capFirst } from "@/lib/format";
 import {
   BASE_ID,
   NAME_MAX,
@@ -105,7 +106,7 @@ function EditRow({
         className="admin-input rv-edit-name"
         value={name}
         maxLength={NAME_MAX}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => setName(capFirst(e.target.value))}
         aria-label="Nom du revendeur"
         autoFocus
       />
@@ -256,7 +257,7 @@ export function OptionsManager({ options, onOptions, onStatus, changes }: Props)
           value={newName}
           maxLength={NAME_MAX}
           placeholder="Nom du revendeur"
-          onChange={(e) => setNewName(e.target.value)}
+          onChange={(e) => setNewName(capFirst(e.target.value))}
           aria-label="Nom du nouveau revendeur"
         />
         <CityPicker value={newCity} choices={cities} onChange={setNewCity} disabled={busy} />

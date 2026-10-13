@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CITY_MAX } from "@/lib/cities";
-import { fold } from "@/lib/format";
+import { capFirst, fold } from "@/lib/format";
 import { keepVisible } from "./scroll";
 import { CheckIcon, ChevronIcon, PinIcon, SearchIcon } from "./Icons";
 
@@ -35,7 +35,7 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
   const entries: { city: string | null; add?: boolean }[] = [
     ...(value && !typed ? [{ city: null }] : []),
     ...shown.map((city) => ({ city })),
-    ...(canAdd ? [{ city: typed, add: true }] : []),
+    ...(canAdd ? [{ city: capFirst(typed), add: true }] : []),
   ];
 
   const close = () => {

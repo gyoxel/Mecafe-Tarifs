@@ -30,3 +30,8 @@ export function splitDH(amount: number): { main: string; dec: string } {
   const [int, dec] = (Math.round(amount * 100) / 100).toFixed(2).split(".");
   return { main: int.replace(/\B(?=(\d{3})+(?!\d))/g, " "), dec: dec === "00" ? "" : "," + dec };
 }
+
+/** Première lettre en majuscule (« abidine » → « Abidine ») ; le reste tel que tapé. */
+export function capFirst(value: string): string {
+  return value.replace(/^(\s*)(\p{L})/u, (_m, space: string, letter: string) => space + letter.toLocaleUpperCase("fr"));
+}

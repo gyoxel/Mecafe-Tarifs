@@ -1,7 +1,7 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 import { invoiceDate } from "./cart";
-import { formatDH } from "./format";
+import { capFirst, formatDH } from "./format";
 import { KIND_LABEL, type SavedInvoice } from "./invoice-types";
 import { safe, wrap } from "./pdf-text";
 
@@ -89,14 +89,20 @@ export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | nul
   if (inv.updatedAt) right(page, `Modifié le ${invoiceDate(new Date(inv.updatedAt))}`, M + W, y - 41, 8.5, font, MUTED);
   y -= 62;
 
-  // Client : nom, puis ville et téléphone s'ils sont connus.
-  const extra = [inv.city, inv.phone ? `Tél : ${inv.phone}` : null].filter((x): x is string => !!x);
-  const boxH = 42 + extra.length * 13;
+  // Client : « Client : Nom », puis la ville et le téléphone alignés sous le nom.
+  const lines = [
+    { s: capFirst(inv.commercial), f: bold, size: 12 },
+    ...(inv.city ? [{ s: capFirst(inv.city), f: font, size: 10.5 }] : []),
+    ...(inv.phone ? [{ s: `Tél : ${inv.phone}`, f: font, size: 10.5 }] : []),
+  ];
+  const lineH = 15;
+  const boxH = 18 + lines.length * lineH;
+  const labelText = "Client :";
+  const valueX = M + 14 + bold.widthOfTextAtSize(T(labelText, bold), 12) + 6;
   page.drawRectangle({ x: M, y: y - boxH, width: W * 0.55, height: boxH, color: GOLD_SOFT });
   page.drawRectangle({ x: M, y: y - boxH, width: 3, height: boxH, color: GOLD });
-  text(page, "CLIENT", M + 14, y - 15, 7.8, bold, MUTED);
-  text(page, inv.commercial, M + 14, y - 31, 12.5, bold, INK);
-  extra.forEach((t, i) => text(page, t, M + 14, y - 45 - i * 13, 10, font, INK));
+  text(page, labelText, M + 14, y - 22, 12, bold, MUTED);
+  lines.forEach((l, i) => text(page, l.s, valueX, y - 22 - i * lineH, l.size, l.f, INK));
   y -= boxH + 22;
 
   tableHead();

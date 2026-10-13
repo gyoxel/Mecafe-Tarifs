@@ -3380,8 +3380,8 @@ html.scroll-locked {
 }
 .invoice-party {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 8px;
   width: fit-content;
   min-width: 55%;
   margin: 22px 0 20px;
@@ -3391,11 +3391,14 @@ html.scroll-locked {
   font-size: 14px;
 }
 .invoice-label {
-  font-size: 10.5px;
+  flex: none;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   color: #777;
+}
+.invoice-party-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .invoice-table {
   width: 100%;

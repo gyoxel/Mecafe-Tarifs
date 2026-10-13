@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CART_PRICE_MAX, QTY_MAX, cartTotal, parseQty, type ResolvedLine } from "@/lib/cart";
 import { parsePrice } from "@/lib/csv";
-import { formatDH } from "@/lib/format";
+import { capFirst, formatDH } from "@/lib/format";
 import { DOC_KINDS, KIND_LABEL, KIND_THE, type DocKind } from "@/lib/invoice-types";
 import { displayTitle, displayVariant } from "@/lib/title";
 import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PencilIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
@@ -175,7 +175,7 @@ function ClientInfoField({
           maxLength={60}
           placeholder="Nom du client"
           autoFocus
-          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          onChange={(e) => setDraft({ ...draft, name: capFirst(e.target.value) })}
           aria-label="Nom du client"
         />
         <CityPicker value={draft.city} choices={cities} onChange={(city) => setDraft({ ...draft, city })} />

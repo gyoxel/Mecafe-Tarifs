@@ -124,6 +124,9 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   d'origine sont listés (ancien → nouveau) avant d'enregistrer. Un devis confirmé est numéroté par mois
   (**D102026-200** : D, mois, année, puis rang dans le mois à partir de 200, à l'heure du Maroc ; les anciennes factures gardent
   leur n° F…), figé (prix recalculés et enregistrés côté serveur), ajouté à l'historique, et le panier repart à zéro.
+  Bloc client : « Client : Nom », puis la ville et le téléphone alignés sous le nom (écran, impression, PDF).
+  Noms et villes tapés dans le site (revendeurs, villes ajoutées, client du panier) : **première lettre toujours
+  en majuscule** (aussi à l'enregistrement côté serveur).
   **En-tête officiel** : le devis s'écrit sur l'en-tête de la société (`assets/devis/entete.pdf`, copie
   `public/entete.svg` pour l'écran et l'impression), en A4 : logo et raison sociale en haut, coordonnées en bas de
   la feuille sur chaque page, même avec peu de produits ; le nom du client est sous « Client ».

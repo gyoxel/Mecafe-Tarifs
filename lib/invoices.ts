@@ -7,6 +7,7 @@ import { KIND_PREFIX, isDocKind, sumRows, type DocKind, type Draft, type Invoice
 export type { Draft };
 import { lineTotal, sameMoney } from "./money";
 import { CITY_MAX } from "./cities";
+import { capFirst } from "./format";
 import { NAME_MAX, cleanPhone, isBase, pricesFor } from "./options";
 import { getOptions } from "./price-options";
 import { getPrices } from "./prices";
@@ -107,8 +108,8 @@ export function parseInvoiceBody(
   const phone = cleanPhone(b.clientPhone);
   if (phone === null) return { error: "Téléphone du client invalide" };
   const client: ClientInfo = {
-    name: text(b.clientName, NAME_MAX) || undefined,
-    city: text(b.clientCity, CITY_MAX) || undefined,
+    name: capFirst(text(b.clientName, NAME_MAX)) || undefined,
+    city: capFirst(text(b.clientCity, CITY_MAX)) || undefined,
     phone: phone || undefined,
   };
   if (b.kind != null && !isDocKind(b.kind)) return { error: "Type de document invalide" };
