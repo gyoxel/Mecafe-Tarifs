@@ -112,11 +112,11 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
      - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
      - *Catalogue des tarifs* : prix public + prix du revendeur choisi (son nom en « Client » en haut ;
        « — » pour un produit sans prix revendeur) ;
-     - *Tarifs revendeurs - À valider* : prix public + case « Prix revendeur » vide à remplir à la main, mode
-       d'emploi, cases de validation et « Visa direction » sur chaque page.
+     - *Tarifs revendeurs - À valider* : prix public + case « Prix revendeur » vide à remplir à la main ;
+       mode d'emploi et cases de validation après le dernier produit, « Visa direction » sur chaque page.
   2. Contenu : tout le catalogue, ou des marques / catégories / produits cochés (avec recherche).
-  Page de garde avec sommaire (sauf *Catalogue des tarifs* : pas de sommaire, le titre — logo, « Client : … », « Tarifs au … » — est en haut
-  de la première page et les produits commencent juste dessous),
+  Seul le *Catalogue de prix* a une page de garde avec sommaire. Les deux autres n'en ont pas : le titre (logo,
+  « Client : … » ou « à valider », date) est en haut de la première page et les produits commencent juste dessous ;
   puis les marques à la suite, sans saut de page (moins de papier) : chaque marque
   commence par son titre (logo, nom, nombre de produits), répété « (suite) » en haut de page ; une seule colonne
   large par page. Photo, nom, format, prix public (promotion barrée). Généré à la demande

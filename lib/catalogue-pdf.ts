@@ -7,12 +7,13 @@ import { displayTitle, displayVariant } from "./title";
 import type { CatalogItem } from "./types";
 
 /**
- * Catalogue en PDF (A4) : page de garde (sommaire ; sauf le catalogue d'un revendeur), puis chaque marque sur une page, deux au plus : selon le
- * nombre de produits, une ou deux colonnes et la hauteur des lignes s'adaptent. Pour chaque produit : photo, nom,
- * format, prix public, et selon le type :
+ * Catalogue en PDF (A4) : page de garde avec sommaire (catalogue de prix seulement ; les autres ont leur titre en haut de
+ * la page 1), puis les marques à la suite, sur une colonne. Pour chaque produit : photo, nom, format, prix public, et
+ * selon le type :
  * - « public » : rien de plus (catalogue de prix, sans mention des revendeurs) ;
  * - « revendeur » (« Catalogue des tarifs ») : le prix d'un revendeur choisi, son nom en « Client » (« — » sans prix) ;
- * - « validation » : une case « Prix revendeur » vide à remplir à la main, mode d'emploi et visa de la direction.
+ * - « validation » : une case « Prix revendeur » vide à remplir à la main ; mode d'emploi et cases de validation
+ *   après le dernier produit, « Visa direction » en bas de chaque page.
  */
 
 export type CatalogueMode = "public" | "revendeur" | "validation";
@@ -223,8 +224,8 @@ export async function cataloguePdf(input: {
   const countOf = (b: CatalogueBrand) => b.groups.reduce((n, g) => n + g.items.length, 0);
   const total = input.brands.reduce((n, b) => n + countOf(b), 0);
 
-  // Page de garde (titre, sommaire) : pas pour le catalogue d'un revendeur, qui commence par les produits.
-  const withCover = mode !== "revendeur";
+  // Page de garde avec sommaire : seulement le catalogue de prix ; les autres ont leur titre en haut de la page 1.
+  const withCover = mode === "public";
   const coverPage = withCover ? doc.addPage([A4.w, A4.h]) : null;
   const pages: PDFPage[] = coverPage ? [coverPage] : [];
   /** Première et dernière page de chaque marque (pour le sommaire). */
@@ -271,7 +272,7 @@ export async function cataloguePdf(input: {
   };
 
   /**
-   * Titre en haut de la première page quand il n'y a pas de page de garde (catalogue d'un revendeur) :
+   * Titre en haut de la première page quand il n'y a pas de page de garde (tarifs, à valider) :
    * logo, titre, nom du revendeur, date et nombre de produits ; les produits commencent juste dessous.
    */
   const firstPageTitle = () => {
@@ -286,11 +287,14 @@ export async function cataloguePdf(input: {
     const big = title.toUpperCase();
     center(page, big, A4.w / 2, ty, Math.min(20, (W - 20) / (width(big, bold, 1) || 1)), bold, INK);
     ty -= 20;
-    if (resellerLabel) {
+    if (mode === "revendeur" && resellerLabel) {
       center(page, `Client : ${resellerLabel}`, A4.w / 2, ty, 12, bold, hex(PRO));
       ty -= 18;
+    } else if (mode === "validation") {
+      center(page, "Proposition de prix revendeur — à valider par la direction", A4.w / 2, ty, 11, font, MUTED);
+      ty -= 18;
     }
-    const pill = `Tarifs au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+    const pill = `${mode === "revendeur" ? "Tarifs" : "Prix public"} au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
     const pw = width(pill, bold, 8.5) + 24;
     roundRect(page, (A4.w - pw) / 2, ty, pw, 20, 10, { color: tint(GOLD, 0.88) });
     center(page, pill, A4.w / 2, ty - 13.5, 8.5, bold, hex(GOLD));
@@ -481,7 +485,35 @@ export async function cataloguePdf(input: {
     spans.push({ first, last: pages.length });
   }
 
-  /* ─────────────── Page de garde (dessinée en dernier : le sommaire connaît les pages) ─────────────── */
+  // Catalogue « à valider » : mode d'emploi et cases de validation après le dernier produit
+  if (mode === "validation") {
+    const need = 196;
+    if (y - need < ROWS_BOTTOM) newPage();
+    const boxTop = y - 20;
+    roundRect(page, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
+    text(page, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
+    text(page, "Prix public : prix de vente public à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
+    text(
+      page,
+      "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.",
+      M + 16,
+      boxTop - 54,
+      9.5,
+      font,
+      INK2,
+    );
+    const visaTop = boxTop - 92;
+    text(page, "VALIDATION", M, visaTop, 9, bold, MUTED);
+    const fw = (W - 2 * 12) / 3;
+    ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
+      const x = M + i * (fw + 12);
+      roundRect(page, x, visaTop - 10, fw, 84, 8, { borderColor: hex("#c9ced6"), color: WHITE });
+      text(page, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
+    });
+    y = visaTop - 94;
+  }
+
+  /* ─────────────── Page de garde du catalogue de prix (dessinée en dernier : le sommaire connaît les pages) ─────────────── */
   if (coverPage) {
     const cover = coverPage;
     cover.drawRectangle({
@@ -510,25 +542,8 @@ export async function cataloguePdf(input: {
     const bigSize = Math.min(26, (W - 20) / (width(big, bold, 1) || 1));
     center(cover, big, A4.w / 2, y, bigSize, bold, INK);
     y -= 22;
-    const subtitle =
-      mode === "validation"
-        ? "Proposition de prix revendeur — à valider par la direction"
-        : mode === "revendeur" && resellerLabel
-          ? `Client : ${resellerLabel}`
-          : null;
-    if (subtitle) {
-      center(
-        cover,
-        subtitle,
-        A4.w / 2,
-        y,
-        mode === "revendeur" ? 13 : 11.5,
-        mode === "revendeur" ? bold : font,
-        mode === "revendeur" ? hex(PRO) : MUTED,
-      );
-      y -= 22;
-    } else y -= 4;
-    const pillText = `${mode === "public" ? "Prix" : "Prix public"} au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+    y -= 4;
+    const pillText = `Prix au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
     const pw = width(pillText, bold, 9.5) + 28;
     roundRect(cover, (A4.w - pw) / 2, y, pw, 24, 12, { color: tint(GOLD, 0.88) });
     center(cover, pillText, A4.w / 2, y - 15.5, 9.5, bold, hex(GOLD));
@@ -545,7 +560,7 @@ export async function cataloguePdf(input: {
       thickness: 0.8,
       color: LINE,
     });
-    const tocBottom = mode === "validation" ? M + 300 : M + 60;
+    const tocBottom = M + 60;
     const tocH = Math.min(46, Math.max(24, (y - tocBottom) / Math.max(1, input.brands.length)));
     input.brands.forEach((b, i) => {
       const count = countOf(b);
@@ -572,33 +587,6 @@ export async function cataloguePdf(input: {
       });
     });
 
-    // Mode d'emploi + visa de la direction (catalogue « à valider » seulement)
-    if (mode === "validation") {
-      const boxTop = M + 196;
-      roundRect(cover, M, boxTop, W, 70, 10, { color: hex("#f6f7f9") });
-      text(cover, "Mode d'emploi", M + 16, boxTop - 22, 10.5, bold, INK);
-      text(cover, "Prix public : prix de vente public à la date indiquée.", M + 16, boxTop - 39, 9.5, font, INK2);
-      text(
-        cover,
-        "Prix revendeur : à compléter à la main pour chaque produit, puis à faire valider ci-dessous.",
-        M + 16,
-        boxTop - 54,
-        9.5,
-        font,
-        INK2,
-      );
-      const visaTop = boxTop - 88;
-      text(cover, "VALIDATION", M, visaTop, 9, bold, MUTED);
-      const fw = (W - 2 * 12) / 3;
-      ["Proposé par", "Validé par (direction)", "Date et signature"].forEach((label, i) => {
-        const x = M + i * (fw + 12);
-        roundRect(cover, x, visaTop - 10, fw, 84, 8, {
-          borderColor: hex("#c9ced6"),
-          color: WHITE,
-        });
-        text(cover, label, x + 10, visaTop - 26, 8.5, bold, MUTED);
-      });
-    }
   }
 
   // Pied de page : date, visa, numéro de page
