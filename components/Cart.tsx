@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CART_PRICE_MAX, QTY_MAX, cartTotal, parseQty, type ResolvedLine } from "@/lib/cart";
 import { parsePrice } from "@/lib/csv";
 import { formatDH } from "@/lib/format";
+import { DOC_KINDS, KIND_LABEL, KIND_THE, type DocKind } from "@/lib/invoice-types";
 import { displayTitle, displayVariant } from "@/lib/title";
 import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PencilIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
 import { Price } from "./Price";
@@ -170,17 +171,15 @@ function ClientNameField({ name, priceLabel, onChange }: { name: string; priceLa
     );
   }
   return (
-    <button type="button" className="cart-client" onClick={() => setEditing(true)} title="Nom du client sur le devis">
-      {name ? (
-        <>
-          <span className="cart-client-name">Client : {name}</span>
-          <span className="cart-client-note">Prix : {priceLabel}</span>
-        </>
-      ) : (
-        <span className="cart-client-name cart-client-empty">Prix : {priceLabel}</span>
-      )}
-      <PencilIcon size={12} className="cart-client-pencil" />
-    </button>
+    <>
+      <button type="button" className="cart-client" onClick={() => setEditing(true)} title="Nom du client sur le devis">
+        <span className={name ? "cart-client-name" : "cart-client-name cart-client-empty"}>
+          {name ? `Client : ${name}` : `Prix : ${priceLabel}`}
+        </span>
+        <PencilIcon size={12} className="cart-client-pencil" />
+      </button>
+      {name && <span className="cart-client-note">Prix : {priceLabel}</span>}
+    </>
   );
 }
 
@@ -247,6 +246,9 @@ type PanelProps = {
   /** Prix Gros : nom du client tapé pour ce devis (sinon undefined : revendeur enregistré). */
   clientName?: string;
   onClientName?: (name: string) => void;
+  /** Devis ou commande ; onKind absent = type figé (modification d'un document existant). */
+  kind: DocKind;
+  onKind?: (k: DocKind) => void;
   onClear: () => void;
   onInvoice: () => void;
   onPrint: () => void;
@@ -269,6 +271,8 @@ export function CartPanel({
   onPrice,
   clientName,
   onClientName,
+  kind,
+  onKind,
   onClear,
   onInvoice,
   onPrint,
@@ -322,19 +326,37 @@ export function CartPanel({
         <div className="cart-editing">
           <PencilIcon size={15} />
           <span>
-            Modification du devis <strong>{editing}</strong>
+            Modification {kind === "commande" ? "de la commande" : "du devis"} <strong>{editing}</strong>
           </span>
           <button
             type="button"
             className="link-btn"
             onClick={() => {
-              if (window.confirm(`Annuler la modification de ${editing} ? Le devis reste tel quel.`)) onClear();
+              if (window.confirm(`Annuler la modification de ${editing} ? ${KIND_LABEL[kind]} reste tel${kind === "commande" ? "le" : ""} quel${kind === "commande" ? "le" : ""}.`))
+                onClear();
             }}
           >
             Annuler
           </button>
         </div>
       )}
+
+      {/* Devis ou commande : titre et n° du document (D… / C…) */}
+      <div className="cart-kind" role="radiogroup" aria-label="Type de document">
+        {DOC_KINDS.map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={kind === k}
+            disabled={!onKind && kind !== k}
+            onClick={() => onKind?.(k)}
+            title={!onKind ? "Le type ne change pas pendant une modification" : undefined}
+          >
+            {KIND_LABEL[k]}
+          </button>
+        ))}
+      </div>
 
       <ul className="cart-lines">
         {lines.map((l) => {
@@ -395,10 +417,10 @@ export function CartPanel({
         </div>
         <div className="cart-actions">
           <button type="button" className="btn cart-btn" onClick={onInvoice} disabled={busy || missing.length > 0}>
-            <FileTextIcon size={17} /> {busy ? "Calcul…" : "Voir le devis"}
+            <FileTextIcon size={17} /> {busy ? "Calcul…" : `Voir ${KIND_THE[kind]}`}
           </button>
           <button type="button" className="btn btn-gold cart-btn" onClick={onPrint} disabled={busy || missing.length > 0}>
-            <PrinterIcon size={17} /> Imprimer le devis
+            <PrinterIcon size={17} /> Imprimer {KIND_THE[kind]}
           </button>
         </div>
       </div>

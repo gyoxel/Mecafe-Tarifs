@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoiceDate } from "@/lib/cart";
 import { formatDH } from "@/lib/format";
-import { sumRows, type InvoiceRow, type SavedInvoice } from "@/lib/invoice-types";
+import { KIND_LABEL, sumRows, type DocKind, type InvoiceRow, type SavedInvoice } from "@/lib/invoice-types";
 import { CheckIcon, CloseIcon, PencilIcon, PrinterIcon, ShareIcon } from "./Icons";
 import { lockScroll } from "./scroll";
 
-/** Ce qu'affiche un devis : brouillon (pas de n°) ou confirmé. */
+/** Ce qu'affiche un devis ou une commande : brouillon (pas de n°) ou confirmé. */
 export type InvoiceDoc = {
+  /** Devis ou commande : titre du document. */
+  kind: DocKind;
   rows: InvoiceRow[];
   commercial: string;
   city: string | null;
@@ -26,6 +28,7 @@ export type InvoiceDoc = {
 
 /** Devis enregistré → document affichable. */
 export const docOf = (inv: SavedInvoice): InvoiceDoc => ({
+  kind: inv.kind,
   rows: inv.rows,
   commercial: inv.commercial,
   city: inv.city,
@@ -73,7 +76,7 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
             <td className="invoice-body">
               <header className="invoice-head">
                 <div>
-                  <h2>Devis</h2>
+                  <h2>{KIND_LABEL[doc.kind]}</h2>
                   <span className="invoice-head-bar" />
                 </div>
                 <div className="invoice-id">
@@ -156,7 +159,8 @@ export function Invoice({ doc }: { doc: InvoiceDoc }) {
  * partager un fichier, sinon téléchargement. Le PDF est préparé dès l'ouverture : le partage part tout de
  * suite au clic (certains navigateurs refusent un partage lancé après une attente).
  */
-function usePdf(id: number | undefined, number: string | null) {
+function usePdf(id: number | undefined, number: string | null, kind: DocKind) {
+  const label = KIND_LABEL[kind];
   const [file, setFile] = useState<File | null>(null);
   const [canShare, setCanShare] = useState(false);
   useEffect(() => {
@@ -166,7 +170,7 @@ function usePdf(id: number | undefined, number: string | null) {
       .then((r) => (r.ok ? r.blob() : Promise.reject()))
       .then((b) => {
         if (!alive) return;
-        const f = new File([b], `Devis-${number}.pdf`, { type: "application/pdf" });
+        const f = new File([b], `${label}-${number}.pdf`, { type: "application/pdf" });
         setFile(f);
         setCanShare(Boolean(navigator.canShare?.({ files: [f] })));
       })
@@ -174,18 +178,18 @@ function usePdf(id: number | undefined, number: string | null) {
     return () => {
       alive = false;
     };
-  }, [id, number]);
+  }, [id, number, label]);
 
   const share = async () => {
     if (id == null || !number) return;
     const f: File =
       file ??
-      new File([await fetch(`/api/admin/invoices/${id}/pdf`).then((r) => r.blob())], `Devis-${number}.pdf`, {
+      new File([await fetch(`/api/admin/invoices/${id}/pdf`).then((r) => r.blob())], `${label}-${number}.pdf`, {
         type: "application/pdf",
       });
     if (navigator.canShare?.({ files: [f] })) {
       try {
-        await navigator.share({ files: [f], title: `Devis ${number}` });
+        await navigator.share({ files: [f], title: `${label} ${number}` });
         return;
       } catch (e) {
         if ((e as Error)?.name === "AbortError") return; // partage annulé
@@ -235,7 +239,8 @@ export function InvoiceModal({
   changes?: { name: string; variant: string | null; before: number; after: number }[];
 }) {
   const draft = doc.number == null;
-  const pdf = usePdf(doc.id, doc.number);
+  const pdf = usePdf(doc.id, doc.number, doc.kind);
+  const label = KIND_LABEL[doc.kind];
   useEffect(() => {
     const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
@@ -248,13 +253,13 @@ export function InvoiceModal({
 
   return (
     <div className="invoice-backdrop" onPointerDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="invoice-modal" role="dialog" aria-modal="true" aria-label="Devis">
+      <div className="invoice-modal" role="dialog" aria-modal="true" aria-label={label}>
         <div className="invoice-bar">
           {draft ? (
             <span className="invoice-status draft">{doc.editing ? `Modification · ${doc.editing}` : "Brouillon"}</span>
           ) : (
             <span className="invoice-status ok">
-              <CheckIcon size={15} /> Confirmé · {doc.number}
+              <CheckIcon size={15} /> {doc.kind === "commande" ? "Confirmée" : "Confirmé"} · {doc.number}
             </span>
           )}
           <span className="invoice-bar-actions">
@@ -275,7 +280,7 @@ export function InvoiceModal({
                   </button>
                 )}
                 {doc.id != null && (
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={pdf.share} title="Fichier PDF du devis">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={pdf.share} title={`Fichier PDF : ${label.toLowerCase()}`}>
                     <ShareIcon size={15} /> {pdf.canShare ? "Partager PDF" : "Télécharger PDF"}
                   </button>
                 )}
@@ -295,7 +300,8 @@ export function InvoiceModal({
         {draft && changes && changes.length > 0 && (
           <div className="invoice-changes">
             <strong>
-              Prix changé{changes.length > 1 ? "s" : ""} depuis le devis d&apos;origine ({changes.length}) :
+              Prix changé{changes.length > 1 ? "s" : ""} depuis {doc.kind === "commande" ? "la commande" : "le devis"}{" "}
+              d&apos;origine ({changes.length}) :
             </strong>
             <ul>
               {changes.map((c) => (
@@ -329,7 +335,7 @@ export function PrintInvoice({ doc }: { doc: InvoiceDoc | null }) {
 export function printDoc(setDoc: (d: InvoiceDoc) => void, doc: InvoiceDoc, flush: (fn: () => void) => void) {
   flush(() => setDoc(doc));
   const title = document.title;
-  if (doc.number) document.title = `Devis ${doc.number}`; // nom proposé pour « Enregistrer en PDF »
+  if (doc.number) document.title = `${KIND_LABEL[doc.kind]} ${doc.number}`; // nom proposé pour « Enregistrer en PDF »
   window.print();
   document.title = title;
 }

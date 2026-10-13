@@ -99,6 +99,10 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   reste affichée, avec **Annuler** ou **Enregistrer** (tout d'un coup, pour le revendeur affiché, comme dans Prix
   des produits ; case vidée = le revendeur suit de nouveau son modèle). Changer de revendeur avant d'enregistrer
   demande confirmation.
+- **Devis ou Commande** : en haut du panier, deux boutons **Devis** / **Commande** (choix mémorisé). Le document
+  porte ce titre (écran, impression, PDF « Commande-C102026-001.pdf ») et son n° : **D**{mois}{année}-NNN pour un
+  devis, **C**{mois}{année}-NNN pour une commande, chacun compté à part. En modification, le type reste celui du
+  document (son n° ne change pas).
 - **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
@@ -126,7 +130,7 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   l'enregistrement garde le même n° et note « Modifié le … »), **Partager PDF** (feuille de partage du
   téléphone : WhatsApp, e-mail… ; sur ordinateur : téléchargement du PDF) et **Imprimer**. Le PDF est généré
   côté serveur sur l'en-tête (`/api/admin/invoices/<id>/pdf`, `lib/invoice-pdf.ts`).
-- **Raccourcis sous « Gestion »** (catalogue admin) : *Revendeurs et villes*, *Devis - Historique*, *PDF*.
+- **Raccourcis sous « Gestion »** (catalogue admin) : *Revendeurs et villes*, *Devis/Commande*, *PDF*.
 - **PDF** (bouton « PDF » sous « Gestion », ou Gestion › PDF, `/admin/gestion/pdf`) : catalogues A4 à télécharger.
   1. Choisir le type :
      - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
@@ -152,7 +156,7 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
     modification (nom, ville, modèle suivi ; Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches
     ↑ ↓ au clavier) pour changer l'ordre, repris dans les listes déroulantes. Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
-  - *Devis - Historique* (`/admin/gestion/factures`) : devis confirmés, chacun avec **Modifier** (retour au
+  - *Devis/Commande - Historique* (`/admin/gestion/factures`) : deux onglets, **Devis** et **Commandes** (avec leur nombre) ; documents confirmés, chacun avec **Modifier** (retour au
     panier) et une petite icône **Imprimer** (impression directe sur l'en-tête) ; pour supprimer : cocher les devis (ou tout cocher), puis **Supprimer** ou **Annuler** dans la barre
     flottante en bas (confirmation demandée). Un devis supprimé quitte l'historique, mais la ligne reste en base
     (statut « supprime ») pour que son n° ne soit jamais redonné ; recherche (n°, revendeur,

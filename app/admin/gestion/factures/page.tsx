@@ -6,7 +6,7 @@ import { listInvoices } from "@/lib/invoices";
 import { getOptions } from "@/lib/price-options";
 import { storageMode } from "@/lib/prices";
 
-export const metadata = { title: "Devis — Gestion — Mécafé Tarifs" };
+export const metadata = { title: "Devis/Commande — Gestion — Mécafé Tarifs" };
 
 export default async function GestionFactures() {
   if (!(await getAdminSession())) redirect("/login?admin=1");

@@ -37,6 +37,6 @@ export async function PUT(req: Request, { params }: Ctx) {
     city: draft.commercial.city,
     rows: draft.rows,
   });
-  if (!invoice) return NextResponse.json({ error: "Devis introuvable" }, { status: 404 });
+  if (!invoice) return NextResponse.json({ error: "Document introuvable" }, { status: 404 });
   return NextResponse.json({ ok: true, invoice }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -13,6 +13,8 @@ const validPrice = (p: unknown): p is number =>
 export const CART_STORAGE_KEY = "mecafe:panier";
 /** Nom du client tapé dans le panier quand les prix sont ceux de « Prix Gros » (pas un revendeur enregistré). */
 export const CLIENT_STORAGE_KEY = "mecafe:panier-client";
+/** Devis ou commande, choisi en haut du panier. */
+export const KIND_STORAGE_KEY = "mecafe:panier-type";
 export const EDIT_STORAGE_KEY = "mecafe:panier-modification";
 
 /** Le panier contient une facture confirmée en cours de modification. */

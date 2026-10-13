@@ -5152,10 +5152,9 @@ html.scroll-locked {
 
 /* ═════════════ Panier « Prix Gros » : nom du client du devis ═════════════ */
 .cart-client {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: flex;
   align-items: center;
-  gap: 2px 6px;
+  gap: 6px;
   max-width: 100%;
   margin: 2px 0 0 -6px;
   padding: 2px 6px;
@@ -5186,9 +5185,11 @@ html.scroll-locked {
   font-weight: 600;
 }
 .cart-client-note {
-  flex-basis: 100%;
-  order: 3;
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
   font-size: 11.5px;
+  font-weight: 600;
 }
 .cart-client-pencil {
   flex: none;
@@ -5215,4 +5216,102 @@ html.scroll-locked {
   .cart-client-input {
     font-size: 14px;
   }
+}
+
+/* ═════════════ Panier : Devis ou Commande ═════════════ */
+.cart-kind {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 10px 12px 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+.cart-kind button {
+  height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s var(--ease), color 0.18s, box-shadow 0.18s;
+}
+.cart-kind button:hover:not(:disabled):not([aria-checked="true"]) {
+  color: var(--ink);
+}
+.cart-kind button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
+}
+.cart-kind button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ═════════════ Historique : onglets Devis / Commandes ═════════════ */
+.factures-tabs {
+  display: inline-grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  margin: 14px 0 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+.factures-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s var(--ease), color 0.18s, box-shadow 0.18s;
+}
+.factures-tabs button:hover:not([aria-selected="true"]) {
+  color: var(--ink);
+}
+.factures-tabs button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--line);
+}
+.factures-tab-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--ink-2);
+  font-size: 12px;
+  text-align: center;
+}
+.factures-tabs button[aria-selected="true"] .factures-tab-count {
+  background: var(--ink);
+  color: #fff;
+}
+@media (max-width: 520px) {
+  .factures-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .factures-tabs button {
+    justify-content: center;
+  }
+}
+/* Le nom du client (ou « Prix : … ») prend la place libre à gauche des boutons du panier. */
+.cart-head > div:first-child {
+  flex: 1;
+  min-width: 0;
 }

@@ -5,6 +5,7 @@ import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, us
 import { flushSync } from "react-dom";
 import {
   CLIENT_STORAGE_KEY,
+  KIND_STORAGE_KEY,
   QTY_MAX,
   readCart,
   readEditing,
@@ -14,7 +15,7 @@ import {
   type CartEditing,
   type CartLine,
 } from "@/lib/cart";
-import type { Draft, SavedInvoice } from "@/lib/invoice-types";
+import { KIND_THE, isDocKind, kindOfNumber, type DocKind, type Draft, type SavedInvoice } from "@/lib/invoice-types";
 import { slug } from "@/lib/format";
 import { groupItems, menuLeaves } from "@/lib/groups";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
@@ -279,7 +280,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     const inv = admin.edit;
     if (inv && edit?.id !== inv.id) {
       const replace =
-        lines.length === 0 || window.confirm(`Modifier le devis ${inv.number} ? Le panier en cours sera remplacé.`);
+        lines.length === 0 ||
+        window.confirm(`Modifier ${KIND_THE[inv.kind]} ${inv.number} ? Le panier en cours sera remplacé.`);
       if (replace) {
         lines = inv.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) }));
         edit = { id: inv.id, number: inv.number };
@@ -297,6 +299,24 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   useEffect(() => {
     if (cartLoaded.current) writeEditing(editing);
   }, [editing]);
+  // Devis ou commande (choisi en haut du panier, mémorisé sur l'appareil). En modification : celui du document,
+  // qui ne change pas (son n° D… ou C… non plus).
+  const [docKind, setDocKind] = useState<DocKind>("devis");
+  useEffect(() => {
+    if (!admin) return;
+    try {
+      const k = localStorage.getItem(KIND_STORAGE_KEY);
+      if (isDocKind(k)) setDocKind(k);
+    } catch {}
+  }, [admin]);
+  const pickKind = useCallback((k: DocKind) => {
+    setDocKind(k);
+    try {
+      localStorage.setItem(KIND_STORAGE_KEY, k);
+    } catch {}
+  }, []);
+  const kind: DocKind = editing ? kindOfNumber(editing.number) : docKind;
+
   // Prix Gros : nom du client pour ce devis (tapé dans le panier, sans l'ajouter aux revendeurs).
   const [clientName, setClientName] = useState("");
   useEffect(() => {
@@ -396,6 +416,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     number: null,
     date: new Date(),
     editing: editing?.number,
+    kind,
   });
   const openInvoice = async (printAfter: boolean) => {
     if (previewing) return;
@@ -408,6 +429,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          kind,
           commercialId: currentOption.id,
           lines: cart,
           editId: editing?.id,
@@ -418,7 +440,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       if (!res.ok || !data.draft) throw new Error(data.error ?? `Erreur ${res.status}`);
       setInvoiceView({ printAfter, draft: data.draft, doc: draftDoc(data.draft) });
     } catch (e) {
-      setCartError(e instanceof Error ? e.message : "Impossible de calculer le devis");
+      setCartError(e instanceof Error ? e.message : `Impossible de calculer ${KIND_THE[kind]}`);
     }
     setPreviewing(false);
   };
@@ -435,6 +457,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          kind,
           commercialId: draft.commercial.id,
           clientName: baseSelected && clientName ? clientName : undefined,
           lines: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })),
@@ -462,7 +485,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   const startEdit = (doc: InvoiceDoc) => {
     if (doc.id == null || !doc.number) return;
     const same = editing?.id === doc.id;
-    if (cart.length && !same && !window.confirm(`Modifier le devis ${doc.number} ? Le panier en cours sera remplacé.`)) return;
+    if (cart.length && !same && !window.confirm(`Modifier ${KIND_THE[doc.kind]} ${doc.number} ? Le panier en cours sera remplacé.`))
+      return;
     setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })));
     setEditing({ id: doc.id, number: doc.number });
     changeClientName(doc.commercialId === BASE_ID && doc.commercial !== BASE_NAME ? doc.commercial : "");
@@ -783,8 +807,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
                 <span className="admin-link-short">Revendeurs</span>
               </Link>
               <Link href="/admin/gestion/factures" className="admin-link admin-link-ghost">
-                <FileTextIcon size={16} /> <span className="admin-link-long">Devis - Historique</span>
-                <span className="admin-link-short">Devis</span>
+                <FileTextIcon size={16} /> <span className="admin-link-long">Devis/Commande</span>
+                <span className="admin-link-short">Devis/Cmd</span>
               </Link>
               <Link href="/admin/gestion/pdf" className="admin-link admin-link-ghost">
                 <DownloadIcon size={16} /> PDF
@@ -1038,6 +1062,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               lastAdded={lastAdded}
               onQty={setCartQty}
               onPrice={setCartPrice}
+              kind={kind}
+              onKind={editing ? undefined : pickKind}
               clientName={baseSelected ? clientName : undefined}
               onClientName={baseSelected ? changeClientName : undefined}
               onClear={clearCart}
@@ -1073,6 +1099,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             lastAdded={lastAdded}
             onQty={setCartQty}
             onPrice={setCartPrice}
+            kind={kind}
+            onKind={editing ? undefined : pickKind}
             clientName={baseSelected ? clientName : undefined}
             onClientName={baseSelected ? changeClientName : undefined}
             onClear={clearCart}

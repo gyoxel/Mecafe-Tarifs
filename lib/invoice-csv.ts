@@ -42,7 +42,7 @@ export function invoicesSummaryCsv(list: SavedInvoice[]): string {
 
 export function invoicesDetailCsv(list: SavedInvoice[]): string {
   return csv([
-    ["N°", "Date", "Client", "Ville", "Marque", "Produit", "Format", "SKU", "Qté", "Prix unitaire (DH)", "Total ligne (DH)", "Total devis (DH)"],
+    ["N°", "Date", "Client", "Ville", "Marque", "Produit", "Format", "SKU", "Qté", "Prix unitaire (DH)", "Total ligne (DH)", "Total document (DH)"],
     ...list.flatMap((i) =>
       i.rows.map((r) => [
         i.number,

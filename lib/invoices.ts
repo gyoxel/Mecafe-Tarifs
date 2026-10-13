@@ -2,7 +2,7 @@ import "server-only";
 import { QTY_MAX } from "./cart";
 import { getCatalog } from "./catalog";
 import { assertDurableStorage, ensureSchema, getSql, isDbConfigured } from "./db";
-import { sumRows, type Draft, type InvoiceRow, type SavedInvoice } from "./invoice-types";
+import { KIND_PREFIX, isDocKind, sumRows, type DocKind, type Draft, type InvoiceRow, type SavedInvoice } from "./invoice-types";
 
 export type { Draft };
 import { lineTotal, sameMoney } from "./money";
@@ -12,21 +12,22 @@ import { getPrices } from "./prices";
 import { displayTitle, displayVariant } from "./title";
 
 /**
- * Historique des devis confirmés : Postgres si DATABASE_URL est défini, mémoire sinon (démo).
- * Le n° est attribué à l'enregistrement : D{mois}{année}-{rang dans le mois sur 3 chiffres}, ex. D102026-001,
- * compté à l'heure du Maroc et repartant à 001 chaque mois. (Les anciennes factures gardent leur n° F….)
+ * Historique des devis et commandes confirmés : Postgres si DATABASE_URL est défini, mémoire sinon (démo).
+ * Le n° est attribué à l'enregistrement : D{mois}{année}-{rang} pour un devis (ex. D102026-001), C… pour une
+ * commande (ex. C102026-001), chacun compté à part, à l'heure du Maroc, et repartant à 001 chaque mois.
+ * (Les anciennes factures gardent leur n° F….)
  */
 const g = globalThis as unknown as { __memInvoices?: SavedInvoice[]; __memDeleted?: Set<number> };
 const mem = () => (g.__memInvoices ??= []);
 /** Démo : devis supprimés (gardés dans `mem` pour la numérotation). */
 const deletedMem = () => (g.__memDeleted ??= new Set<number>());
 
-/** « D102026- » : préfixe du mois (heure du Maroc). */
-function monthPrefix(d: Date): string {
+/** « D102026- » (devis) ou « C102026- » (commande) : préfixe du mois (heure du Maroc). */
+function monthPrefix(d: Date, kind: DocKind): string {
   const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Africa/Casablanca", month: "2-digit", year: "numeric" })
     .formatToParts(d)
     .reduce<Record<string, string>>((acc, p) => ((acc[p.type] = p.value), acc), {});
-  return `D${parts.month}${parts.year}-`;
+  return `${KIND_PREFIX[kind]}${parts.month}${parts.year}-`;
 }
 /** N° suivant du mois, d'après les n° déjà attribués (« D102026-007 » → « D102026-008 »). */
 function nextNumber(prefix: string, existing: string[]): string {
@@ -49,8 +50,16 @@ export const PRICE_MAX = 1_000_000;
  */
 export function parseInvoiceBody(
   body: unknown,
-): { commercialId: string; lines: CartInput[]; expected: Expected | null; clientName?: string } | { error: string } {
-  const b = body as { commercialId?: unknown; lines?: unknown; expected?: unknown; clientName?: unknown } | null;
+):
+  | { commercialId: string; lines: CartInput[]; expected: Expected | null; clientName?: string; kind: DocKind }
+  | { error: string } {
+  const b = body as {
+    commercialId?: unknown;
+    lines?: unknown;
+    expected?: unknown;
+    clientName?: unknown;
+    kind?: unknown;
+  } | null;
   const lines = Array.isArray(b?.lines) ? b.lines : null;
   if (typeof b?.commercialId !== "string" || !lines || !lines.length || lines.length > MAX_LINES) {
     return { error: "Requête invalide" };
@@ -84,7 +93,8 @@ export function parseInvoiceBody(
     if (typeof b.clientName !== "string") return { error: "Nom du client invalide" };
     clientName = b.clientName.trim().replace(/\s+/g, " ").slice(0, NAME_MAX) || undefined;
   }
-  return { commercialId: b.commercialId, lines: clean, expected, clientName };
+  if (b.kind != null && !isDocKind(b.kind)) return { error: "Type de document invalide" };
+  return { commercialId: b.commercialId, lines: clean, expected, clientName, kind: isDocKind(b.kind) ? b.kind : "devis" };
 }
 
 /**
@@ -169,6 +179,7 @@ export function matchesExpected(draft: Draft, expected: Expected): boolean {
 export type Expected = { total: number; rows: { id: string; qty: number; unit: number }[] };
 
 export async function saveInvoice(input: {
+  kind: DocKind;
   commercialId: string;
   commercial: string;
   city: string | null;
@@ -183,7 +194,8 @@ export async function saveInvoice(input: {
     const id = list.length + 1;
     const inv: SavedInvoice = {
       id,
-      number: nextNumber(monthPrefix(now), list.map((i) => i.number)),
+      number: nextNumber(monthPrefix(now, input.kind), list.map((i) => i.number)),
+      kind: input.kind,
       commercialId: input.commercialId,
       commercial: input.commercial,
       city: input.city,
@@ -199,15 +211,15 @@ export async function saveInvoice(input: {
   }
 
   await ensureSchema();
-  const prefix = monthPrefix(now);
+  const prefix = monthPrefix(now, input.kind);
   // Verrou le temps de compter et d'insérer : deux confirmations simultanées n'ont jamais le même n°.
   const row = await getSql().begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(727010)`;
     const taken = await tx<{ number: string }[]>`
       select number from invoices where number like ${`${prefix}%`}`;
     const [inserted] = await tx`
-      insert into invoices (number, commercial_id, commercial_name, commercial_city, lines, item_count, total, status)
-      values (${nextNumber(prefix, taken.map((t) => t.number))}, ${input.commercialId}, ${input.commercial},
+      insert into invoices (number, kind, commercial_id, commercial_name, commercial_city, lines, item_count, total, status)
+      values (${nextNumber(prefix, taken.map((t) => t.number))}, ${input.kind}, ${input.commercialId}, ${input.commercial},
               ${input.city}, ${tx.json(input.rows as never)}, ${count}, ${total}, 'confirmee')
       returning *`;
     return inserted;
@@ -294,6 +306,7 @@ function fromRow(r: Record<string, unknown>): SavedInvoice {
   return {
     id: Number(r.id),
     number: String(r.number),
+    kind: isDocKind(r.kind) ? r.kind : "devis",
     commercialId: (r.commercial_id as string | null) ?? null,
     commercial: String(r.commercial_name),
     city: (r.commercial_city as string | null) ?? null,

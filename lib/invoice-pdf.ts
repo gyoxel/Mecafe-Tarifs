@@ -2,12 +2,12 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb, type Color, type PDFEmbeddedPage, type PDFFont, type PDFPage } from "pdf-lib";
 import { invoiceDate } from "./cart";
 import { formatDH } from "./format";
-import type { SavedInvoice } from "./invoice-types";
+import { KIND_LABEL, type SavedInvoice } from "./invoice-types";
 import { safe, wrap } from "./pdf-text";
 
 /**
- * Devis en PDF (A4) sur l'en-tête officiel de Mécafé (assets/devis/entete.pdf), reproduit tel quel sur chaque
- * page : logo et raison sociale en haut, coordonnées en bas de la feuille. Le devis s'écrit entre les deux :
+ * Devis ou commande en PDF (A4) sur l'en-tête officiel de Mécafé (assets/devis/entete.pdf), reproduit tel quel sur
+ * chaque page : logo et raison sociale en haut, coordonnées en bas de la feuille. Le document s'écrit entre les deux :
  * n°, date, client, lignes, total. Plusieurs pages si besoin (en-tête du tableau répété).
  */
 const A4 = { w: 595.28, h: 841.89 };
@@ -26,7 +26,8 @@ const WHITE = rgb(1, 1, 1);
 
 export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | null): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.setTitle(`Devis ${inv.number}`);
+  const label = KIND_LABEL[inv.kind]; // « Devis » ou « Commande »
+  doc.setTitle(`${label} ${inv.number}`);
   doc.setAuthor("Mécafé");
   doc.setCreator("Mécafé");
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -81,7 +82,7 @@ export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | nul
 
   /* ── Première page : titre, n°, date, client ── */
   newPage();
-  text(page, "DEVIS", M, y - 26, 26, bold, INK);
+  text(page, label.toUpperCase(), M, y - 26, 26, bold, INK);
   page.drawRectangle({ x: M, y: y - 38, width: 46, height: 3, color: GOLD });
   right(page, `N° ${inv.number}`, M + W, y - 12, 12, bold, GOLD);
   right(page, `Date : ${invoiceDate(new Date(inv.createdAt))}`, M + W, y - 28, 10, font, INK);
@@ -105,7 +106,7 @@ export async function invoicePdf(inv: SavedInvoice, letterhead: Uint8Array | nul
     const h = lines.length * 11.5 + 11;
     if (y - h < BOTTOM) {
       newPage();
-      text(page, `Devis N° ${inv.number} (suite)`, M, y - 4, 9, bold, MUTED);
+      text(page, `${label} N° ${inv.number} (suite)`, M, y - 4, 9, bold, MUTED);
       y -= 18;
       tableHead();
     }

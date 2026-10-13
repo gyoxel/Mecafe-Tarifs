@@ -6,6 +6,7 @@ import { fold, formatDH } from "@/lib/format";
 import { sumMoney } from "@/lib/money";
 import type { SavedInvoice } from "@/lib/invoice-types";
 import { BASE_ID, BASE_NAME, type PriceOption } from "@/lib/options";
+import { DOC_KINDS, KIND_LABEL, isDocKind, type DocKind } from "@/lib/invoice-types";
 import { CommercialFilter } from "./CommercialFilter";
 import { invoicesDetailCsv, invoicesSummaryCsv, downloadText } from "@/lib/invoice-csv";
 import { CalendarIcon, DownloadIcon, FileTextIcon, PencilIcon, PrinterIcon, SearchIcon, TrashIcon } from "./Icons";
@@ -25,7 +26,10 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "month", label: "Ce mois" },
 ];
 
-/** Gestion › Devis : historique des devis confirmés, avec recherche et filtres. */
+/** Gestion › Devis/Commande : historique des devis et des commandes confirmés (onglets), recherche et filtres. */
+const TAB_KEY = "mecafe:historique-type";
+/** « 1 commande », « 3 commandes », « 2 devis » */
+const countLabel = (k: DocKind, n: number) => (k === "commande" ? `commande${n > 1 ? "s" : ""}` : "devis");
 /** Clé du commercial d'une facture : son id, ou son nom s'il a été supprimé depuis. */
 // Devis « Prix Gros » au nom d'un client tapé dans le panier : rangé sous ce nom (pas sous « Prix Gros », ni
 // sous son ancien nom « Revendeur »).
@@ -36,7 +40,28 @@ const keyOf = (inv: SavedInvoice) =>
     : inv.commercialId;
 
 export function FacturesPanel({ invoices: initial, options }: { invoices: SavedInvoice[]; options: PriceOption[] }) {
-  const [invoices, setInvoices] = useState(initial);
+  const [all, setInvoices] = useState(initial);
+  // Onglet : devis ou commandes (mémorisé sur l'appareil).
+  const [tab, setTab] = useState<DocKind>("devis");
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem(TAB_KEY);
+      if (isDocKind(t)) setTab(t);
+    } catch {}
+  }, []);
+  const pickTab = (k: DocKind) => {
+    setTab(k);
+    setCommercial(null);
+    try {
+      localStorage.setItem(TAB_KEY, k);
+    } catch {}
+  };
+  const invoices = useMemo(() => all.filter((i) => i.kind === tab), [all, tab]);
+  const counts = useMemo(
+    () => Object.fromEntries(DOC_KINDS.map((k) => [k, all.filter((i) => i.kind === k).length])) as Record<DocKind, number>,
+    [all],
+  );
+  const word = (n: number) => countLabel(tab, n);
   // Sélection pour supprimer : cases à cocher, puis barre flottante « Supprimer / Annuler ».
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [deleting, setDeleting] = useState(false);
@@ -110,7 +135,7 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
   }, [invoices, haystacks, query, commercial, from, to]);
   const sum = sumMoney(shown.map((i) => i.total));
   // Filtres changés : la sélection repart à zéro (on ne supprime jamais un devis qu'on ne voit plus).
-  useEffect(() => setSelected(new Set()), [query, commercial, from, to]);
+  useEffect(() => setSelected(new Set()), [query, commercial, from, to, tab]);
 
   /** Retour au catalogue admin, le devis remis dans le panier pour le modifier. */
   const edit = (inv: SavedInvoice) => {
@@ -126,7 +151,10 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
   const removeSelected = async () => {
     const list = invoices.filter((i) => selected.has(i.id));
     if (!list.length) return;
-    const label = list.length === 1 ? `le devis ${list[0].number}` : `ces ${list.length} devis`;
+    const label =
+      list.length === 1
+        ? `${tab === "commande" ? "la commande" : "le devis"} ${list[0].number}`
+        : `ces ${list.length} ${word(list.length)}`;
     if (!window.confirm(`Supprimer ${label} ?\nIls disparaissent de l'historique ; leurs n° ne seront pas redonnés.`)) return;
     setDeleting(true);
     setError("");
@@ -152,10 +180,19 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
 
   return (
     <section className="admin-options factures">
-      <h2 className="admin-section-title">Devis - Historique</h2>
+      <h2 className="admin-section-title">Devis/Commande - Historique</h2>
       <p className="muted small admin-options-hint">
-        Les devis confirmés depuis le panier. Ils sont figés : les prix ne changent plus.
+        Les devis et les commandes confirmés depuis le panier. Ils sont figés : les prix ne changent plus.
       </p>
+
+      <div className="factures-tabs" role="tablist" aria-label="Devis ou commandes">
+        {DOC_KINDS.map((k) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => pickTab(k)}>
+            {k === "commande" ? "Commandes" : KIND_LABEL[k]}
+            <span className="factures-tab-count">{counts[k]}</span>
+          </button>
+        ))}
+      </div>
 
       <div className="factures-tools">
         <label className="opt-search factures-search">
@@ -165,7 +202,7 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher : n°, revendeur, ville, produit…"
-            aria-label="Rechercher un devis"
+            aria-label={`Rechercher : ${tab === "commande" ? "commandes" : "devis"}`}
           />
         </label>
         <div className="factures-commercial">
@@ -194,7 +231,7 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
 
       <div className="factures-summary">
         <span>
-          <strong>{shown.length}</strong> devis
+          <strong>{shown.length}</strong> {word(shown.length)}
           {filtered && invoices.length !== shown.length && <span className="muted"> sur {invoices.length}</span>}
         </span>
         <span>
@@ -208,15 +245,17 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
           type="button"
           className="btn btn-ghost btn-sm"
           disabled={!shown.length}
-          onClick={() => downloadText(`devis-${dayKey(new Date())}.csv`, invoicesSummaryCsv(shown))}
+          onClick={() => downloadText(`${tab === "commande" ? "commandes" : "devis"}-${dayKey(new Date())}.csv`, invoicesSummaryCsv(shown))}
         >
-          <DownloadIcon size={15} /> Exporter les devis
+          <DownloadIcon size={15} /> Exporter les {tab === "commande" ? "commandes" : "devis"}
         </button>
         <button
           type="button"
           className="btn btn-ghost btn-sm"
           disabled={!shown.length}
-          onClick={() => downloadText(`devis-detail-${dayKey(new Date())}.csv`, invoicesDetailCsv(shown))}
+          onClick={() =>
+            downloadText(`${tab === "commande" ? "commandes" : "devis"}-detail-${dayKey(new Date())}.csv`, invoicesDetailCsv(shown))
+          }
         >
           <DownloadIcon size={15} /> Exporter le détail (produits)
         </button>
@@ -226,10 +265,18 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
       {shown.length === 0 ? (
         <div className="factures-empty">
           <FileTextIcon size={26} />
-          <p>{invoices.length ? "Aucun devis ne correspond aux filtres." : "Aucun devis confirmé pour le moment."}</p>
+          <p>
+            {tab === "commande"
+              ? invoices.length
+                ? "Aucune commande ne correspond aux filtres."
+                : "Aucune commande confirmée pour le moment."
+              : invoices.length
+                ? "Aucun devis ne correspond aux filtres."
+                : "Aucun devis confirmé pour le moment."}
+          </p>
         </div>
       ) : (
-        <div className="factures-list" role="table" aria-label="Devis">
+        <div className="factures-list" role="table" aria-label={tab === "commande" ? "Commandes" : "Devis"}>
           <div className="facture-row facture-head" role="row">
             <span role="columnheader" className="facture-check">
               <input
@@ -282,7 +329,7 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
                 />
               </span>
               <span role="cell" className="facture-number">
-                <button type="button" className="facture-open" onClick={() => setOpen(inv)} title="Voir le devis">
+                <button type="button" className="facture-open" onClick={() => setOpen(inv)} title={tab === "commande" ? "Voir la commande" : "Voir le devis"}>
                   {inv.number}
                 </button>
                 {inv.updatedAt && (
@@ -341,7 +388,7 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
       {/* Barre flottante en bas : supprimer les devis cochés, ou annuler la sélection. */}
       {selected.size > 0 && <div className="select-bar-space" aria-hidden="true" />}
       {selected.size > 0 && (
-        <div className="select-bar" role="region" aria-label="Devis sélectionnés">
+        <div className="select-bar" role="region" aria-label="Documents sélectionnés">
           <span className="select-bar-count">
             <strong>{selected.size}</strong> sélectionné{selected.size > 1 ? "s" : ""}
           </span>

@@ -18,10 +18,22 @@ export type InvoiceRow = {
   manual?: boolean;
 };
 
+/** Type de document choisi dans le panier : devis (D…) ou commande (C…), numérotés à part. */
+export type DocKind = "devis" | "commande";
+export const DOC_KINDS: DocKind[] = ["devis", "commande"];
+export const KIND_LABEL: Record<DocKind, string> = { devis: "Devis", commande: "Commande" };
+/** Article défini : « le devis », « la commande ». */
+export const KIND_THE: Record<DocKind, string> = { devis: "le devis", commande: "la commande" };
+export const KIND_PREFIX: Record<DocKind, string> = { devis: "D", commande: "C" };
+export const isDocKind = (v: unknown): v is DocKind => v === "devis" || v === "commande";
+/** Type d'un document d'après son n° (C… = commande ; D… et anciens F… = devis). */
+export const kindOfNumber = (n: string | null | undefined): DocKind => (n?.startsWith("C") ? "commande" : "devis");
+
 /** Facture confirmée, enregistrée dans l'historique. */
 export type SavedInvoice = {
   id: number;
   number: string;
+  kind: DocKind;
   commercialId: string | null;
   commercial: string;
   city: string | null;

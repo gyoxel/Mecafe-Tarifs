@@ -25,7 +25,7 @@ export function getSql(): Sql {
  * Version du schéma : à augmenter à chaque changement ci-dessous (table, colonne, migration). Tant que la base
  * est à jour, un démarrage ne coûte qu'une requête au lieu d'une vingtaine.
  */
-const SCHEMA_VERSION = "2026-10-13b";
+const SCHEMA_VERSION = "2026-10-13c";
 
 /** Crée les tables au premier accès (équivalent de db/schema.sql). */
 export function ensureSchema(): Promise<void> {
@@ -138,6 +138,8 @@ export function ensureSchema(): Promise<void> {
         )`;
       await sql`create index if not exists invoices_created_idx on invoices (created_at desc)`;
       await sql`alter table invoices add column if not exists updated_at timestamptz`;
+      // Devis (D…) ou commande (C…), choisi dans le panier.
+      await sql`alter table invoices add column if not exists kind text not null default 'devis'`;
       // Réglages : codes d'accès modifiés dans Gestion (empreintes scrypt, jamais le code lui-même).
       await sql`
         create table if not exists app_settings (

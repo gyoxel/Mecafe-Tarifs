@@ -14,7 +14,7 @@ const SECTIONS: { id: Section; href: string; label: string; short: string; hint:
     Icon: UsersIcon,
   },
   { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", short: "Prix", hint: "Par revendeur", Icon: TagIcon },
-  { id: "factures", href: "/admin/gestion/factures", label: "Devis", short: "Devis", hint: "Historique", Icon: FileTextIcon },
+  { id: "factures", href: "/admin/gestion/factures", label: "Devis/Commande", short: "Devis/Cmd", hint: "Historique", Icon: FileTextIcon },
   { id: "pdf", href: "/admin/gestion/pdf", label: "PDF", short: "PDF", hint: "Catalogues à télécharger", Icon: DownloadIcon },
   { id: "codes", href: "/admin/gestion/codes", label: "Codes d'accès", short: "Codes", hint: "Clients et admin", Icon: LockIcon },
 ];

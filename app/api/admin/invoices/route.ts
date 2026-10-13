@@ -3,7 +3,7 @@ import { requireAdmin, requireStorage } from "@/lib/guard";
 import { computeDraft, deleteInvoices, matchesExpected, parseInvoiceBody, saveInvoice } from "@/lib/invoices";
 
 /**
- * Confirmer un devis : { commercialId, lines: [{ id, qty }], expected }.
+ * Confirmer un devis ou une commande : { kind, commercialId, lines: [{ id, qty, price? }], clientName?, expected }.
  * Les prix sont recalculés ici ; si le calcul diffère du brouillon affiché (`expected`), rien n'est enregistré
  * (409) et le nouveau brouillon est renvoyé pour vérification.
  */
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
   }
 
   const invoice = await saveInvoice({
+    kind: parsed.kind,
     commercialId: draft.commercial.id,
     commercial: draft.commercial.name,
     city: draft.commercial.city,
