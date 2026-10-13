@@ -8,7 +8,7 @@ import { CheckIcon, ChevronIcon, PinIcon, SearchIcon } from "./Icons";
 
 type Props = {
   value: string | null;
-  /** Villes proposées (grandes villes du Maroc + villes déjà saisies). */
+  /** Villes proposées (villes du Maroc + villes déjà saisies). */
   choices: string[];
   onChange: (city: string | null) => void;
   disabled?: boolean;
@@ -23,12 +23,14 @@ export function CityPicker({ value, choices, onChange, disabled }: Props) {
   const input = useRef<HTMLInputElement>(null);
 
   const typed = query.trim().replace(/\s+/g, " ");
+  // Recherche sans accents, apostrophes ni tirets : « mdiq » trouve M'diq, « tan tan » Tan-Tan.
+  const key = (s: string) => fold(s).replace(/['’]/g, "").replace(/-/g, " ").replace(/\s+/g, " ");
   const shown = useMemo(() => {
-    const q = fold(typed);
-    return q ? choices.filter((c) => fold(c).includes(q)) : choices;
-  }, [choices, typed]);
+    const q = key(typed);
+    return q ? choices.filter((c) => key(c).includes(q)) : choices;
+  }, [choices, typed]); // eslint-disable-line react-hooks/exhaustive-deps
   // Proposer d'ajouter la ville tapée si elle n'existe pas encore.
-  const canAdd = typed !== "" && typed.length <= CITY_MAX && !choices.some((c) => fold(c) === fold(typed));
+  const canAdd = typed !== "" && typed.length <= CITY_MAX && !choices.some((c) => key(c) === key(typed));
   // Les villes trouvées d'abord (Entrée choisit la première), « Ajouter » en dernier.
   const entries: { city: string | null; add?: boolean }[] = [
     ...(value && !typed ? [{ city: null }] : []),

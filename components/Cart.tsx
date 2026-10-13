@@ -278,7 +278,7 @@ type PanelProps = {
   /** Prix Gros : infos du client tapées pour ce document (sinon undefined : revendeur enregistré). */
   client?: ClientInfo;
   onClient?: (info: ClientInfo) => void;
-  /** Villes proposées (celles des revendeurs et les grandes villes). */
+  /** Villes proposées (villes du Maroc et celles des revendeurs). */
   cities?: string[];
   /** Devis ou commande ; onKind absent = type figé (modification d'un document existant). */
   kind: DocKind;

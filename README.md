@@ -157,7 +157,7 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
     phrase jaune quand « Prix Gros » a changé là où il a son propre prix ; la liste affiche les noms avec
     **Modifier** et **Supprimer** (avec ses prix saisis ; ses devis restent) ; un clic sur le nom l'ouvre aussi en
     modification (nom, ville, modèle suivi ; Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches
-    ↑ ↓ au clavier) pour changer l'ordre, repris dans les listes déroulantes. Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
+    ↑ ↓ au clavier) pour changer l'ordre, repris dans les listes déroulantes. Villes : ~190 villes du Maroc, grandes et petites (`lib/cities.ts`, recherche sans accents) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Devis/Commande - Historique* (`/admin/gestion/factures`) : deux onglets, **Devis** et **Commandes** (avec leur nombre) ; documents confirmés, chacun avec **Modifier** (retour au
     panier) et une petite icône **Imprimer** (impression directe sur l'en-tête) ; pour supprimer : cocher les devis (ou tout cocher), puis **Supprimer** ou **Annuler** dans la barre
