@@ -4,7 +4,7 @@ import { LoginBackdrop } from "@/components/LoginBackdrop";
 import { LoginForm } from "@/components/LoginForm";
 import { getSession } from "@/lib/auth";
 
-export const metadata = { title: "Connexion — Mécafé Tarifs" };
+export const metadata = { title: "Tarifs Public - Mécafé" };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

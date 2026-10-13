@@ -4,9 +4,16 @@ import "./globals.css";
 
 const sans = Manrope({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
+const TITLE = "Tarifs Public - Mécafé";
+const DESCRIPTION = "Catalogue tarifaire Mécafé.";
+
 export const metadata: Metadata = {
-  title: "Mécafé — Tarifs professionnels",
-  description: "Catalogue tarifaire des revendeurs Mécafé.",
+  // Adresse absolue de l'image d'aperçu des liens (app/opengraph-image.tsx).
+  metadataBase: new URL(process.env.SITE_URL ?? "https://tarifs.mecafe.ma"),
+  title: TITLE,
+  description: DESCRIPTION,
+  // Aperçu des liens partagés (WhatsApp…) : titre, texte et image.
+  openGraph: { title: TITLE, description: DESCRIPTION, siteName: "Mécafé", type: "website", locale: "fr_MA" },
   robots: { index: false, follow: false },
 };
 

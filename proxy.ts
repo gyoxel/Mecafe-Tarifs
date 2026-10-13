@@ -8,7 +8,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
  * Les pages et routes revérifient la session elles-mêmes, y compris l'empreinte du code (un code changé
  * dans Gestion déconnecte les sessions ouvertes avec l'ancien) : défense en profondeur.
  */
-const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout"]);
+// /opengraph-image : image d'aperçu des liens (sans prix), lue par les messageries sans session.
+const PUBLIC_PATHS = new Set(["/login", "/api/login", "/api/logout", "/opengraph-image"]);
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
