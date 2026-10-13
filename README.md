@@ -5,9 +5,9 @@ Catalogue tarifaire : `tarifs.mecafe.ma`. Shopify reste la source des produits, 
   avant le code). **Code clients** → catalogue au **prix public** (`/`) ; **code admin** → espace admin.
 - **Clients** (`/`) : le catalogue avec les **prix du site** uniquement ; l'image et le nom ouvrent la page du
   produit sur mecafe.ma. Session gardée 30 jours sur l'appareil.
-- **Admin** (`/admin`, code admin) : s'ouvre directement sur le tarif de base « Revendeur », puis les **prix
-  revendeurs** (prix site − écart, ou prix saisi) avec l'œil et le clic sur le prix ; stock visible.
-  **Gestion** (`/admin/gestion`) : revendeurs, villes, écarts, prix, devis.
+- **Admin** (`/admin`, code admin) : s'ouvre directement sur le tarif de base « Prix Gros », puis les **prix
+  revendeurs** (le prix de chaque produit) avec l'œil et le clic sur le prix ; stock visible.
+  **Gestion** (`/admin/gestion`) : revendeurs, villes, prix, devis.
 
 ```
 Shopify (Storefront API) ──► Vercel (Next.js, lecture en direct) ──► tarifs.mecafe.ma
@@ -68,21 +68,22 @@ Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
 4. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Revendeurs et prix revendeurs
-Chaque **revendeur** a un nom, une **ville** (facultative) et un **écart** appliqué automatiquement au prix du
-site (−10 = prix site moins 10 DH, suit le prix du site en direct), plus ses propres prix saisis à la main qui
-remplacent ce calcul produit par produit.
+Chaque **revendeur** a un nom, une **ville** (facultative) et **son prix pour chaque produit**, saisi dans
+Gestion › Prix des produits (case vide = pas de prix revendeur pour ce produit : « — », et le devis est bloqué).
+Il n'y a plus d'écart automatique (prix site − N DH).
 
-**« Revendeur » (sans nom propre) est le tarif de base** : c'est lui qui s'affiche à l'ouverture de l'admin. Il ne
-se renomme pas et ne se supprime pas ; seuls son écart et ses prix saisis se modifient. **Un nouveau revendeur
-part d'une copie** de l'écart et des prix saisis de la base (copie faite à la création : changer la base ensuite ne
-modifie pas les revendeurs existants), puis se règle séparément. Migration automatique d'une ancienne base
-(options A, B, C…) : la base est créée avec l'écart et les prix saisis de l'ancienne option par défaut ; les
-anciennes options restent comme revendeurs (à renommer ou supprimer).
+**« Prix Gros » est le tarif de base** : c'est lui qui s'affiche à l'ouverture de l'admin ; il ne se renomme pas
+et ne se supprime pas. **Un nouveau revendeur part d'une copie des prix de « Prix Gros »** (copie faite à la
+création : changer « Prix Gros » ensuite ne modifie pas les revendeurs existants), puis se règle produit par produit.
+
+Passage depuis l'ancien écart (automatique, une seule fois, `lib/price-freeze.ts`) : pour chaque revendeur qui avait
+un écart, chaque produit sans prix saisi reçoit le prix que l'écart donnait (rien ne change à l'écran), puis l'écart
+est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
 
 - **Admin** (bouton « Admin » en haut du catalogue → code, demandé à chaque fois ; session fermée avec le
-  navigateur, 12 h au plus) : le catalogue s'ouvre sur « Revendeur » (prix de base), sans fenêtre de choix. Le nom
+  navigateur, 12 h au plus) : le catalogue s'ouvre sur « Prix Gros » (prix de base), sans fenêtre de choix. Le nom
   en haut ouvre une liste déroulante (recherche par nom ou ville, filtre par ville) pour passer à un autre
-  revendeur ; l'écart y apparaît en petit.
+  revendeur.
 - **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
@@ -119,12 +120,11 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
   ou une seule si tout tient sur une page. Photo, nom, format, prix public (promotion barrée). Généré à la demande
   côté serveur (`POST /api/admin/catalogue`, `lib/catalogue-pdf.ts`) avec les prix et photos actuels de Shopify.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
-  - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : écart de la base en tête ; ajouter un revendeur
-    (écart prérempli avec celui de la base) ; la liste affiche les noms avec **Modifier** et **Supprimer** (avec ses
-    prix saisis ; ses devis restent) ; un clic sur le nom l'ouvre aussi en modification (nom, ville, écart ;
-    Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches ↑ ↓ au clavier) pour changer
-    l'ordre, repris dans les listes déroulantes. L'écart
-    s'écrit sans signe (le « − » est fixe). Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
+  - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : « Prix Gros » en tête (lien vers ses prix) ;
+    ajouter un revendeur (nom, ville ; il part des prix de « Prix Gros ») ; la liste affiche les noms avec
+    **Modifier** et **Supprimer** (avec ses prix saisis ; ses devis restent) ; un clic sur le nom l'ouvre aussi en
+    modification (nom, ville ; Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches
+    ↑ ↓ au clavier) pour changer l'ordre, repris dans les listes déroulantes. Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Devis - Historique* (`/admin/gestion/factures`) : devis confirmés, chacun avec **Modifier** (retour au
     panier) et une petite icône **Imprimer** (impression directe sur l'en-tête) ; pour supprimer : cocher les devis (ou tout cocher), puis **Supprimer** ou **Annuler** dans la barre
@@ -133,8 +133,8 @@ anciennes options restent comme revendeurs (à renommer ou supprimer).
     ville, produit), filtre par revendeur (liste avec recherche par nom ou ville, y compris les revendeurs supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
     réimprimer, partager en PDF ou **modifier** un devis ; **exporter** (Excel / CSV, selon les filtres) les
     devis (une ligne par devis) ou le détail (une ligne par produit) (modifier : retour au catalogue avec le devis dans le panier) ;
-  - *Prix des produits* (`/admin/gestion/prix`) : choisir le revendeur (ou la base), puis saisie dans le tableau puis *Enregistrer* (en gris = prix automatique ; champ vidé =
-    retour au prix automatique) ; **Exporter / Importer CSV** pour ce revendeur (colonne `prix_revendeur`, `prix_commercial` accepté pour les anciens fichiers,
+  - *Prix des produits* (`/admin/gestion/prix`) : choisir le revendeur (ou « Prix Gros »), puis saisie dans le tableau puis *Enregistrer* (champ vidé =
+    pas de prix revendeur pour ce produit) ; **Exporter / Importer CSV** pour ce revendeur (colonne `prix_revendeur`, `prix_commercial` accepté pour les anciens fichiers,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).
 
 Tables : `price_options` (revendeurs, `base` = tarif de base), `option_prices` (prix saisis), `invoices` (devis confirmés), historique
@@ -154,7 +154,7 @@ app/admin/gestion/       Gestion : revendeurs et villes ; prix/ : prix par reven
 app/api/                 login, logout, admin/{options,prices,import,export,invoices,catalogue}
 components/              Catalog, OptionsManager (revendeurs), Cart, Invoice, ProductCard (yeux + animation), AdminPrices…
 lib/shopify.ts           requêtes GraphQL (sans cache : données toujours à jour)
-lib/price-options.ts     revendeurs (nom, ville, écart, ordre ; copie de la base à la création)
+lib/price-options.ts     revendeurs (nom, ville, ordre ; copie des prix de « Prix Gros » à la création)
 lib/prices.ts, db.ts     prix saisis (Postgres, ou mémoire en démo)
 lib/session.ts, auth.ts  JWT signé en cookie HttpOnly, code admin comparé en temps constant
 ```

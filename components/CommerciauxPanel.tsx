@@ -13,8 +13,8 @@ export function CommerciauxPanel({ options: initial }: { options: PriceOption[] 
     <section className="admin-options">
       <h2 className="admin-section-title">Revendeurs et villes</h2>
       <p className="muted small admin-options-hint">
-        Chaque revendeur a les prix du site moins son écart. Les prix d&apos;un produit précis se règlent dans « Prix
-        des produits ».
+        Chaque revendeur a son prix pour chaque produit, réglé dans « Prix des produits ». Un nouveau revendeur part
+        des prix de « Prix Gros ».
       </p>
       {status && (
         <p className={`notice ${status.kind === "error" ? "warn" : "ok"} gestion-status`} role="status">

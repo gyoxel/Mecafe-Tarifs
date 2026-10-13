@@ -150,7 +150,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       localStorage.setItem(OPTION_STORAGE_KEY, o.id);
     } catch {}
   };
-  // Prix appliqués pour le commercial : saisis, sinon prix site + écart.
+  // Prix du revendeur choisi : ceux saisis produit par produit (sans prix saisi : pas de prix revendeur).
   const currentOption = options.find((o) => o.id === option);
   const optionPrices = admin?.prices;
   const prices = useMemo(

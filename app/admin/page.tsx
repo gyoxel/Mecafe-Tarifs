@@ -26,7 +26,7 @@ export default async function AdminCatalog({ searchParams }: { searchParams: Sea
   ]);
   const ids = new Set(items.map((i) => i.id));
   const keep = (m: PriceMap) => Object.fromEntries(Object.entries(m).filter(([id]) => ids.has(id)));
-  // Prix saisis par commercial ; le prix automatique (prix site + écart) est calculé dans la page.
+  // Prix saisis par revendeur, produit par produit.
   const prices: OptionPrices = Object.fromEntries(options.map((o) => [o.id, keep(allPrices[o.id] ?? {})]));
   // « Modifier » depuis l'historique : /admin?modifier=<id>
   const editId = Number(Array.isArray(sp.modifier) ? sp.modifier[0] : sp.modifier);

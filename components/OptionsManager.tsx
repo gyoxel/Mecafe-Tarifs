@@ -2,18 +2,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cityChoices } from "@/lib/cities";
-import {
-  BASE_ID,
-  NAME_MAX,
-  formatOffset,
-  matchesOption,
-  offsetInput,
-  parseOffset,
-  type PriceOption,
-} from "@/lib/options";
+import { BASE_ID, NAME_MAX, OPTION_STORAGE_KEY, matchesOption, type PriceOption } from "@/lib/options";
 import { CityPicker } from "./CityPicker";
 import { GripIcon, PencilIcon, SearchIcon, TrashIcon } from "./Icons";
-import { OffsetField } from "./OffsetField";
 
 type Props = {
   options: PriceOption[];
@@ -32,17 +23,6 @@ async function send(body: Record<string, unknown>): Promise<PriceOption[]> {
   return data.options;
 }
 
-/** Exemple lisible de l'écart : « 165 DH → 155 DH ». */
-function Example({ offset }: { offset: number | null }) {
-  if (offset == null || Number.isNaN(offset)) return null;
-  const site = 165;
-  return (
-    <span className="muted small opt-example">
-      Ex. : {site} DH → {Math.max(0, site + offset)} DH
-    </span>
-  );
-}
-
 /** Formulaire d'un revendeur (modification en place). */
 function EditRow({
   option,
@@ -54,20 +34,18 @@ function EditRow({
   option: PriceOption;
   cities: string[];
   busy: boolean;
-  onSave: (name: string, city: string | null, offset: number) => void;
+  onSave: (name: string, city: string | null) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(option.name);
   const [city, setCity] = useState(option.city);
-  const [offset, setOffset] = useState(offsetInput(option.offset));
-  const parsed = parseOffset(offset);
-  const valid = name.trim() !== "" && parsed !== null && !Number.isNaN(parsed);
+  const valid = name.trim() !== "";
   return (
     <form
       className="rv-edit"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valid && !busy) onSave(name.trim(), city, parsed!);
+        if (valid && !busy) onSave(name.trim(), city);
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
@@ -80,7 +58,6 @@ function EditRow({
         autoFocus
       />
       <CityPicker value={city} choices={cities} onChange={setCity} disabled={busy} />
-      <OffsetField value={offset} onChange={setOffset} label={`Écart de ${option.name}`} />
       <span className="rv-edit-actions">
         <button type="submit" className="btn btn-gold btn-sm" disabled={busy || !valid}>
           Enregistrer
@@ -94,7 +71,7 @@ function EditRow({
 }
 
 /**
- * Gestion des revendeurs : le tarif de base (« Revendeur », écart repris par les nouveaux), l'ajout, puis la
+ * Gestion des revendeurs : le tarif de base « Prix Gros » (prix repris par les nouveaux), l'ajout, puis la
  * liste (nom cliquable / Modifier, Supprimer, poignée ⋮⋮ pour changer l'ordre en glissant).
  */
 export function OptionsManager({ options, onOptions, onStatus }: Props) {
@@ -106,19 +83,10 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
-  // Tarif de base
-  const [baseOffset, setBaseOffset] = useState(base ? offsetInput(base.offset) : "10");
-  useEffect(() => setBaseOffset(base ? offsetInput(base.offset) : "10"), [base?.offset]); // eslint-disable-line react-hooks/exhaustive-deps
-  const baseParsed = parseOffset(baseOffset);
-  const baseChanged = base != null && baseParsed !== base.offset;
-
-  // Nouveau revendeur : l'écart part de celui de la base
+  // Nouveau revendeur : il part des prix de « Prix Gros »
   const [newName, setNewName] = useState("");
   const [newCity, setNewCity] = useState<string | null>(null);
-  const [newOffset, setNewOffset] = useState(base ? offsetInput(base.offset) : "10");
-  useEffect(() => setNewOffset(base ? offsetInput(base.offset) : "10"), [base?.offset]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newParsed = parseOffset(newOffset);
-  const canAdd = newName.trim() !== "" && newParsed !== null && !Number.isNaN(newParsed);
+  const canAdd = newName.trim() !== "";
 
   async function run(body: Record<string, unknown>, ok: string) {
     setBusy(true);
@@ -198,30 +166,21 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
               {base.name} <span className="rv-tag">par défaut</span>
             </span>
             <span className="muted small">
-              Tarif affiché à l&apos;ouverture de l&apos;admin. Chaque nouveau revendeur reprend cet écart et les prix
-              saisis de ce tarif (Prix des produits).
+              Tarif affiché à l&apos;ouverture de l&apos;admin. Chaque nouveau revendeur part de ses prix (Prix des
+              produits), puis se règle produit par produit.
             </span>
           </div>
-          <form
-            className="rv-base-offset"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (baseChanged && baseParsed != null && !Number.isNaN(baseParsed)) {
-                run({ action: "update", id: base.id, offset: baseParsed }, `Écart de base : ${formatOffset(baseParsed)}.`);
-              }
+          <a
+            className="btn btn-ghost btn-sm"
+            href="/admin/gestion/prix"
+            onClick={() => {
+              try {
+                localStorage.setItem(OPTION_STORAGE_KEY, base.id); // la page des prix s'ouvre sur « Prix Gros »
+              } catch {}
             }}
           >
-            <OffsetField value={baseOffset} onChange={setBaseOffset} label="Écart de base" />
-            {baseChanged && (
-              <button
-                type="submit"
-                className="btn btn-gold btn-sm"
-                disabled={busy || baseParsed == null || Number.isNaN(baseParsed)}
-              >
-                Enregistrer
-              </button>
-            )}
-          </form>
+            Voir ses prix
+          </a>
         </div>
       )}
 
@@ -231,10 +190,9 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           e.preventDefault();
           if (!canAdd || busy) return;
           const name = newName.trim();
-          if (await run({ action: "create", name, city: newCity, offset: newParsed }, `« ${name} » ajouté.`)) {
+          if (await run({ action: "create", name, city: newCity }, `« ${name} » ajouté avec les prix de ${base?.name ?? "la base"}.`)) {
             setNewName("");
             setNewCity(null);
-            setNewOffset(base ? offsetInput(base.offset) : "10");
           }
         }}
       >
@@ -248,11 +206,12 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           aria-label="Nom du nouveau revendeur"
         />
         <CityPicker value={newCity} choices={cities} onChange={setNewCity} disabled={busy} />
-        <OffsetField value={newOffset} onChange={setNewOffset} label="Écart du nouveau revendeur" />
         <button type="submit" className="btn btn-gold" disabled={!canAdd || busy}>
           Ajouter
         </button>
-        <Example offset={newParsed} />
+        {base && (
+          <span className="muted small opt-example">Il part des prix de « {base.name} », modifiables ensuite.</span>
+        )}
       </form>
 
       {named.length > 6 && (
@@ -298,10 +257,10 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
                   cities={cities}
                   busy={busy}
                   onCancel={() => setEditing(null)}
-                  onSave={async (name, city, offset) => {
+                  onSave={async (name, city) => {
                     const ok = await run(
-                      { action: "update", id: o.id, name, city, offset },
-                      `« ${name} » enregistré : ${formatOffset(offset)}${city ? `, ${city}` : ""}.`,
+                      { action: "update", id: o.id, name, city },
+                      `« ${name} » enregistré${city ? ` (${city})` : ""}.`,
                     );
                     if (ok) setEditing(null);
                   }}
@@ -336,7 +295,6 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
                   <strong>{o.name}</strong>
                   {o.city && <span className="muted"> · {o.city}</span>}
                 </button>
-                <span className="rv-offset">{formatOffset(o.offset)}</span>
                 <span className="rv-actions">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(o.id)} disabled={busy}>
                     <PencilIcon size={14} /> Modifier

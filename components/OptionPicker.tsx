@@ -9,7 +9,6 @@ import { CheckIcon, ChevronIcon, PinIcon, SearchIcon, TagIcon } from "./Icons";
 
 /**
  * Liste des commerciaux : recherche par nom ou ville, filtre par ville, navigation au clavier.
- * L'écart n'apparaît pas dans la liste (seulement à côté du commercial choisi).
  */
 export function OptionList({
   options,
@@ -148,7 +147,7 @@ function CityFilter(props: { cities: string[]; value: string | null; onChange: (
   );
 }
 
-/** Bouton affichant le revendeur choisi (l'écart n'est pas affiché). */
+/** Bouton affichant le revendeur choisi. */
 export function OptionTrigger({
   option,
   open,

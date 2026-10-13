@@ -8,15 +8,7 @@ import { displayVariant } from "@/lib/title";
 import { StockBadge } from "./StockBadge";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import {
-  OPTION_STORAGE_KEY,
-  autoPrice,
-  defaultOption,
-  formatOffset,
-  isBase,
-  type OptionPrices,
-  type PriceOption,
-} from "@/lib/options";
+import { OPTION_STORAGE_KEY, defaultOption, isBase, type OptionPrices, type PriceOption } from "@/lib/options";
 import { OptionPicker } from "./OptionPicker";
 
 type Props = {
@@ -31,7 +23,7 @@ type Props = {
 const ROWS_STEP = 150;
 const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
-/** Gestion › Prix des produits : prix d'un revendeur produit par produit (automatique ou saisi). */
+/** Gestion › Prix des produits : le prix d'un revendeur, produit par produit. */
 export function AdminPrices({ items, prices, options: initialOptions, source, orphans }: Props) {
   const options = initialOptions;
   const [option, setOption] = useState<string>(() => defaultOption(initialOptions)?.id ?? "");
@@ -64,10 +56,10 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
     return items.filter(
       (it, i) =>
         (!brand || it.brand === brand) &&
-        (!onlyMissing || (saved[it.id] ?? autoPrice(current, it.price)) == null) &&
+        (!onlyMissing || saved[it.id] == null) &&
         (!tokens.length || matchesAll(haystacks[i], tokens)),
     );
-  }, [items, haystacks, query, brand, onlyMissing, saved, current]);
+  }, [items, haystacks, query, brand, onlyMissing, saved]);
 
   // Brouillons réellement modifiés par rapport à la valeur enregistrée.
   const dirty = useMemo(
@@ -169,13 +161,12 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
           <OptionPicker options={options} value={current.id} onChange={changeOption} label="Revendeur" />
         </div>
         <p className="muted small admin-options-hint">
-          {current.name} : prix site {formatOffset(current.offset)} appliqué automatiquement (en gris). Saisissez un
-          prix pour le remplacer, videz la case pour revenir au prix automatique.
+          Prix de {current.name} pour chaque produit. Une case vide = pas de prix revendeur pour ce produit.
         </p>
         {isBase(current) && (
           <p className="admin-options-hint base-hint">
-            Tarif de base : son écart et ses prix saisis sont repris par chaque <strong>nouveau</strong> revendeur
-            (les revendeurs existants gardent les leurs).
+            Tarif de base : ses prix sont repris par chaque <strong>nouveau</strong> revendeur (les revendeurs
+            existants gardent les leurs).
           </p>
         )}
       </section>
@@ -245,17 +236,12 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
               <th className="num hide-sm">Stock</th>
               <th className="num">Prix site</th>
               <th className="num">{current.name} (DH)</th>
-              <th className="num hide-sm">Écart</th>
             </tr>
           </thead>
           <tbody>
             {filtered.slice(0, rows).map((it) => {
               const draft = drafts[it.id];
               const value = draft ?? asText(saved[it.id]);
-              const auto = autoPrice(current, it.price);
-              const parsed = parsePrice(value);
-              const applied = parsed === null ? auto : parsed;
-              const gap = typeof applied === "number" && !Number.isNaN(applied) ? applied - it.price : null;
               const changed = draft !== undefined && draft.trim() !== asText(saved[it.id]);
               return (
                 <tr key={it.id} data-changed={changed}>
@@ -284,14 +270,11 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
                       className="admin-input price-input"
                       inputMode="decimal"
                       value={value}
-                      placeholder={auto == null ? "—" : asText(auto)}
+                      placeholder="—"
                       aria-label={`Prix revendeur : ${it.title}${it.variant ? " " + it.variant : ""}`}
                       aria-invalid={invalid.has(it.id)}
                       onChange={(e) => setDrafts((d) => ({ ...d, [it.id]: e.target.value }))}
                     />
-                  </td>
-                  <td className="num hide-sm muted small">
-                    {gap == null ? "" : `${gap > 0 ? "+" : gap < 0 ? "−" : ""}${formatDH(Math.abs(gap))}`}
                   </td>
                 </tr>
               );

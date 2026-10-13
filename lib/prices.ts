@@ -12,7 +12,7 @@ import { isShopifyConfigured } from "./shopify";
  */
 export type PriceUpdate = {
   variantId: string;
-  /** null = supprimer le prix saisi (l'option revient alors au prix automatique). */
+  /** null = supprimer le prix saisi (le produit n'a alors plus de prix revendeur). */
   price: number | null;
   sku?: string | null;
   label?: string | null;
@@ -33,7 +33,15 @@ function mem(): OptionPrices {
 }
 
 // ── API publique ────────────────────────────────────────────────────
+/** Prix saisis de tous les revendeurs (après avoir figé, une seule fois, l'ancien écart en prix par produit). */
 export async function getPrices(): Promise<OptionPrices> {
+  // Import dynamique : price-freeze lit le catalogue et les revendeurs, qui dépendent de ce module.
+  await (await import("./price-freeze")).ensureOffsetsFrozen();
+  return readSavedPrices();
+}
+
+/** Prix saisis tels qu'enregistrés, sans autre traitement. */
+export async function readSavedPrices(): Promise<OptionPrices> {
   if (!isDbConfigured()) {
     return Object.fromEntries(Object.entries(mem()).map(([id, m]) => [id, { ...m }]));
   }

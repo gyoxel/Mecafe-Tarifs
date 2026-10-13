@@ -106,6 +106,8 @@ export function ensureSchema(): Promise<void> {
         }
         await tx`update price_options set is_default = (id = ${BASE_ID}) where is_default <> (id = ${BASE_ID})`;
       });
+      // La base s'appelle désormais « Prix Gros » (ancien nom : « Revendeur »).
+      await sql`update price_options set name = ${BASE_NAME} where id = ${BASE_ID} and name = 'Revendeur'`;
       // Historique des factures confirmées (lignes figées en JSON).
       await sql`
         create table if not exists invoices (

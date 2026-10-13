@@ -5,7 +5,7 @@ import { effectivePrice, type PriceOption } from "./options";
 /**
  * Format Excel français : séparateur ";", virgule décimale, BOM UTF-8.
  * prix_revendeur = prix saisi dans l'option (vide = automatique) ; c'est la seule colonne relue à l'import.
- * prix_applique = ce que voit le commercial (saisi, sinon prix site + écart), pour information.
+ * prix_applique = ce que voit le revendeur (son prix saisi), pour information.
  */
 export const CSV_HEADER = ["variant_id", "sku", "marque", "produit", "format", "prix_site", "prix_revendeur", "prix_applique"];
 

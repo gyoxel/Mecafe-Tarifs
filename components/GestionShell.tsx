@@ -10,7 +10,7 @@ const SECTIONS: { id: Section; href: string; label: string; short: string; hint:
     href: "/admin/gestion",
     label: "Revendeurs et villes",
     short: "Revendeurs",
-    hint: "Noms, villes, écarts",
+    hint: "Noms, villes",
     Icon: UsersIcon,
   },
   { id: "prix", href: "/admin/gestion/prix", label: "Prix des produits", short: "Prix", hint: "Par revendeur", Icon: TagIcon },

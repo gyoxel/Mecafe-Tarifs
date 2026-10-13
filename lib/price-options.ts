@@ -5,8 +5,8 @@ import { copyMemPrices, forgetMemPrices } from "./prices";
 import { BASE_ID, SEED_OPTIONS, type PriceOption } from "./options";
 
 /**
- * Revendeurs (nom, ville, écart) : Postgres si DATABASE_URL est défini, mémoire sinon (démo locale).
- * « Revendeur » (BASE_ID) est la base : toujours présente, en tête, ni renommée ni supprimée.
+ * Revendeurs (nom, ville ; prix par produit dans prices.ts) : Postgres si DATABASE_URL est défini, mémoire sinon.
+ * « Prix Gros » (BASE_ID) est la base : toujours présente, en tête, ni renommée ni supprimée.
  */
 const g = globalThis as unknown as { __memOptions?: PriceOption[] };
 const mem = () => (g.__memOptions ??= SEED_OPTIONS.map((o) => ({ ...o })));
@@ -31,10 +31,11 @@ export async function getOptions(): Promise<PriceOption[]> {
 }
 
 /**
- * Nouveau revendeur : il part des prix saisis de la base (copiés ; modifiables ensuite sans toucher à la base)
- * et de l'écart indiqué (par défaut celui de la base).
+ * Nouveau revendeur : il part des prix de la base « Prix Gros » (copiés ; modifiables ensuite sans toucher à la
+ * base). Appeler ensureOffsetsFrozen() avant, pour que la base ait tous ses prix produit par produit.
  */
-export async function createOption(name: string, city: string | null, offset: number): Promise<PriceOption[]> {
+export async function createOption(name: string, city: string | null): Promise<PriceOption[]> {
+  const offset = 0;
   assertDurableStorage();
   const id = randomUUID().slice(0, 8);
   if (!isDbConfigured()) {
@@ -54,7 +55,10 @@ export async function createOption(name: string, city: string | null, offset: nu
   return getOptions();
 }
 
-/** Modifier un revendeur. La base ne change que d'écart (pas de nom ni de ville). */
+/**
+ * Modifier un revendeur (nom, ville). La base garde son nom et n'a pas de ville. `offset` ne sert plus qu'à
+ * remettre l'ancien écart à 0 une fois figé (lib/price-freeze.ts).
+ */
 export async function updateOption(
   id: string,
   patch: { name?: string; city?: string | null; offset?: number },
@@ -79,7 +83,7 @@ export async function updateOption(
   return getOptions();
 }
 
-/** Supprime un revendeur et ses prix saisis (ses factures restent). La base ne se supprime pas. */
+/** Supprime un revendeur et ses prix saisis (ses devis restent). La base ne se supprime pas. */
 export async function deleteOption(id: string): Promise<PriceOption[]> {
   assertDurableStorage();
   if (id === BASE_ID) return getOptions();
