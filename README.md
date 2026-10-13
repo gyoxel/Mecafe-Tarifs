@@ -100,8 +100,9 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   des produits ; case vidée = le revendeur suit de nouveau son modèle). Changer de revendeur avant d'enregistrer
   demande confirmation.
 - **Devis ou Commande** : en haut du panier, deux boutons **Devis** / **Commande** (choix mémorisé). Le document
-  porte ce titre (écran, impression, PDF « Commande-C102026-001.pdf ») et son n° : **D**{mois}{année}-NNN pour un
-  devis, **C**{mois}{année}-NNN pour une commande, chacun compté à part. En modification, le type reste celui du
+  porte ce titre (écran, impression, PDF « Commande-C102026-200.pdf ») et son n° : **D**{mois}{année}-NNN pour un
+  devis, **C**{mois}{année}-NNN pour une commande, chacun compté à part et **à partir de 200** chaque mois
+  (ex. D102026-200, C122027-200). En modification, le type reste celui du
   document (son n° ne change pas).
 - **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
@@ -121,7 +122,7 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   calcul et le compare au brouillon affiché : s'il diffère (prix changé entre-temps), rien n'est enregistré et le
   nouveau brouillon est affiché pour vérification. En modification, les prix qui ont changé depuis le devis
   d'origine sont listés (ancien → nouveau) avant d'enregistrer. Un devis confirmé est numéroté par mois
-  (**D102026-001** : D, mois, année, puis rang dans le mois, à l'heure du Maroc ; les anciennes factures gardent
+  (**D102026-200** : D, mois, année, puis rang dans le mois à partir de 200, à l'heure du Maroc ; les anciennes factures gardent
   leur n° F…), figé (prix recalculés et enregistrés côté serveur), ajouté à l'historique, et le panier repart à zéro.
   **En-tête officiel** : le devis s'écrit sur l'en-tête de la société (`assets/devis/entete.pdf`, copie
   `public/entete.svg` pour l'écran et l'impression), en A4 : logo et raison sociale en haut, coordonnées en bas de

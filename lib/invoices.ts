@@ -14,8 +14,8 @@ import { displayTitle, displayVariant } from "./title";
 
 /**
  * Historique des devis et commandes confirmés : Postgres si DATABASE_URL est défini, mémoire sinon (démo).
- * Le n° est attribué à l'enregistrement : D{mois}{année}-{rang} pour un devis (ex. D102026-001), C… pour une
- * commande (ex. C102026-001), chacun compté à part, à l'heure du Maroc, et repartant à 001 chaque mois.
+ * Le n° est attribué à l'enregistrement : D{mois}{année}-{rang} pour un devis (ex. D102026-200), C… pour une
+ * commande (ex. C102026-200), chacun compté à part, à l'heure du Maroc, et repartant à 200 chaque mois.
  * (Les anciennes factures gardent leur n° F….)
  */
 const g = globalThis as unknown as { __memInvoices?: SavedInvoice[]; __memDeleted?: Set<number> };
@@ -30,13 +30,19 @@ function monthPrefix(d: Date, kind: DocKind): string {
     .reduce<Record<string, string>>((acc, p) => ((acc[p.type] = p.value), acc), {});
   return `${KIND_PREFIX[kind]}${parts.month}${parts.year}-`;
 }
-/** N° suivant du mois, d'après les n° déjà attribués (« D102026-007 » → « D102026-008 »). */
+/** Premier rang de chaque mois (devis comme commandes) : D102026-200, puis 201… */
+const FIRST_NUMBER = 200;
+
+/**
+ * N° suivant du mois, d'après les n° déjà attribués (« D102026-207 » → « D102026-208 »), jamais sous 200 : un mois
+ * qui avait déjà des n° plus bas (001, 002… avant ce changement) continue à 200.
+ */
 function nextNumber(prefix: string, existing: string[]): string {
   const max = existing.reduce((m, n) => {
     const k = n.startsWith(prefix) ? Number(n.slice(prefix.length)) : 0;
     return Number.isInteger(k) && k > m ? k : m;
   }, 0);
-  return `${prefix}${String(max + 1).padStart(3, "0")}`;
+  return `${prefix}${String(Math.max(max + 1, FIRST_NUMBER)).padStart(3, "0")}`;
 }
 
 export const MAX_LINES = 500;
