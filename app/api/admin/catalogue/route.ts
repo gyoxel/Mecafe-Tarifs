@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     const option = options.find((o) => o.id === body?.option);
     if (!option) return NextResponse.json({ error: "Revendeur inconnu" }, { status: 400 });
     reseller = {
-      prices: pricesFor(option, prices[option.id] ?? {}, items),
+      prices: pricesFor(option, prices, items),
       // Le tarif de base n'a pas de nom propre : rien n'est affiché.
       name: isBase(option) ? null : option.name,
       city: isBase(option) ? null : option.city,

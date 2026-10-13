@@ -1,8 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { assertDurableStorage, ensureSchema, getSql, isDbConfigured } from "./db";
-import { copyMemPrices, forgetMemPrices } from "./prices";
-import { BASE_ID, SEED_OPTIONS, type PriceOption } from "./options";
+import { forgetMemPrices } from "./prices";
+import { BASE_ID, SEED_OPTIONS, type PriceOption, type PriceSource } from "./options";
 
 /**
  * Revendeurs (nom, ville ; prix par produit dans prices.ts) : Postgres si DATABASE_URL est défini, mémoire sinon.
@@ -18,7 +18,7 @@ export async function getOptions(): Promise<PriceOption[]> {
   if (!isDbConfigured()) return baseFirst(mem().map((o) => ({ ...o })));
   await ensureSchema();
   const rows = await getSql()`
-    select id, name, city, price_offset, is_default from price_options order by position, created_at`;
+    select id, name, city, price_offset, is_default, source from price_options order by position, created_at`;
   return baseFirst(
     rows.map((r) => ({
       id: r.id as string,
@@ -26,42 +26,37 @@ export async function getOptions(): Promise<PriceOption[]> {
       city: (r.city as string | null) || null,
       offset: Number(r.price_offset),
       isDefault: Boolean(r.is_default),
+      source: r.source === "site" ? ("site" as const) : ("base" as const),
     })),
   );
 }
 
 /**
- * Nouveau revendeur : il part des prix de la base « Prix Gros » (copiés ; modifiables ensuite sans toucher à la
- * base). Appeler ensureOffsetsFrozen() avant, pour que la base ait tous ses prix produit par produit.
+ * Nouveau revendeur, sans prix saisi : il suit son modèle (« Prix Gros », ou le prix du site), produit par
+ * produit, jusqu'à ce qu'un prix soit saisi pour lui.
  */
-export async function createOption(name: string, city: string | null): Promise<PriceOption[]> {
+export async function createOption(name: string, city: string | null, source: PriceSource): Promise<PriceOption[]> {
   const offset = 0;
   assertDurableStorage();
   const id = randomUUID().slice(0, 8);
   if (!isDbConfigured()) {
-    mem().push({ id, name, city, offset, isDefault: false });
-    copyMemPrices(BASE_ID, id);
+    mem().push({ id, name, city, offset, isDefault: false, source });
     return getOptions();
   }
   await ensureSchema();
-  await getSql().begin(async (tx) => {
-    await tx`
-      insert into price_options (id, name, city, price_offset, position)
-      values (${id}, ${name}, ${city}, ${offset}, (select coalesce(max(position), -1) + 1 from price_options))`;
-    await tx`
-      insert into option_prices (option_id, variant_id, sku, label, price)
-      select ${id}, variant_id, sku, label, price from option_prices where option_id = ${BASE_ID}`;
-  });
+  await getSql()`
+    insert into price_options (id, name, city, price_offset, position, source)
+    values (${id}, ${name}, ${city}, ${offset}, (select coalesce(max(position), -1) + 1 from price_options), ${source})`;
   return getOptions();
 }
 
 /**
- * Modifier un revendeur (nom, ville). La base garde son nom et n'a pas de ville. `offset` ne sert plus qu'à
- * remettre l'ancien écart à 0 une fois figé (lib/price-freeze.ts).
+ * Modifier un revendeur (nom, ville, modèle suivi). La base garde son nom et n'a pas de ville. `offset` ne sert
+ * plus qu'à remettre l'ancien écart à 0 une fois figé (lib/price-freeze.ts).
  */
 export async function updateOption(
   id: string,
-  patch: { name?: string; city?: string | null; offset?: number },
+  patch: { name?: string; city?: string | null; offset?: number; source?: PriceSource },
 ): Promise<PriceOption[]> {
   assertDurableStorage();
   const p = id === BASE_ID ? { offset: patch.offset } : patch;
@@ -71,6 +66,7 @@ export async function updateOption(
       if (p.name !== undefined) o.name = p.name;
       if (p.city !== undefined) o.city = p.city;
       if (p.offset !== undefined) o.offset = p.offset;
+      if (p.source !== undefined) o.source = p.source;
     }
     return getOptions();
   }
@@ -79,6 +75,7 @@ export async function updateOption(
     if (p.name !== undefined) await tx`update price_options set name = ${p.name} where id = ${id}`;
     if (p.city !== undefined) await tx`update price_options set city = ${p.city} where id = ${id}`;
     if (p.offset !== undefined) await tx`update price_options set price_offset = ${p.offset} where id = ${id}`;
+    if (p.source !== undefined) await tx`update price_options set source = ${p.source} where id = ${id}`;
   });
   return getOptions();
 }

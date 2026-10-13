@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { QTY_MAX, cartTotal, parseQty, type ResolvedLine } from "@/lib/cart";
+import { CART_PRICE_MAX, QTY_MAX, cartTotal, parseQty, type ResolvedLine } from "@/lib/cart";
+import { parsePrice } from "@/lib/csv";
 import { formatDH } from "@/lib/format";
 import { displayTitle, displayVariant } from "@/lib/title";
 import { CartIcon, ChevronIcon, CloseIcon, FileTextIcon, MinusIcon, PencilIcon, PlusIcon, PrinterIcon, TrashIcon } from "./Icons";
@@ -58,6 +59,70 @@ export function QtyStepper({
       >
         <PlusIcon size={14} />
       </button>
+    </span>
+  );
+}
+
+/* ─────────────── Prix unitaire modifiable dans le panier ─────────────── */
+
+const priceText = (n: number | null) => (n == null ? "" : n.toFixed(2).replace(".", ",").replace(/,00$/, ""));
+
+/**
+ * Prix unitaire de la ligne, modifiable : le total se recalcule. Un prix changé à la main est signalé, avec un
+ * bouton pour revenir au prix du revendeur. Vide = prix du revendeur.
+ */
+function UnitPrice({ line, onPrice, label }: { line: ResolvedLine; onPrice: (price: number | null) => void; label: string }) {
+  const [text, setText] = useState(priceText(line.unit));
+  const [bad, setBad] = useState(false);
+  useEffect(() => {
+    setText(priceText(line.unit));
+    setBad(false);
+  }, [line.unit]);
+  const commit = () => {
+    const p = parsePrice(text);
+    if (p === null) return onPrice(null); // vidé : prix du revendeur
+    if (Number.isNaN(p) || p > CART_PRICE_MAX) return setBad(true);
+    setBad(false);
+    // Même valeur que le prix du revendeur : pas de prix « à la main ».
+    onPrice(line.resellerUnit != null && Math.abs(p - line.resellerUnit) < 0.005 ? null : p);
+    setText(priceText(p));
+  };
+  return (
+    <span className="cart-price" data-manual={line.manual} data-missing={line.unit == null}>
+      <input
+        className="cart-price-input"
+        value={text}
+        inputMode="decimal"
+        placeholder="Prix"
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => {
+          setText(e.target.value);
+          setBad(false);
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            setText(priceText(line.unit));
+            setBad(false);
+            e.currentTarget.blur();
+          }
+        }}
+        aria-label={`Prix unitaire : ${label}`}
+        aria-invalid={bad}
+      />
+      <span className="cart-price-unit">DH</span>
+      {line.manual && (
+        <button
+          type="button"
+          className="cart-price-reset"
+          onClick={() => onPrice(null)}
+          title={line.resellerUnit != null ? `Revenir au prix revendeur (${formatDH(line.resellerUnit)})` : "Effacer le prix saisi"}
+          aria-label="Revenir au prix revendeur"
+        >
+          ↺
+        </button>
+      )}
     </span>
   );
 }
@@ -120,6 +185,8 @@ type PanelProps = {
   commercial: string;
   lastAdded: string | null;
   onQty: (id: string, qty: number) => void;
+  /** Prix unitaire saisi à la main (null = prix du revendeur). */
+  onPrice: (id: string, price: number | null) => void;
   onClear: () => void;
   onInvoice: () => void;
   onPrint: () => void;
@@ -139,6 +206,7 @@ export function CartPanel({
   commercial,
   lastAdded,
   onQty,
+  onPrice,
   onClear,
   onInvoice,
   onPrint,
@@ -217,12 +285,15 @@ export function CartPanel({
                 </span>
                 <span className="cart-line-meta">
                   {l.item.variant && <span className="cart-line-variant">{displayVariant(l.item.variant)}</span>}
-                  {l.unit == null ? (
-                    <span className="cart-line-missing">Pas de prix revendeur</span>
-                  ) : (
-                    <span className="cart-line-unit">{formatDH(l.unit)}</span>
-                  )}
+                  <UnitPrice line={l} onPrice={(p) => onPrice(l.item.id, p)} label={name} />
                 </span>
+                {l.manual ? (
+                  <span className="cart-line-note">
+                    Prix modifié{l.resellerUnit != null ? ` · revendeur : ${formatDH(l.resellerUnit)}` : ""}
+                  </span>
+                ) : (
+                  l.unit == null && <span className="cart-line-missing">Pas de prix revendeur : saisissez un prix</span>
+                )}
               </span>
               <span className="cart-line-side">
                 <button
@@ -245,8 +316,8 @@ export function CartPanel({
       <div className="cart-foot">
         {missing.length > 0 && (
           <p className="cart-warn">
-            {missing.length} produit{missing.length > 1 ? "s" : ""} sans prix revendeur pour {commercial} : retirez-
-            {missing.length > 1 ? "les" : "le"} ou définissez le prix dans Gestion › Prix des produits.
+            {missing.length} produit{missing.length > 1 ? "s" : ""} sans prix revendeur pour {commercial} : saisissez
+            le prix dans le panier, ou retirez-{missing.length > 1 ? "les" : "le"}.
           </p>
         )}
         {error && <p className="cart-warn">{error}</p>}

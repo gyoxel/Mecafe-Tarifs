@@ -8,7 +8,16 @@ import { displayVariant } from "@/lib/title";
 import { StockBadge } from "./StockBadge";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import { OPTION_STORAGE_KEY, defaultOption, isBase, type OptionPrices, type PriceOption } from "@/lib/options";
+import {
+  OPTION_STORAGE_KEY,
+  SOURCE_LABEL,
+  defaultOption,
+  effectivePrice,
+  inheritedPrice,
+  isBase,
+  type OptionPrices,
+  type PriceOption,
+} from "@/lib/options";
 import { OptionPicker } from "./OptionPicker";
 
 type Props = {
@@ -18,13 +27,15 @@ type Props = {
   options: PriceOption[];
   source: CatalogSource;
   orphans: number;
+  /** Prix Gros changé après le prix saisi d'un revendeur : id revendeur → variantId → nouveau prix Prix Gros. */
+  changes: Record<string, Record<string, number>>;
 };
 
 const ROWS_STEP = 150;
 const asText = (n: number | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
 /** Gestion › Prix des produits : le prix d'un revendeur, produit par produit. */
-export function AdminPrices({ items, prices, options: initialOptions, source, orphans }: Props) {
+export function AdminPrices({ items, prices, options: initialOptions, source, orphans, changes: initialChanges }: Props) {
   const options = initialOptions;
   const [option, setOption] = useState<string>(() => defaultOption(initialOptions)?.id ?? "");
   // Commercial modifié ; s'il vient d'être supprimé, on retombe sur le premier.
@@ -35,6 +46,10 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
   const [query, setQuery] = useState("");
   const [brand, setBrand] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(false);
+  const [onlyChanged, setOnlyChanged] = useState(false);
+  const [allChanges, setAllChanges] = useState(initialChanges);
+  const changes = useMemo(() => allChanges[current.id] ?? {}, [allChanges, current.id]);
+  const changedIds = useMemo(() => items.filter((it) => changes[it.id] != null).map((it) => it.id), [items, changes]);
   const [rows, setRows] = useState(ROWS_STEP);
   const [status, setStatus] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,10 +71,11 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
     return items.filter(
       (it, i) =>
         (!brand || it.brand === brand) &&
-        (!onlyMissing || saved[it.id] == null) &&
+        (!onlyMissing || effectivePrice(current, allSaved, it) == null) &&
+        (!onlyChanged || changes[it.id] != null) &&
         (!tokens.length || matchesAll(haystacks[i], tokens)),
     );
-  }, [items, haystacks, query, brand, onlyMissing, saved]);
+  }, [items, haystacks, query, brand, onlyMissing, onlyChanged, changes, current, allSaved]);
 
   // Brouillons réellement modifiés par rapport à la valeur enregistrée.
   const dirty = useMemo(
@@ -71,6 +87,7 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
     if (dirty.length && !window.confirm("Les modifications non enregistrées pour ce revendeur seront perdues. Continuer ?")) return;
     setDrafts({});
     setStatus(null);
+    setOnlyChanged(false);
     setOption(id);
     try {
       localStorage.setItem(OPTION_STORAGE_KEY, id);
@@ -112,6 +129,12 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
         }
         return { ...prev, [current.id]: next };
       });
+      // Un prix ressaisi n'est plus « à vérifier ».
+      setAllChanges((prev) => {
+        const next = { ...prev[current.id] };
+        for (const u of updates) delete next[u.variantId];
+        return { ...prev, [current.id]: next };
+      });
       setDrafts({});
       setStatus({
         kind: "ok",
@@ -119,6 +142,22 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
       });
     } catch (e) {
       setStatus({ kind: "error", text: e instanceof Error ? e.message : "Échec de l'enregistrement" });
+    }
+    setBusy(false);
+  }
+
+  /** Garder les prix saisis malgré le changement de Prix Gros : l'avertissement disparaît. */
+  async function keepAll() {
+    if (!changedIds.length || busy) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      await post("/api/admin/prices", { option: current.id, keep: changedIds });
+      setAllChanges((prev) => ({ ...prev, [current.id]: {} }));
+      setOnlyChanged(false);
+      setStatus({ kind: "ok", text: `${current.name} garde ses prix.` });
+    } catch (e) {
+      setStatus({ kind: "error", text: e instanceof Error ? e.message : "Échec" });
     }
     setBusy(false);
   }
@@ -160,14 +199,38 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
           <h2 className="admin-section-title">Prix des produits</h2>
           <OptionPicker options={options} value={current.id} onChange={changeOption} label="Revendeur" />
         </div>
-        <p className="muted small admin-options-hint">
-          Prix de {current.name} pour chaque produit. Une case vide = pas de prix revendeur pour ce produit.
-        </p>
-        {isBase(current) && (
-          <p className="admin-options-hint base-hint">
-            Tarif de base : ses prix sont repris par chaque <strong>nouveau</strong> revendeur (les revendeurs
-            existants gardent les leurs).
+        {isBase(current) ? (
+          <>
+            <p className="muted small admin-options-hint">
+              Prix de {current.name} pour chaque produit. Une case vide = pas de prix revendeur pour ce produit.
+            </p>
+            <p className="admin-options-hint base-hint">
+              Tarif de base : les revendeurs suivent ses prix, sauf pour les produits où ils ont leur propre prix
+              (ceux-là ne changent pas).
+            </p>
+          </>
+        ) : (
+          <p className="muted small admin-options-hint">
+            {current.name} suit <strong>{SOURCE_LABEL[current.source]}</strong> : une case vide reprend ce prix (en
+            gris) et le suit s&apos;il change. Un prix saisi ici reste fixe ; effacez-le pour revenir à{" "}
+            {SOURCE_LABEL[current.source]}.
           </p>
+        )}
+        {changedIds.length > 0 && (
+          <div className="price-alert" role="status">
+            <p>
+              Prix Gros a changé pour {changedIds.length} produit{changedIds.length > 1 ? "s" : ""} où {current.name} a
+              son propre prix : ses prix n&apos;ont pas changé. Modifiez-les ici si besoin.
+            </p>
+            <span className="price-alert-actions">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOnlyChanged((v) => !v)}>
+                {onlyChanged ? "Voir tous les produits" : "Voir ces produits"}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={keepAll}>
+                Garder ses prix
+              </button>
+            </span>
+          </div>
         )}
       </section>
 
@@ -202,6 +265,12 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
           <input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} />
           Sans prix revendeur
         </label>
+        {changedIds.length > 0 && (
+          <label className="check">
+            <input type="checkbox" checked={onlyChanged} onChange={(e) => setOnlyChanged(e.target.checked)} />
+            À vérifier ({changedIds.length})
+          </label>
+        )}
       </div>
 
       <div className="admin-tools">
@@ -243,6 +312,8 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
               const draft = drafts[it.id];
               const value = draft ?? asText(saved[it.id]);
               const changed = draft !== undefined && draft.trim() !== asText(saved[it.id]);
+              const inherited = inheritedPrice(current, allSaved, it);
+              const newBase = changes[it.id];
               return (
                 <tr key={it.id} data-changed={changed}>
                   <td>
@@ -270,11 +341,17 @@ export function AdminPrices({ items, prices, options: initialOptions, source, or
                       className="admin-input price-input"
                       inputMode="decimal"
                       value={value}
-                      placeholder="—"
+                      placeholder={inherited != null ? asText(inherited) : "—"}
+                      title={
+                        value.trim() === "" && inherited != null
+                          ? `Suit ${SOURCE_LABEL[current.source]} (${formatDH(inherited)})`
+                          : undefined
+                      }
                       aria-label={`Prix revendeur : ${it.title}${it.variant ? " " + it.variant : ""}`}
                       aria-invalid={invalid.has(it.id)}
                       onChange={(e) => setDrafts((d) => ({ ...d, [it.id]: e.target.value }))}
                     />
+                    {newBase != null && <span className="price-changed">Prix Gros : {formatDH(newBase)}</span>}
                   </td>
                 </tr>
               );

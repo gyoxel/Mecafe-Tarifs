@@ -50,7 +50,7 @@ export function FacturesPanel({ invoices: initial, options }: { invoices: SavedI
       const k = keyOf(inv);
       if (!known.has(k)) {
         known.add(k);
-        list.push({ id: k, name: inv.commercial, city: inv.city, offset: 0, isDefault: false });
+        list.push({ id: k, name: inv.commercial, city: inv.city, offset: 0, isDefault: false, source: "base" });
       }
     }
     return list.sort((a, b) => fold(a.name).localeCompare(fold(b.name)));

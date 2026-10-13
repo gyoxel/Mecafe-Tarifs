@@ -154,7 +154,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   const currentOption = options.find((o) => o.id === option);
   const optionPrices = admin?.prices;
   const prices = useMemo(
-    () => (currentOption && optionPrices ? pricesFor(currentOption, optionPrices[currentOption.id] ?? {}, items) : {}),
+    () => (currentOption && optionPrices ? pricesFor(currentOption, optionPrices, items) : {}),
     [currentOption, optionPrices, items],
   );
   const proLabel = currentOption?.name ?? "Revendeur";
@@ -175,7 +175,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       const replace =
         lines.length === 0 || window.confirm(`Modifier le devis ${inv.number} ? Le panier en cours sera remplacé.`);
       if (replace) {
-        lines = inv.rows.map((r) => ({ id: r.variantId, qty: r.qty }));
+        lines = inv.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) }));
         edit = { id: inv.id, number: inv.number };
         // Téléphone / tablette : le panier s'ouvre directement sur la facture à modifier.
         if (!window.matchMedia("(min-width: 1100px)").matches) setSheetOpen(true);
@@ -215,9 +215,19 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       if (q === 0) return i < 0 ? cur : cur.filter((l) => l.id !== id);
       if (i < 0) return [...cur, { id, qty: q }];
       const next = cur.slice();
-      next[i] = { id, qty: q };
+      next[i] = { ...cur[i], qty: q }; // le prix saisi à la main reste
       return next;
     });
+  }, []);
+  /** Prix unitaire changé à la main dans le panier (null = revenir au prix du revendeur). */
+  const setCartPrice = useCallback((id: string, price: number | null) => {
+    setCart((cur) =>
+      cur.map((l) => {
+        if (l.id !== id) return l;
+        const { price: _old, ...rest } = l;
+        return price == null ? rest : { ...rest, price };
+      }),
+    );
   }, []);
   const qtyById = useMemo(() => new Map(cart.map((l) => [l.id, l.qty])), [cart]);
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -294,7 +304,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           commercialId: draft.commercial.id,
-          lines: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty })),
+          lines: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })),
           expected: { total: draft.total, rows: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, unit: r.unit })) },
         }),
       });
@@ -320,7 +330,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     if (doc.id == null || !doc.number) return;
     const same = editing?.id === doc.id;
     if (cart.length && !same && !window.confirm(`Modifier le devis ${doc.number} ? Le panier en cours sera remplacé.`)) return;
-    setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty })));
+    setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })));
     setEditing({ id: doc.id, number: doc.number });
     const o = options.find((x) => x.id === doc.commercialId);
     if (o) pickCommercial(o);
@@ -846,6 +856,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               commercial={proLabel}
               lastAdded={lastAdded}
               onQty={setCartQty}
+              onPrice={setCartPrice}
               onClear={clearCart}
               editing={editing?.number ?? null}
               error={cartError}
@@ -878,6 +889,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             commercial={proLabel}
             lastAdded={lastAdded}
             onQty={setCartQty}
+            onPrice={setCartPrice}
             onClear={clearCart}
             editing={editing?.number ?? null}
             error={cartError}

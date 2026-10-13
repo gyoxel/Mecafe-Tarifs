@@ -69,13 +69,21 @@ Fonctions en région Frankfurt (`vercel.json` → `fra1`), comme la base Neon.
 4. (Recommandé) Vercel Firewall : règle de rate-limit sur `POST /api/login`.
 
 ## Revendeurs et prix revendeurs
-Chaque **revendeur** a un nom, une **ville** (facultative) et **son prix pour chaque produit**, saisi dans
-Gestion › Prix des produits (case vide = pas de prix revendeur pour ce produit : « — », et le devis est bloqué).
+Chaque **revendeur** a un nom, une **ville** (facultative) et un **modèle** qu'il suit : « Prix Gros » (par défaut)
+ou le **prix du site** (case « Prix revendeur = prix du site » à la création, ou dans Modifier). Pour chaque produit,
+son prix est **le prix saisi pour lui** dans Gestion › Prix des produits s'il y en a un (il reste fixe), **sinon
+celui de son modèle** (il le suit quand il change). Effacer son prix saisi le refait suivre son modèle.
 Il n'y a plus d'écart automatique (prix site − N DH).
 
 **« Prix Gros » est le tarif de base** : c'est lui qui s'affiche à l'ouverture de l'admin ; il ne se renomme pas
-et ne se supprime pas. **Un nouveau revendeur part d'une copie des prix de « Prix Gros »** (copie faite à la
-création : changer « Prix Gros » ensuite ne modifie pas les revendeurs existants), puis se règle produit par produit.
+et ne se supprime pas (case vide = pas de prix : « — »). Changer un prix de « Prix Gros » change ce produit chez
+tous les revendeurs qui le suivent sans prix propre. Pour ceux qui ont leur propre prix, rien ne change, mais une
+**phrase jaune** le signale (liste des revendeurs, et en haut de Prix des produits avec les lignes concernées :
+« Voir ces produits », « Garder ses prix ») ; elle disparaît dès que ce prix est ressaisi ou gardé.
+
+Passage aux revendeurs qui suivent « Prix Gros » (automatique, une seule fois, marque `prices_inherit`) : les
+prix d'un revendeur identiques à ceux de « Prix Gros » (copiés à sa création, jamais changés) sont retirés, ces
+produits suivent donc « Prix Gros » ; les prix modifiés à la main restent fixes.
 
 Passage depuis l'ancien écart (automatique, une seule fois, `lib/price-freeze.ts`, marque `prices_frozen` en base) :
 pour chaque revendeur (écart nul compris = prix du site), chaque produit sans prix saisi reçoit le prix que l'écart donnait (rien ne change à l'écran), puis l'écart
@@ -88,8 +96,10 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
 - **Panier** (admin seulement, mémorisé sur l'appareil) : « + » en haut à droite de chaque produit, puis le
   nombre ; un appui ouvre − n + (saisie directe possible). Sur ordinateur, le panier s'ouvre à droite à côté des
   produits (réductible) ; sur téléphone / tablette, bouton panier en bas à droite (animé, avec le nombre) qui
-  ouvre une grande fenêtre qu'on redescend. Prix = **toujours** ceux du revendeur choisi : un produit sans prix
-  revendeur est signalé dans le panier et bloque le devis (jamais de repli sur le prix du site).
+  ouvre une grande fenêtre qu'on redescend. Prix = ceux du revendeur choisi, **modifiables dans le panier** : le
+  prix unitaire de chaque ligne se change à la main (le total se recalcule ; « Prix modifié » et ↺ pour revenir
+  au prix revendeur) et reste dans le devis, y compris quand on le modifie ensuite. Un produit sans prix revendeur
+  est signalé et bloque le devis tant qu'aucun prix n'est saisi (jamais de repli sur le prix du site).
   Calculs en centimes entiers (`lib/money.ts`) : prix × quantité et totaux exacts au centime.
   *Voir le devis* : brouillon **calculé par le serveur** (`/api/admin/invoices/preview`, le même calcul que
   l'enregistrement), avec **Modifier** (retour au panier) ou **Confirmer**. À la confirmation, le serveur refait le
@@ -127,9 +137,10 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
   téléchargement sur ordinateur) et **Télécharger le PDF**. Un même choix n'est fabriqué qu'une fois.
 - **Gestion** (barre latérale, onglets en haut sur mobile) :
   - *Revendeurs et villes* (`/admin/gestion`, page d'arrivée) : « Prix Gros » en tête (lien vers ses prix) ;
-    ajouter un revendeur (nom, ville ; il part des prix de « Prix Gros ») ; la liste affiche les noms avec
+    ajouter un revendeur (nom, ville, case « Prix revendeur = prix du site » ; sinon il suit « Prix Gros ») ;
+    phrase jaune quand « Prix Gros » a changé là où il a son propre prix ; la liste affiche les noms avec
     **Modifier** et **Supprimer** (avec ses prix saisis ; ses devis restent) ; un clic sur le nom l'ouvre aussi en
-    modification (nom, ville ; Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches
+    modification (nom, ville, modèle suivi ; Échap annule) ; la poignée ⋮⋮ devant le nom se glisse (souris ou doigt, ou flèches
     ↑ ↓ au clavier) pour changer l'ordre, repris dans les listes déroulantes. Villes : grandes villes du Maroc (`lib/cities.ts`) ; une ville absente
     s'ajoute depuis la recherche (« + Ajouter ») ;
   - *Devis - Historique* (`/admin/gestion/factures`) : devis confirmés, chacun avec **Modifier** (retour au
@@ -139,8 +150,8 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
     ville, produit), filtre par revendeur (liste avec recherche par nom ou ville, y compris les revendeurs supprimés), dates (du / au, aujourd'hui, 7 jours, ce mois), total ; ouvrir,
     réimprimer, partager en PDF ou **modifier** un devis ; **exporter** (Excel / CSV, selon les filtres) les
     devis (une ligne par devis) ou le détail (une ligne par produit) (modifier : retour au catalogue avec le devis dans le panier) ;
-  - *Prix des produits* (`/admin/gestion/prix`) : choisir le revendeur (ou « Prix Gros »), puis saisie dans le tableau puis *Enregistrer* (champ vidé =
-    pas de prix revendeur pour ce produit) ; **Exporter / Importer CSV** pour ce revendeur (colonne `prix_revendeur`, `prix_commercial` accepté pour les anciens fichiers,
+  - *Prix des produits* (`/admin/gestion/prix`) : choisir le revendeur (ou « Prix Gros »), puis saisie dans le tableau puis *Enregistrer*
+    (revendeur : case vide = il suit son modèle, dont le prix s'affiche en gris ; « Prix Gros » : case vide = pas de prix) ; **Exporter / Importer CSV** pour ce revendeur (colonne `prix_revendeur`, `prix_commercial` accepté pour les anciens fichiers,
     rattachement par `variant_id`, sinon par `sku` ; cellule vide = inchangé).
 
 Tables : `price_options` (revendeurs, `base` = tarif de base), `option_prices` (prix saisis), `invoices` (devis confirmés), historique
@@ -160,7 +171,7 @@ app/admin/gestion/       Gestion : revendeurs et villes ; prix/ : prix par reven
 app/api/                 login, logout, admin/{options,prices,import,export,invoices,catalogue}
 components/              Catalog, OptionsManager (revendeurs), Cart, Invoice, ProductCard (yeux + animation), AdminPrices…
 lib/shopify.ts           requêtes GraphQL (sans cache : données toujours à jour)
-lib/price-options.ts     revendeurs (nom, ville, ordre ; copie des prix de « Prix Gros » à la création)
+lib/price-options.ts     revendeurs (nom, ville, ordre, modèle suivi : « Prix Gros » ou prix du site)
 lib/prices.ts, db.ts     prix saisis (Postgres, ou mémoire en démo)
 lib/session.ts, auth.ts  JWT signé en cookie HttpOnly, code admin comparé en temps constant
 ```

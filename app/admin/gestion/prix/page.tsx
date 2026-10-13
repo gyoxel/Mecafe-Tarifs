@@ -3,7 +3,7 @@ import { AdminPrices } from "@/components/AdminPrices";
 import { GestionShell } from "@/components/GestionShell";
 import { getAdminSession } from "@/lib/auth";
 import { getCatalog } from "@/lib/catalog";
-import { getPrices, storageMode } from "@/lib/prices";
+import { baseChanges, getPrices, storageMode } from "@/lib/prices";
 import { getOptions } from "@/lib/price-options";
 
 export const metadata = { title: "Prix des produits — Gestion — Mécafé Tarifs" };
@@ -12,6 +12,7 @@ export default async function GestionPrix() {
   if (!(await getAdminSession())) redirect("/login?admin=1");
 
   const [{ items, source }, prices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
+  const changes = await baseChanges();
   const ids = new Set(items.map((i) => i.id));
   const orphans = options
     .flatMap((o) => Object.keys(prices[o.id] ?? {}))
@@ -19,7 +20,7 @@ export default async function GestionPrix() {
 
   return (
     <GestionShell active="prix" storage={storageMode()}>
-      <AdminPrices items={items} prices={prices} options={options} source={source} orphans={orphans} />
+      <AdminPrices items={items} prices={prices} options={options} source={source} orphans={orphans} changes={changes} />
     </GestionShell>
   );
 }

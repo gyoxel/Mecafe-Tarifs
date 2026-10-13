@@ -1,8 +1,14 @@
 import { lineTotal, sumMoney } from "./money";
 import type { CatalogItem, PriceMap } from "./types";
 
-/** Panier de l'admin : variants et quantités, dans l'ordre d'ajout (mémorisé sur l'appareil). */
-export type CartLine = { id: string; qty: number };
+/**
+ * Panier de l'admin : variants et quantités, dans l'ordre d'ajout (mémorisé sur l'appareil). `price` : prix
+ * unitaire changé à la main pour ce devis (sinon le prix du revendeur choisi).
+ */
+export type CartLine = { id: string; qty: number; price?: number };
+export const CART_PRICE_MAX = 1_000_000;
+const validPrice = (p: unknown): p is number =>
+  typeof p === "number" && Number.isFinite(p) && p >= 0 && p <= CART_PRICE_MAX;
 
 export const CART_STORAGE_KEY = "mecafe:panier";
 export const EDIT_STORAGE_KEY = "mecafe:panier-modification";
@@ -40,7 +46,7 @@ export function readCart(): CartLine[] {
     if (!Array.isArray(raw)) return [];
     return raw
       .filter((l): l is CartLine => typeof l?.id === "string" && Number.isInteger(l?.qty) && l.qty > 0)
-      .map((l) => ({ id: l.id, qty: Math.min(l.qty, QTY_MAX) }));
+      .map((l) => ({ id: l.id, qty: Math.min(l.qty, QTY_MAX), ...(validPrice(l.price) ? { price: l.price } : {}) }));
   } catch {
     return [];
   }
@@ -52,24 +58,30 @@ export function writeCart(lines: CartLine[]) {
   } catch {}
 }
 
-/** Ligne du panier prête à afficher : prix du commercial choisi, ou prix du site s'il n'en a pas. */
+/** Ligne du panier prête à afficher : prix saisi dans le panier, sinon prix du revendeur choisi. */
 export type ResolvedLine = {
   item: CatalogItem;
   qty: number;
-  /** Prix commercial unitaire ; null = pas de prix commercial (la facture ne peut pas être confirmée). */
+  /** Prix unitaire appliqué ; null = pas de prix (le devis ne peut pas être confirmé). */
   unit: number | null;
+  /** Prix du revendeur pour ce produit (null s'il n'en a pas). */
+  resellerUnit: number | null;
+  /** true : prix changé à la main dans le panier. */
+  manual: boolean;
   /** unit × qty au centime près (0 si pas de prix). */
   total: number;
 };
 
-/** Toujours le prix du commercial choisi : jamais de repli sur le prix du site. */
+/** Prix saisi dans le panier, sinon celui du revendeur choisi : jamais de repli sur le prix du site. */
 export function resolveCart(lines: CartLine[], byId: Map<string, CatalogItem>, prices: PriceMap): ResolvedLine[] {
   const out: ResolvedLine[] = [];
   for (const l of lines) {
     const item = byId.get(l.id);
     if (!item) continue; // produit retiré de la boutique
-    const unit = prices[item.id] ?? null;
-    out.push({ item, qty: l.qty, unit, total: unit == null ? 0 : lineTotal(unit, l.qty) });
+    const resellerUnit = prices[item.id] ?? null;
+    const manual = l.price != null;
+    const unit = manual ? l.price! : resellerUnit;
+    out.push({ item, qty: l.qty, unit, resellerUnit, manual, total: unit == null ? 0 : lineTotal(unit, l.qty) });
   }
   return out;
 }

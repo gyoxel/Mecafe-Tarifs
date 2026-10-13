@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCatalog } from "@/lib/catalog";
 import { requireAdmin, requireStorage } from "@/lib/guard";
-import { savePrices, type PriceUpdate } from "@/lib/prices";
+import { keepPrices, savePrices, type PriceUpdate } from "@/lib/prices";
 import { parsePrice } from "@/lib/csv";
 import { getOptions } from "@/lib/price-options";
 
@@ -13,7 +13,17 @@ export async function POST(req: Request) {
   const down = requireStorage();
   if (down) return down;
 
-  const body = (await req.json().catch(() => null)) as { updates?: unknown; option?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { updates?: unknown; option?: unknown; keep?: unknown } | null;
+
+  // « Garder mes prix » : { option, keep: [variantId…] } — le revendeur garde ses prix malgré le changement de Prix Gros.
+  if (Array.isArray(body?.keep)) {
+    const keep = body.keep.filter((x): x is string => typeof x === "string").slice(0, MAX_UPDATES);
+    const target = (await getOptions()).find((o) => o.id === body.option)?.id;
+    if (!target) return NextResponse.json({ error: "Option inconnue" }, { status: 400 });
+    await keepPrices(target, keep);
+    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  }
+
   if (!Array.isArray(body?.updates) || body.updates.length > MAX_UPDATES) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }

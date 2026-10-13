@@ -2,7 +2,15 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cityChoices } from "@/lib/cities";
-import { BASE_ID, NAME_MAX, OPTION_STORAGE_KEY, matchesOption, type PriceOption } from "@/lib/options";
+import {
+  BASE_ID,
+  NAME_MAX,
+  OPTION_STORAGE_KEY,
+  SOURCE_LABEL,
+  matchesOption,
+  type PriceOption,
+  type PriceSource,
+} from "@/lib/options";
 import { CityPicker } from "./CityPicker";
 import { GripIcon, PencilIcon, SearchIcon, TrashIcon } from "./Icons";
 
@@ -10,7 +18,31 @@ type Props = {
   options: PriceOption[];
   onOptions: (list: PriceOption[]) => void;
   onStatus: (s: { kind: "ok" | "error"; text: string }) => void;
+  /** Produits où Prix Gros a changé après le prix saisi du revendeur (id → nombre). */
+  changes: Record<string, number>;
 };
+
+/** Ouvre « Prix des produits » sur ce revendeur. */
+const openPrices = (id: string) => {
+  try {
+    localStorage.setItem(OPTION_STORAGE_KEY, id);
+  } catch {}
+};
+
+/** Case « Prix revendeur = prix du site » (sinon le revendeur suit Prix Gros). */
+function SiteBox({ value, onChange, disabled }: { value: PriceSource; onChange: (v: PriceSource) => void; disabled?: boolean }) {
+  return (
+    <label className="check rv-site">
+      <input
+        type="checkbox"
+        checked={value === "site"}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked ? "site" : "base")}
+      />
+      Prix revendeur = prix du site
+    </label>
+  );
+}
 
 async function send(body: Record<string, unknown>): Promise<PriceOption[]> {
   const res = await fetch("/api/admin/options", {
@@ -34,18 +66,19 @@ function EditRow({
   option: PriceOption;
   cities: string[];
   busy: boolean;
-  onSave: (name: string, city: string | null) => void;
+  onSave: (name: string, city: string | null, source: PriceSource) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(option.name);
   const [city, setCity] = useState(option.city);
+  const [source, setSource] = useState(option.source);
   const valid = name.trim() !== "";
   return (
     <form
       className="rv-edit"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valid && !busy) onSave(name.trim(), city);
+        if (valid && !busy) onSave(name.trim(), city, source);
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
@@ -58,6 +91,7 @@ function EditRow({
         autoFocus
       />
       <CityPicker value={city} choices={cities} onChange={setCity} disabled={busy} />
+      <SiteBox value={source} onChange={setSource} disabled={busy} />
       <span className="rv-edit-actions">
         <button type="submit" className="btn btn-gold btn-sm" disabled={busy || !valid}>
           Enregistrer
@@ -74,7 +108,7 @@ function EditRow({
  * Gestion des revendeurs : le tarif de base « Prix Gros » (prix repris par les nouveaux), l'ajout, puis la
  * liste (nom cliquable / Modifier, Supprimer, poignée ⋮⋮ pour changer l'ordre en glissant).
  */
-export function OptionsManager({ options, onOptions, onStatus }: Props) {
+export function OptionsManager({ options, onOptions, onStatus, changes }: Props) {
   const base = options.find((o) => o.id === BASE_ID) ?? null;
   const named = useMemo(() => options.filter((o) => o.id !== BASE_ID), [options]);
   const cities = useMemo(() => cityChoices(options.map((o) => o.city)), [options]);
@@ -83,9 +117,10 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
-  // Nouveau revendeur : il part des prix de « Prix Gros »
+  // Nouveau revendeur : il suit « Prix Gros », ou le prix du site si la case est cochée
   const [newName, setNewName] = useState("");
   const [newCity, setNewCity] = useState<string | null>(null);
+  const [newSource, setNewSource] = useState<PriceSource>("base");
   const canAdd = newName.trim() !== "";
 
   async function run(body: Record<string, unknown>, ok: string) {
@@ -166,19 +201,11 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
               {base.name} <span className="rv-tag">par défaut</span>
             </span>
             <span className="muted small">
-              Tarif affiché à l&apos;ouverture de l&apos;admin. Chaque nouveau revendeur part de ses prix (Prix des
-              produits), puis se règle produit par produit.
+              Tarif affiché à l&apos;ouverture de l&apos;admin. Les revendeurs suivent ses prix (un prix changé ici
+              change chez eux), sauf pour les produits où ils ont leur propre prix.
             </span>
           </div>
-          <a
-            className="btn btn-ghost btn-sm"
-            href="/admin/gestion/prix"
-            onClick={() => {
-              try {
-                localStorage.setItem(OPTION_STORAGE_KEY, base.id); // la page des prix s'ouvre sur « Prix Gros »
-              } catch {}
-            }}
-          >
+          <a className="btn btn-ghost btn-sm" href="/admin/gestion/prix" onClick={() => openPrices(base.id)}>
             Voir ses prix
           </a>
         </div>
@@ -190,9 +217,14 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
           e.preventDefault();
           if (!canAdd || busy) return;
           const name = newName.trim();
-          if (await run({ action: "create", name, city: newCity }, `« ${name} » ajouté avec les prix de ${base?.name ?? "la base"}.`)) {
+          const ok = await run(
+            { action: "create", name, city: newCity, source: newSource },
+            `« ${name} » ajouté : il suit ${newSource === "site" ? "le prix du site" : `« ${base?.name ?? "Prix Gros"} »`}.`,
+          );
+          if (ok) {
             setNewName("");
             setNewCity(null);
+            setNewSource("base");
           }
         }}
       >
@@ -209,9 +241,12 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
         <button type="submit" className="btn btn-gold" disabled={!canAdd || busy}>
           Ajouter
         </button>
-        {base && (
-          <span className="muted small opt-example">Il part des prix de « {base.name} », modifiables ensuite.</span>
-        )}
+        <SiteBox value={newSource} onChange={setNewSource} disabled={busy} />
+        <span className="muted small opt-example">
+          {newSource === "site"
+            ? "Ses prix = prix du site (ils suivent le site), modifiables ensuite produit par produit."
+            : `Il suit les prix de « ${base?.name ?? "Prix Gros"} », modifiables ensuite produit par produit.`}
+        </span>
       </form>
 
       {named.length > 6 && (
@@ -257,9 +292,9 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
                   cities={cities}
                   busy={busy}
                   onCancel={() => setEditing(null)}
-                  onSave={async (name, city) => {
+                  onSave={async (name, city, source) => {
                     const ok = await run(
-                      { action: "update", id: o.id, name, city },
+                      { action: "update", id: o.id, name, city, source },
                       `« ${name} » enregistré${city ? ` (${city})` : ""}.`,
                     );
                     if (ok) setEditing(null);
@@ -294,6 +329,7 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
                 <button type="button" className="rv-name" onClick={() => setEditing(o.id)} title="Modifier">
                   <strong>{o.name}</strong>
                   {o.city && <span className="muted"> · {o.city}</span>}
+                  {o.source === "site" && <span className="rv-tag rv-tag-soft">{SOURCE_LABEL.site}</span>}
                 </button>
                 <span className="rv-actions">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(o.id)} disabled={busy}>
@@ -312,6 +348,12 @@ export function OptionsManager({ options, onOptions, onStatus }: Props) {
                     <TrashIcon size={14} /> Supprimer
                   </button>
                 </span>
+                {(changes[o.id] ?? 0) > 0 && (
+                  <a className="rv-alert" href="/admin/gestion/prix" onClick={() => openPrices(o.id)}>
+                    Prix Gros a changé pour {changes[o.id]} produit{changes[o.id] > 1 ? "s" : ""} : ses prix n&apos;ont
+                    pas changé. Modifier si besoin →
+                  </a>
+                )}
               </li>
             ),
           )}

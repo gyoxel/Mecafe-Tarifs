@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
 import { fold } from "@/lib/format";
 import { requireAdmin, requireStorage } from "@/lib/guard";
-import { BASE_ID, NAME_MAX } from "@/lib/options";
+import { BASE_ID, NAME_MAX, type PriceSource } from "@/lib/options";
 import { CITY_MAX, cityChoices, normalizeCity } from "@/lib/cities";
 import { ensureOffsetsFrozen } from "@/lib/price-freeze";
 import { createOption, deleteOption, getOptions, reorderOptions, updateOption } from "@/lib/price-options";
 
 /**
  * Gestion des revendeurs.
- * Corps : { action: "create", name, city? } | { action: "update", id, name?, city? }
+ * Corps : { action: "create", name, city?, source? } | { action: "update", id, name?, city?, source? }
  *       | { action: "delete", id } | { action: "reorder", ids }   (city : texte, ou null / "" pour aucune ville)
- * Un nouveau revendeur part des prix de la base « Prix Gros », qui ne se renomme pas et ne se supprime pas.
+ * source : modèle suivi pour les produits sans prix saisi, « base » (Prix Gros, par défaut) ou « site ».
+ * La base « Prix Gros » ne se renomme pas et ne se supprime pas.
  * Réponse : la liste complète des revendeurs.
  */
-type Body = { action?: unknown; id?: unknown; ids?: unknown; name?: unknown; city?: unknown };
+type Body = { action?: unknown; id?: unknown; ids?: unknown; name?: unknown; city?: unknown; source?: unknown };
 
 const fail = (error: string) => NextResponse.json({ error }, { status: 400 });
 
@@ -42,17 +43,20 @@ export async function POST(req: Request) {
     if (city && city.length > CITY_MAX) return fail(`Ville trop longue (${CITY_MAX} caractères au plus)`);
   } else if (body.city !== undefined) return fail("Ville invalide");
 
+  if (body.source !== undefined && body.source !== "base" && body.source !== "site") return fail("Modèle invalide");
+  const source = body.source as PriceSource | undefined;
+
   let list;
   switch (body.action) {
     case "create":
       if (name === undefined) return fail("Nom requis");
-      await ensureOffsetsFrozen(); // la base a tous ses prix produit par produit avant la copie
-      list = await createOption(name, city ?? null);
+      await ensureOffsetsFrozen(); // anciens écarts figés avant d'ajouter un revendeur
+      list = await createOption(name, city ?? null, source ?? "base");
       break;
     case "update":
       if (!target) return fail("Revendeur inconnu");
       if (target.id === BASE_ID) return fail("« Prix Gros » est le tarif de base : il garde son nom.");
-      list = await updateOption(target.id, { name, city });
+      list = await updateOption(target.id, { name, city, source });
       break;
     case "delete":
       if (!target) return fail("Revendeur inconnu");

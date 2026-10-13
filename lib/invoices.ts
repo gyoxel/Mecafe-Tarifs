@@ -39,25 +39,33 @@ function nextNumber(prefix: string, existing: string[]): string {
 
 export const MAX_LINES = 500;
 
+/** Ligne envoyée par le panier : prix unitaire facultatif (saisi à la main, sinon prix du revendeur). */
+export type CartInput = { id: string; qty: number; price?: number };
+export const PRICE_MAX = 1_000_000;
+
 /**
- * Corps { commercialId, lines: [{ id, qty }], expected? } validé, ou { error }.
+ * Corps { commercialId, lines: [{ id, qty, price? }], expected? } validé, ou { error }.
  * expected = le brouillon affiché ({ total, rows: [{ id, qty, unit }] }), obligatoire pour confirmer.
  */
 export function parseInvoiceBody(
   body: unknown,
-): { commercialId: string; lines: { id: string; qty: number }[]; expected: Expected | null } | { error: string } {
+): { commercialId: string; lines: CartInput[]; expected: Expected | null } | { error: string } {
   const b = body as { commercialId?: unknown; lines?: unknown; expected?: unknown } | null;
   const lines = Array.isArray(b?.lines) ? b.lines : null;
   if (typeof b?.commercialId !== "string" || !lines || !lines.length || lines.length > MAX_LINES) {
     return { error: "Requête invalide" };
   }
-  const clean: { id: string; qty: number }[] = [];
-  for (const l of lines as { id?: unknown; qty?: unknown }[]) {
+  const clean: CartInput[] = [];
+  for (const l of lines as { id?: unknown; qty?: unknown; price?: unknown }[]) {
     const qty = l?.qty;
     if (typeof l?.id !== "string" || typeof qty !== "number" || !Number.isInteger(qty) || qty < 1 || qty > QTY_MAX) {
       return { error: "Ligne invalide" };
     }
-    clean.push({ id: l.id, qty });
+    const price = l.price;
+    if (price != null && (typeof price !== "number" || !Number.isFinite(price) || price < 0 || price > PRICE_MAX)) {
+      return { error: "Prix invalide" };
+    }
+    clean.push(price == null ? { id: l.id, qty } : { id: l.id, qty, price: Math.round(price * 100) / 100 });
   }
   let expected: Expected | null = null;
   const e = b.expected as { total?: unknown; rows?: unknown } | undefined;
@@ -74,24 +82,28 @@ export function parseInvoiceBody(
 }
 
 /**
- * Calcule les lignes côté serveur à partir du catalogue et des prix du commercial (le navigateur n'envoie
- * que les variants et les quantités). Toujours le prix du commercial : un produit sans prix commercial
- * bloque la facture (pas de repli sur le prix du site).
+ * Calcule les lignes côté serveur à partir du catalogue et des prix du revendeur (le navigateur envoie les
+ * variants, les quantités et, s'il a été changé à la main dans le panier, le prix unitaire). Sans prix saisi
+ * dans le panier, toujours le prix du revendeur : un produit sans prix revendeur bloque le devis.
  */
 export async function computeDraft(
   commercialId: string,
-  lines: { id: string; qty: number }[],
+  lines: CartInput[],
   original?: SavedInvoice | null,
 ): Promise<{ draft: Draft } | { error: string }> {
   const [{ items }, allPrices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const option = options.find((o) => o.id === commercialId);
   if (!option) return { error: "Revendeur inconnu : choisissez un revendeur." };
   const byId = new Map(items.map((i) => [i.id, i]));
-  const prices = pricesFor(option, allPrices[option.id] ?? {}, items);
+  const prices = pricesFor(option, allPrices, items);
 
-  // Même produit en double : quantités additionnées.
+  // Même produit en double : quantités additionnées (dernier prix saisi gardé).
   const merged = new Map<string, number>();
-  for (const l of lines) merged.set(l.id, (merged.get(l.id) ?? 0) + l.qty);
+  const manual = new Map<string, number>();
+  for (const l of lines) {
+    merged.set(l.id, (merged.get(l.id) ?? 0) + l.qty);
+    if (l.price != null) manual.set(l.id, l.price);
+  }
 
   const rows: InvoiceRow[] = [];
   const missing: string[] = [];
@@ -104,16 +116,19 @@ export async function computeDraft(
     }
     const name = displayTitle(item.title, item.brand);
     const variant = item.variant ? displayVariant(item.variant) : null;
-    const unit = prices[item.id];
+    const typed = manual.get(item.id);
+    const unit = typed ?? prices[item.id];
     if (unit == null) {
       missing.push(variant ? `${name} (${variant})` : name);
       continue;
     }
-    rows.push({ variantId: item.id, brand: item.brand, name, variant, sku: item.sku, qty, unit, total: lineTotal(unit, qty), sitePrice: false });
+    const row: InvoiceRow = { variantId: item.id, brand: item.brand, name, variant, sku: item.sku, qty, unit, total: lineTotal(unit, qty), sitePrice: false };
+    if (typed != null) row.manual = true;
+    rows.push(row);
   }
   if (missing.length) {
     return {
-      error: `Pas de prix revendeur pour ${option.name} : ${missing.join(", ")}. Définissez-le dans Gestion › Prix des produits.`,
+      error: `Pas de prix revendeur pour ${option.name} : ${missing.join(", ")}. Saisissez le prix dans le panier, ou dans Gestion › Prix des produits.`,
     };
   }
   if (gone.length) return { error: `${gone.length} produit(s) ne sont plus sur la boutique : retirez-les du panier.` };

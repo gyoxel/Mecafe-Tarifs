@@ -19,7 +19,7 @@ create index if not exists commercial_price_history_variant_idx
   on commercial_price_history (variant_id, changed_at desc);
 alter table commercial_price_history add column if not exists option_id text; -- null = avant les options
 
--- Prix saisis par option. Sans ligne ici, l'option applique prix site + écart (price_options).
+-- Prix saisis par revendeur. Sans ligne ici, le revendeur suit son modèle (price_options.source).
 -- À sa création, la table reprend les anciens prix de commercial_prices dans « autre ».
 create table if not exists option_prices (
   option_id  text not null,
@@ -40,6 +40,7 @@ create table if not exists price_options (
   price_offset numeric(10,2) not null,  -- ajouté au prix du site : −10 = prix site moins 10 DH
   position     integer not null,
   is_default   boolean not null default false,
+  source       text not null default 'base', -- modèle suivi sans prix saisi : 'base' (Prix Gros) ou 'site'
   created_at   timestamptz not null default now()
 );
 

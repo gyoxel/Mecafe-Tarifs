@@ -25,7 +25,7 @@ export function getSql(): Sql {
  * Version du schéma : à augmenter à chaque changement ci-dessous (table, colonne, migration). Tant que la base
  * est à jour, un démarrage ne coûte qu'une requête au lieu d'une vingtaine.
  */
-const SCHEMA_VERSION = "2026-10-13";
+const SCHEMA_VERSION = "2026-10-13b";
 
 /** Crée les tables au premier accès (équivalent de db/schema.sql). */
 export function ensureSchema(): Promise<void> {
@@ -99,6 +99,8 @@ export function ensureSchema(): Promise<void> {
         }
       });
       await sql`alter table price_options add column if not exists city text`;
+      // Modèle suivi par un revendeur pour les produits sans prix saisi : « base » (Prix Gros) ou « site ».
+      await sql`alter table price_options add column if not exists source text not null default 'base'`;
       // « Revendeur » de base : créé s'il n'existe pas, en tête de liste, avec l'écart et les prix saisis de
       // l'ancienne option par défaut (le tarif affiché à l'ouverture ne change pas).
       await sql.begin(async (tx) => {

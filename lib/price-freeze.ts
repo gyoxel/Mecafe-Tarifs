@@ -1,7 +1,7 @@
 import "server-only";
 import { getCatalog } from "./catalog";
 import { ensureSchema, getSql, isDbConfigured, storageDown } from "./db";
-import { autoPrice } from "./options";
+import { autoPrice, BASE_ID } from "./options";
 import { getOptions, updateOption } from "./price-options";
 import { readSavedPrices, savePrices, type PriceUpdate } from "./prices";
 
@@ -27,6 +27,7 @@ export async function ensureOffsetsFrozen(): Promise<void> {
   if (storageDown()) return;
   if (await flagSet()) {
     g.__pricesFrozen = true;
+    await ensureInheritance();
     return;
   }
 
@@ -74,4 +75,29 @@ export async function ensureOffsetsFrozen(): Promise<void> {
       insert into app_settings (key, value) values (${FLAG}, '1') on conflict (key) do nothing`;
   }
   g.__pricesFrozen = true;
+  await ensureInheritance();
+}
+
+/**
+ * Passage aux revendeurs qui SUIVENT « Prix Gros », une seule fois (marque « prices_inherit ») : les prix
+ * d'un revendeur identiques à ceux de « Prix Gros » (copiés à sa création, jamais changés) sont retirés ; ces
+ * produits suivent désormais « Prix Gros ». Les prix qui en diffèrent (modifiés à la main) restent fixes.
+ */
+const INHERIT_FLAG = "prices_inherit";
+const gi = globalThis as unknown as { __pricesInherit?: boolean };
+
+async function ensureInheritance(): Promise<void> {
+  if (gi.__pricesInherit || !isDbConfigured()) return;
+  const sql = getSql();
+  await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(727020)`;
+    const [done] = await tx`select 1 from app_settings where key = ${INHERIT_FLAG}`;
+    if (done) return;
+    await tx`
+      delete from option_prices o using option_prices b, price_options p
+      where b.option_id = ${BASE_ID} and b.variant_id = o.variant_id and b.price = o.price
+        and p.id = o.option_id and p.id <> ${BASE_ID} and p.source = 'base'`;
+    await tx`insert into app_settings (key, value) values (${INHERIT_FLAG}, '1') on conflict (key) do nothing`;
+  });
+  gi.__pricesInherit = true;
 }

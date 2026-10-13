@@ -1,5 +1,5 @@
 import "server-only";
-import type { OptionPrices } from "./options";
+import { BASE_ID, type OptionPrices } from "./options";
 import { DEMO_PRICES } from "./demo-data";
 import { assertDurableStorage, ensureSchema, getSql, isDbConfigured, storageDown } from "./db";
 import { isShopifyConfigured } from "./shopify";
@@ -50,12 +50,6 @@ export async function readSavedPrices(): Promise<OptionPrices> {
   const out: OptionPrices = {};
   for (const r of rows) (out[r.option_id as string] ??= {})[r.variant_id as string] = Number(r.price);
   return out;
-}
-
-/** Copie les prix saisis d'une option vers une autre (nouveau revendeur créé depuis la base). */
-export function copyMemPrices(from: string, to: string) {
-  const m = mem();
-  m[to] = { ...(m[from] ?? {}) };
 }
 
 /** Supprime les prix saisis d'une option (option supprimée). */
@@ -153,4 +147,32 @@ export async function savePrices(option: string, updates: PriceUpdate[]): Promis
     }
   });
   return result;
+}
+
+/**
+ * Produits où « Prix Gros » a changé APRÈS le prix saisi d'un revendeur (qui suit « Prix Gros ») et en diffère :
+ * son prix n'a pas suivi, on le signale (id revendeur → variantId → nouveau prix Prix Gros).
+ */
+export async function baseChanges(): Promise<Record<string, Record<string, number>>> {
+  if (!isDbConfigured()) return {};
+  await ensureSchema();
+  const rows = await getSql()`
+    select o.option_id, o.variant_id, b.price as base_price
+    from option_prices o
+    join option_prices b on b.option_id = ${BASE_ID} and b.variant_id = o.variant_id
+    join price_options p on p.id = o.option_id
+    where o.option_id <> ${BASE_ID} and p.source = 'base'
+      and b.updated_at > o.updated_at and b.price <> o.price`;
+  const out: Record<string, Record<string, number>> = {};
+  for (const r of rows) (out[r.option_id as string] ??= {})[r.variant_id as string] = Number(r.base_price);
+  return out;
+}
+
+/** « Garder mes prix » : le revendeur garde ses prix saisis, l'avertissement disparaît. */
+export async function keepPrices(option: string, variantIds: string[]): Promise<void> {
+  assertDurableStorage();
+  if (!isDbConfigured() || !variantIds.length) return;
+  await ensureSchema();
+  await getSql()`
+    update option_prices set updated_at = now() where option_id = ${option} and variant_id in ${getSql()(variantIds)}`;
 }

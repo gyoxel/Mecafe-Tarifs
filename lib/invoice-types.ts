@@ -14,6 +14,8 @@ export type InvoiceRow = {
   total: number;
   /** true : pas de prix commercial, prix du site. */
   sitePrice: boolean;
+  /** true : prix unitaire saisi à la main dans le panier (au lieu du prix du revendeur). */
+  manual?: boolean;
 };
 
 /** Facture confirmée, enregistrée dans l'historique. */

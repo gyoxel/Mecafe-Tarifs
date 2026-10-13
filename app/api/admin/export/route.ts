@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const [{ items }, prices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const option = options.find((o) => o.id === param) ?? defaultOption(options)!;
   const day = new Date().toISOString().slice(0, 10);
-  return new Response(buildCsv(items, prices[option.id] ?? {}, option), {
+  return new Response(buildCsv(items, prices, option), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="prix-revendeurs-${slug(option.name) || option.id}-${day}.csv"`,
