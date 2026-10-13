@@ -5149,3 +5149,70 @@ html.scroll-locked {
     display: none;
   }
 }
+
+/* ═════════════ Panier « Prix Gros » : nom du client du devis ═════════════ */
+.cart-client {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  max-width: 100%;
+  margin: 2px 0 0 -6px;
+  padding: 2px 6px;
+  border: 1px dashed transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cart-client:hover {
+  border-color: var(--line-2);
+  background: var(--bg);
+}
+.cart-client-name {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cart-client-empty {
+  color: var(--muted);
+  font-weight: 600;
+}
+.cart-client-note {
+  flex-basis: 100%;
+  order: 3;
+  font-size: 11.5px;
+}
+.cart-client-pencil {
+  flex: none;
+  color: var(--pro);
+}
+.cart-client-edit {
+  margin: 4px 0 0;
+}
+.cart-client-input {
+  width: min(240px, 100%);
+  height: 32px;
+  padding: 0 10px;
+  border: 1.5px solid var(--pro);
+  border-radius: 8px;
+  outline: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px; /* pas de zoom automatique sur iPhone */
+  font-weight: 700;
+  box-shadow: 0 0 0 3px var(--pro-soft);
+}
+@media (min-width: 1100px) {
+  .cart-client-input {
+    font-size: 14px;
+  }
+}

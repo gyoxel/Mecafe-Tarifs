@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { fold, formatDH } from "@/lib/format";
 import { sumMoney } from "@/lib/money";
 import type { SavedInvoice } from "@/lib/invoice-types";
-import type { PriceOption } from "@/lib/options";
+import { BASE_ID, BASE_NAME, type PriceOption } from "@/lib/options";
 import { CommercialFilter } from "./CommercialFilter";
 import { invoicesDetailCsv, invoicesSummaryCsv, downloadText } from "@/lib/invoice-csv";
 import { CalendarIcon, DownloadIcon, FileTextIcon, PencilIcon, PrinterIcon, SearchIcon, TrashIcon } from "./Icons";
@@ -27,7 +27,13 @@ const PERIODS: { id: Period; label: string }[] = [
 
 /** Gestion › Devis : historique des devis confirmés, avec recherche et filtres. */
 /** Clé du commercial d'une facture : son id, ou son nom s'il a été supprimé depuis. */
-const keyOf = (inv: SavedInvoice) => inv.commercialId ?? `nom:${inv.commercial}`;
+// Devis « Prix Gros » au nom d'un client tapé dans le panier : rangé sous ce nom (pas sous « Prix Gros », ni
+// sous son ancien nom « Revendeur »).
+const baseNames = new Set([BASE_NAME, "Revendeur"]);
+const keyOf = (inv: SavedInvoice) =>
+  inv.commercialId == null || (inv.commercialId === BASE_ID && !baseNames.has(inv.commercial))
+    ? `nom:${inv.commercial}`
+    : inv.commercialId;
 
 export function FacturesPanel({ invoices: initial, options }: { invoices: SavedInvoice[]; options: PriceOption[] }) {
   const [invoices, setInvoices] = useState(initial);

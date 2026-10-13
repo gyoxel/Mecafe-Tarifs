@@ -11,6 +11,8 @@ const validPrice = (p: unknown): p is number =>
   typeof p === "number" && Number.isFinite(p) && p >= 0 && p <= CART_PRICE_MAX;
 
 export const CART_STORAGE_KEY = "mecafe:panier";
+/** Nom du client tapé dans le panier quand les prix sont ceux de « Prix Gros » (pas un revendeur enregistré). */
+export const CLIENT_STORAGE_KEY = "mecafe:panier-client";
 export const EDIT_STORAGE_KEY = "mecafe:panier-modification";
 
 /** Le panier contient une facture confirmée en cours de modification. */

@@ -21,7 +21,7 @@ export async function PUT(req: Request, { params }: Ctx) {
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
   if (!parsed.expected) return NextResponse.json({ error: "Aperçu manquant : ouvrez le devis avant d'enregistrer." }, { status: 400 });
 
-  const result = await computeDraft(parsed.commercialId, parsed.lines, original);
+  const result = await computeDraft(parsed.commercialId, parsed.lines, original, parsed.clientName);
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   const { draft } = result;
   if (!matchesExpected(draft, parsed.expected)) {

@@ -6,7 +6,7 @@ import { sumRows, type Draft, type InvoiceRow, type SavedInvoice } from "./invoi
 
 export type { Draft };
 import { lineTotal, sameMoney } from "./money";
-import { pricesFor } from "./options";
+import { NAME_MAX, isBase, pricesFor } from "./options";
 import { getOptions } from "./price-options";
 import { getPrices } from "./prices";
 import { displayTitle, displayVariant } from "./title";
@@ -49,8 +49,8 @@ export const PRICE_MAX = 1_000_000;
  */
 export function parseInvoiceBody(
   body: unknown,
-): { commercialId: string; lines: CartInput[]; expected: Expected | null } | { error: string } {
-  const b = body as { commercialId?: unknown; lines?: unknown; expected?: unknown } | null;
+): { commercialId: string; lines: CartInput[]; expected: Expected | null; clientName?: string } | { error: string } {
+  const b = body as { commercialId?: unknown; lines?: unknown; expected?: unknown; clientName?: unknown } | null;
   const lines = Array.isArray(b?.lines) ? b.lines : null;
   if (typeof b?.commercialId !== "string" || !lines || !lines.length || lines.length > MAX_LINES) {
     return { error: "Requête invalide" };
@@ -78,7 +78,13 @@ export function parseInvoiceBody(
     }
     expected = { total: e.total, rows };
   }
-  return { commercialId: b.commercialId, lines: clean, expected };
+  // « Prix Gros » : nom du client tapé dans le panier (sans créer de revendeur), facultatif.
+  let clientName: string | undefined;
+  if (b.clientName != null) {
+    if (typeof b.clientName !== "string") return { error: "Nom du client invalide" };
+    clientName = b.clientName.trim().replace(/\s+/g, " ").slice(0, NAME_MAX) || undefined;
+  }
+  return { commercialId: b.commercialId, lines: clean, expected, clientName };
 }
 
 /**
@@ -90,6 +96,7 @@ export async function computeDraft(
   commercialId: string,
   lines: CartInput[],
   original?: SavedInvoice | null,
+  clientName?: string,
 ): Promise<{ draft: Draft } | { error: string }> {
   const [{ items }, allPrices, options] = await Promise.all([getCatalog(), getPrices(), getOptions()]);
   const option = options.find((o) => o.id === commercialId);
@@ -140,7 +147,10 @@ export async function computeDraft(
     .map((r) => ({ name: r.name, variant: r.variant, before: before.get(r.variantId)!, after: r.unit }));
 
   const { count, total } = sumRows(rows);
-  return { draft: { rows, count, total, commercial: { id: option.id, name: option.name, city: option.city }, changes } };
+  // Prix Gros avec un nom de client tapé dans le panier : ce nom sur le devis et dans l'historique (prix Prix Gros).
+  const named = isBase(option) && clientName;
+  const commercial = named ? { id: option.id, name: clientName, city: null } : { id: option.id, name: option.name, city: option.city };
+  return { draft: { rows, count, total, commercial, changes } };
 }
 
 /**

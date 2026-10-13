@@ -127,6 +127,63 @@ function UnitPrice({ line, onPrice, label }: { line: ResolvedLine; onPrice: (pri
   );
 }
 
+/* ─────────────── Prix Gros : nom du client pour ce devis ─────────────── */
+
+/**
+ * Avec « Prix Gros », le nom affiché se change en un appui : on tape le nom du client, qui va sur le devis et dans
+ * l'historique, sans l'ajouter aux revendeurs. Les prix restent ceux de « Prix Gros ».
+ */
+function ClientNameField({ name, priceLabel, onChange }: { name: string; priceLabel: string; onChange: (n: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(name);
+  useEffect(() => setText(name), [name]);
+  const commit = () => {
+    onChange(text);
+    setEditing(false);
+  };
+  if (editing) {
+    return (
+      <form
+        className="cart-client-edit"
+        onSubmit={(e) => {
+          e.preventDefault();
+          commit();
+        }}
+      >
+        <input
+          className="cart-client-input"
+          value={text}
+          maxLength={60}
+          placeholder="Nom du client"
+          autoFocus
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setText(name);
+              setEditing(false);
+            }
+          }}
+          aria-label="Nom du client sur le devis"
+        />
+      </form>
+    );
+  }
+  return (
+    <button type="button" className="cart-client" onClick={() => setEditing(true)} title="Nom du client sur le devis">
+      {name ? (
+        <>
+          <span className="cart-client-name">Client : {name}</span>
+          <span className="cart-client-note">Prix : {priceLabel}</span>
+        </>
+      ) : (
+        <span className="cart-client-name cart-client-empty">Prix : {priceLabel}</span>
+      )}
+      <PencilIcon size={12} className="cart-client-pencil" />
+    </button>
+  );
+}
+
 /* ─────────────── Sur la carte : « + », puis le nombre, puis − n + ─────────────── */
 
 export function CartControl({
@@ -187,6 +244,9 @@ type PanelProps = {
   onQty: (id: string, qty: number) => void;
   /** Prix unitaire saisi à la main (null = prix du revendeur). */
   onPrice: (id: string, price: number | null) => void;
+  /** Prix Gros : nom du client tapé pour ce devis (sinon undefined : revendeur enregistré). */
+  clientName?: string;
+  onClientName?: (name: string) => void;
   onClear: () => void;
   onInvoice: () => void;
   onPrint: () => void;
@@ -207,6 +267,8 @@ export function CartPanel({
   lastAdded,
   onQty,
   onPrice,
+  clientName,
+  onClientName,
   onClear,
   onInvoice,
   onPrint,
@@ -228,7 +290,11 @@ export function CartPanel({
           <h2 className="cart-title">
             Panier <span className="cart-title-count">{count}</span>
           </h2>
-          <p className="cart-sub">Prix : {commercial}</p>
+          {onClientName ? (
+            <ClientNameField name={clientName ?? ""} priceLabel={commercial} onChange={onClientName} />
+          ) : (
+            <p className="cart-sub">Prix : {commercial}</p>
+          )}
         </div>
         <span className="cart-head-actions">
           <button

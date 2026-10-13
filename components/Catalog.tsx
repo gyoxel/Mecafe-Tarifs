@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
+  CLIENT_STORAGE_KEY,
   QTY_MAX,
   readCart,
   readEditing,
@@ -19,7 +20,17 @@ import { groupItems, menuLeaves } from "@/lib/groups";
 import { inNode, resolvePath, type MenuNode } from "@/lib/menu";
 import { haystackOf, matchesAll, tokensOf } from "@/lib/search";
 import type { CatalogItem, CatalogSource } from "@/lib/types";
-import { OPTION_STORAGE_KEY, defaultOption, isBase, pricesFor, type OptionPrices, type PriceOption } from "@/lib/options";
+import {
+  BASE_ID,
+  BASE_NAME,
+  NAME_MAX,
+  OPTION_STORAGE_KEY,
+  defaultOption,
+  isBase,
+  pricesFor,
+  type OptionPrices,
+  type PriceOption,
+} from "@/lib/options";
 import { parsePrice } from "@/lib/csv";
 import { CartFab, CartPanel, CartSheet } from "./Cart";
 import { InvoiceModal, PrintInvoice, docOf, printDoc, type InvoiceDoc } from "./Invoice";
@@ -286,9 +297,30 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
   useEffect(() => {
     if (cartLoaded.current) writeEditing(editing);
   }, [editing]);
+  // Prix Gros : nom du client pour ce devis (tapé dans le panier, sans l'ajouter aux revendeurs).
+  const [clientName, setClientName] = useState("");
+  useEffect(() => {
+    if (!admin) return;
+    try {
+      const inv = admin.edit;
+      // Devis Prix Gros remis dans le panier : son nom de client revient avec lui.
+      if (inv && inv.commercialId === BASE_ID && inv.commercial !== BASE_NAME) setClientName(inv.commercial);
+      else setClientName(localStorage.getItem(CLIENT_STORAGE_KEY) ?? "");
+    } catch {}
+  }, [admin]);
+  const changeClientName = useCallback((name: string) => {
+    const clean = name.trim().replace(/\s+/g, " ").slice(0, NAME_MAX);
+    setClientName(clean);
+    try {
+      if (clean) localStorage.setItem(CLIENT_STORAGE_KEY, clean);
+      else localStorage.removeItem(CLIENT_STORAGE_KEY);
+    } catch {}
+  }, []);
+  const baseSelected = isBase(currentOption);
   const clearCart = () => {
     setCart([]);
     setEditing(null);
+    changeClientName("");
   };
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [bump, setBump] = useState(0); // relance l'animation du bouton panier à chaque ajout
@@ -375,7 +407,12 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
       const res = await fetch("/api/admin/invoices/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commercialId: currentOption.id, lines: cart, editId: editing?.id }),
+        body: JSON.stringify({
+          commercialId: currentOption.id,
+          lines: cart,
+          editId: editing?.id,
+          clientName: baseSelected && clientName ? clientName : undefined,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; draft?: Draft };
       if (!res.ok || !data.draft) throw new Error(data.error ?? `Erreur ${res.status}`);
@@ -399,6 +436,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           commercialId: draft.commercial.id,
+          clientName: baseSelected && clientName ? clientName : undefined,
           lines: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })),
           expected: { total: draft.total, rows: draft.rows.map((r) => ({ id: r.variantId, qty: r.qty, unit: r.unit })) },
         }),
@@ -427,6 +465,7 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
     if (cart.length && !same && !window.confirm(`Modifier le devis ${doc.number} ? Le panier en cours sera remplacé.`)) return;
     setCart(doc.rows.map((r) => ({ id: r.variantId, qty: r.qty, ...(r.manual ? { price: r.unit } : {}) })));
     setEditing({ id: doc.id, number: doc.number });
+    changeClientName(doc.commercialId === BASE_ID && doc.commercial !== BASE_NAME ? doc.commercial : "");
     const o = options.find((x) => x.id === doc.commercialId);
     if (o) pickCommercial(o);
     setInvoiceView(null);
@@ -999,6 +1038,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
               lastAdded={lastAdded}
               onQty={setCartQty}
               onPrice={setCartPrice}
+              clientName={baseSelected ? clientName : undefined}
+              onClientName={baseSelected ? changeClientName : undefined}
               onClear={clearCart}
               editing={editing?.number ?? null}
               error={cartError}
@@ -1032,6 +1073,8 @@ export function Catalog({ items, source, menu, order, initial, admin }: Props) {
             lastAdded={lastAdded}
             onQty={setCartQty}
             onPrice={setCartPrice}
+            clientName={baseSelected ? clientName : undefined}
+            onClientName={baseSelected ? changeClientName : undefined}
             onClear={clearCart}
             editing={editing?.number ?? null}
             error={cartError}
