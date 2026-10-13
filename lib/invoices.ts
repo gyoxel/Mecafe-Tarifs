@@ -240,21 +240,29 @@ export async function listInvoices(limit = 2000): Promise<SavedInvoice[]> {
 }
 
 /**
- * Supprimer un devis : il disparaît de l'historique, mais la ligne est gardée (statut « supprime ») pour que son
- * n° ne soit jamais redonné à un autre devis. Retourne false s'il n'existe pas (ou est déjà supprimé).
+ * Supprimer des devis : ils disparaissent de l'historique, mais les lignes sont gardées (statut « supprime ») pour
+ * que leurs n° ne soient jamais redonnés. Retourne le nombre de devis supprimés.
  */
-export async function deleteInvoice(id: number): Promise<boolean> {
+export async function deleteInvoices(ids: number[]): Promise<number> {
   assertDurableStorage();
-  if (!Number.isSafeInteger(id) || id < 1) return false;
+  const clean = [...new Set(ids)].filter((id) => Number.isSafeInteger(id) && id > 0);
+  if (!clean.length) return 0;
   if (!isDbConfigured()) {
-    if (!mem().some((i) => i.id === id) || deletedMem().has(id)) return false;
-    deletedMem().add(id);
-    return true;
+    let n = 0;
+    for (const id of clean) {
+      if (mem().some((i) => i.id === id) && !deletedMem().has(id)) {
+        deletedMem().add(id);
+        n++;
+      }
+    }
+    return n;
   }
   await ensureSchema();
   const rows = await getSql()`
-    update invoices set status = 'supprime', updated_at = now() where id = ${id} and status <> 'supprime' returning id`;
-  return rows.length > 0;
+    update invoices set status = 'supprime', updated_at = now()
+     where id = any(${clean}::bigint[]) and status <> 'supprime'
+    returning id`;
+  return rows.length;
 }
 
 function fromRow(r: Record<string, unknown>): SavedInvoice {

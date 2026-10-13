@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { invoiceDate } from "@/lib/cart";
 import { formatDH } from "@/lib/format";
 import { sumRows, type InvoiceRow, type SavedInvoice } from "@/lib/invoice-types";
-import { CheckIcon, CloseIcon, PencilIcon, PrinterIcon, ShareIcon, TrashIcon } from "./Icons";
+import { CheckIcon, CloseIcon, PencilIcon, PrinterIcon, ShareIcon } from "./Icons";
 import { lockScroll } from "./scroll";
 
 /** Ce qu'affiche un devis : brouillon (pas de n°) ou confirmé. */
@@ -215,7 +215,6 @@ export function InvoiceModal({
   onModify,
   onConfirm,
   onEdit,
-  onDelete,
   confirmLabel = "Confirmer",
   busy,
   error,
@@ -229,8 +228,6 @@ export function InvoiceModal({
   onConfirm?: () => void;
   /** Confirmé : le remettre dans le panier pour le modifier. */
   onEdit?: () => void;
-  /** Confirmé : le supprimer de l'historique (Gestion › Devis). */
-  onDelete?: () => void;
   confirmLabel?: string;
   busy?: boolean;
   error?: string;
@@ -275,11 +272,6 @@ export function InvoiceModal({
                 {onEdit && (
                   <button type="button" className="btn btn-ghost btn-sm" onClick={onEdit}>
                     <PencilIcon size={15} /> Modifier
-                  </button>
-                )}
-                {onDelete && (
-                  <button type="button" className="btn btn-ghost btn-sm facture-delete" onClick={onDelete}>
-                    <TrashIcon size={15} /> Supprimer
                   </button>
                 )}
                 {doc.id != null && (

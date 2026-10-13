@@ -3767,7 +3767,7 @@ html.scroll-locked {
 }
 .facture-row {
   display: grid;
-  grid-template-columns: 150px 140px minmax(0, 1fr) 70px 110px 228px;
+  grid-template-columns: 22px 150px 140px minmax(0, 1fr) 70px 110px 110px;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -3785,6 +3785,7 @@ html.scroll-locked {
 .facture-row:not(.facture-head) {
   cursor: pointer;
   transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 .facture-row:not(.facture-head):hover {
   background: #fafafb;
@@ -3804,6 +3805,84 @@ html.scroll-locked {
 }
 .facture-actions-head {
   text-align: right;
+}
+.facture-check {
+  display: flex;
+  align-items: center;
+}
+.facture-check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--danger);
+  cursor: pointer;
+}
+.facture-row[data-selected="true"],
+.facture-row[data-selected="true"]:hover {
+  background: #fdf2f2;
+}
+/* Barre flottante : devis cochés → Supprimer / Annuler */
+.select-bar-space {
+  height: 84px; /* la barre ne cache pas les derniers devis */
+}
+.select-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+  animation: select-bar-in 0.22s var(--ease);
+}
+@keyframes select-bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+.select-bar-count {
+  margin-right: 6px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.select-bar-cancel,
+.select-bar-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.select-bar-cancel {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.select-bar-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+.select-bar-delete {
+  background: var(--danger);
+  color: #fff;
+}
+.select-bar-delete:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.select-bar button:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 .facture-actions {
   display: flex;
@@ -3852,12 +3931,12 @@ html.scroll-locked {
     display: none;
   }
   .facture-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 26px minmax(0, 1fr) auto;
     grid-template-areas:
-      "number total"
-      "commercial count"
-      "date date"
-      "actions actions";
+      "check number total"
+      ". commercial count"
+      ". date date"
+      ". actions actions";
     gap: 4px 10px;
   }
   .facture-number {
@@ -3868,6 +3947,9 @@ html.scroll-locked {
   }
   .facture-commercial {
     grid-area: commercial;
+  }
+  .facture-check {
+    grid-area: check;
   }
   .facture-actions {
     grid-area: actions;

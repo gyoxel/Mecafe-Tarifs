@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireStorage } from "@/lib/guard";
-import { computeDraft, matchesExpected, parseInvoiceBody, saveInvoice } from "@/lib/invoices";
+import { computeDraft, deleteInvoices, matchesExpected, parseInvoiceBody, saveInvoice } from "@/lib/invoices";
 
 /**
  * Confirmer un devis : { commercialId, lines: [{ id, qty }], expected }.
@@ -34,4 +34,20 @@ export async function POST(req: Request) {
     rows: draft.rows,
   });
   return NextResponse.json({ ok: true, invoice }, { headers: { "Cache-Control": "no-store" } });
+}
+
+/** Supprimer les devis sélectionnés : { ids: number[] }. Retirés de l'historique ; leurs n° ne sont pas réutilisés. */
+export async function DELETE(req: Request) {
+  const denied = await requireAdmin(req, { write: true });
+  if (denied) return denied;
+  const down = requireStorage();
+  if (down) return down;
+
+  const body = (await req.json().catch(() => null)) as { ids?: unknown } | null;
+  const ids = Array.isArray(body?.ids) ? body.ids : null;
+  if (!ids || !ids.length || ids.length > 1000 || !ids.every((id) => Number.isSafeInteger(id))) {
+    return NextResponse.json({ error: "Sélection invalide" }, { status: 400 });
+  }
+  const deleted = await deleteInvoices(ids as number[]);
+  return NextResponse.json({ ok: true, deleted }, { headers: { "Cache-Control": "no-store" } });
 }
