@@ -26,6 +26,10 @@ export async function POST(req: Request) {
     );
   }
 
+  // Tentative comptée AVANT la vérification (effacée si le code est bon) : des essais envoyés en même temps ne
+  // passent pas tous avant que le premier échec soit enregistré.
+  recordLoginFailure(ip);
+
   const body = (await req.json().catch(() => null)) as { password?: unknown; admin?: unknown } | null;
   const password = typeof body?.password === "string" ? body.password.slice(0, 200) : "";
   let role: Awaited<ReturnType<typeof checkPassword>> = null;
@@ -38,7 +42,6 @@ export async function POST(req: Request) {
   if (role === "client" && body?.admin === true) role = null;
 
   if (!role) {
-    recordLoginFailure(ip);
     await new Promise((r) => setTimeout(r, 400)); // ralentit le brute-force
     return NextResponse.json({ error: "Code incorrect" }, { status: 401 });
   }

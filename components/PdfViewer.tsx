@@ -51,7 +51,9 @@ export function PdfViewer({
           "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
           import.meta.url,
         ).toString();
-        const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+        const data = new Uint8Array(await file.arrayBuffer());
+        if (!alive) return; // fermé pendant le chargement : rien à lancer
+        const task = pdfjs.getDocument({ data });
         destroy = () => void task.destroy();
         const pdf = await task.promise;
         const sizes = [];

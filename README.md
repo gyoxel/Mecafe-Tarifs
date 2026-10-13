@@ -16,7 +16,8 @@ Shopify (Storefront API) ──► Vercel (Next.js, lecture en direct) ──►
 ```
 
 ## Principes
-- **Toujours à jour :** pas de cache, chaque affichage relit Shopify (prix, produits, menu, ordre).
+- **Toujours à jour :** le catalogue Shopify (prix, produits, menu, ordre) est relu au plus toutes les 20 s ; si Shopify ne
+  répond pas, le dernier catalogue connu reste affiché.
 - **Le navigateur ne parle jamais à Shopify.** Le token reste dans les variables d'environnement Vercel.
 - **Catalogue sous code, prix revendeurs protégés.** La page `/` (code clients) n'envoie ni prix revendeur, ni nom de revendeur,
   ni ville, ni stock. `/admin`, `/admin/gestion` et `/api/admin/*` exigent la session admin (`proxy.ts` + revérification

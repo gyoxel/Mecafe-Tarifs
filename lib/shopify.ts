@@ -6,10 +6,12 @@ import { canonicalBrand, categoryOf } from "./config";
 const DOMAIN = process.env.SHOPIFY_STORE_DOMAIN;
 const TOKEN = process.env.SHOPIFY_STOREFRONT_TOKEN;
 const API_VERSION = process.env.SHOPIFY_API_VERSION ?? "2026-07";
+/** Délai max d'une requête Shopify : au-delà, erreur (le dernier catalogue connu sert alors encore). */
+const TIMEOUT_MS = 10_000;
 
 /**
- * Pas de cache : chaque affichage du catalogue relit Shopify, un changement sur le site (prix, produit,
- * menu, ordre des collections) est visible au rechargement suivant. Les appels sont regroupés
+ * Lecture directe de Shopify (le catalogue est gardé 20 s en mémoire, voir lib/catalog.ts) : un changement sur
+ * le site (prix, produit, menu, ordre des collections) est visible en moins de 20 s. Les appels sont regroupés
  * (2 pages produits + menu + ordre de toutes les collections en une requête) pour rester rapides.
  */
 
@@ -106,6 +108,7 @@ async function fetchPage(cursor: string | null): Promise<NonNullable<GqlResponse
     headers: { "Content-Type": "application/json", ...tokenHeaders() },
     body: JSON.stringify({ query: QUERY, variables: { cursor } }),
     cache: "no-store",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Shopify a répondu ${res.status}`);
   const json = (await res.json()) as GqlResponse;
@@ -207,6 +210,7 @@ export async function fetchShopifyMenu(): Promise<RawMenuItem[] | null> {
       headers: { "Content-Type": "application/json", ...tokenHeaders() },
       body: JSON.stringify({ query: MENU_QUERY, variables: { handle: MENU_HANDLE } }),
       cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { data?: { menu: { items: RawMenuItem[] } | null }; errors?: unknown[] };
@@ -236,6 +240,7 @@ export async function fetchCollectionOrders(handles: string[]): Promise<Record<s
       headers: { "Content-Type": "application/json", ...tokenHeaders() },
       body: JSON.stringify({ query: `{\n${fields}\n}` }),
       cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) return {};
     const json = (await res.json()) as {

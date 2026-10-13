@@ -10,7 +10,9 @@ import { effectivePrice, type PriceOption } from "./options";
 export const CSV_HEADER = ["variant_id", "sku", "marque", "produit", "format", "prix_site", "prix_revendeur", "prix_applique"];
 
 const cell = (v: string | number | null | undefined): string => {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // Texte commençant par = + - @ : Excel le prendrait pour une formule. Une apostrophe le garde en texte.
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const num = (n: number) => String(n).replace(".", ",");

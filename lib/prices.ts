@@ -99,6 +99,16 @@ export async function savePrices(option: string, updates: PriceUpdate[]): Promis
       select variant_id, price from option_prices where option_id = ${option} and variant_id in ${tx(ids)}`;
     const old = new Map(existing.map((r) => [r.variant_id as string, Number(r.price)]));
 
+    // Trois requêtes en tout (au lieu de deux par ligne) : un import de 300 prix reste instantané.
+    const upserts: {
+      option_id: string;
+      variant_id: string;
+      sku: string | null;
+      label: string | null;
+      price: number;
+    }[] = [];
+    const removed: string[] = [];
+    const history: { option_id: string; variant_id: string; old_price: number | null; new_price: number | null }[] = [];
     for (const u of list) {
       const before = old.get(u.variantId) ?? null;
       if (u.price == null) {
@@ -106,29 +116,40 @@ export async function savePrices(option: string, updates: PriceUpdate[]): Promis
           result.unchanged++;
           continue;
         }
-        await tx`delete from option_prices where option_id = ${option} and variant_id = ${u.variantId}`;
-        await tx`
-          insert into commercial_price_history (option_id, variant_id, old_price, new_price)
-          values (${option}, ${u.variantId}, ${before}, null)`;
+        removed.push(u.variantId);
+        history.push({ option_id: option, variant_id: u.variantId, old_price: before, new_price: null });
         result.deleted++;
       } else {
         if (before === u.price) {
           result.unchanged++;
           continue;
         }
-        await tx`
-          insert into option_prices (option_id, variant_id, sku, label, price)
-          values (${option}, ${u.variantId}, ${u.sku ?? null}, ${u.label ?? null}, ${u.price})
-          on conflict (option_id, variant_id) do update
-            set price = excluded.price,
-                sku = coalesce(excluded.sku, option_prices.sku),
-                label = coalesce(excluded.label, option_prices.label),
-                updated_at = now()`;
-        await tx`
-          insert into commercial_price_history (option_id, variant_id, old_price, new_price)
-          values (${option}, ${u.variantId}, ${before}, ${u.price})`;
+        upserts.push({
+          option_id: option,
+          variant_id: u.variantId,
+          sku: u.sku ?? null,
+          label: u.label ?? null,
+          price: u.price,
+        });
+        history.push({ option_id: option, variant_id: u.variantId, old_price: before, new_price: u.price });
         result.updated++;
       }
+    }
+    if (removed.length) {
+      await tx`delete from option_prices where option_id = ${option} and variant_id in ${tx(removed)}`;
+    }
+    if (upserts.length) {
+      await tx`
+        insert into option_prices ${tx(upserts, "option_id", "variant_id", "sku", "label", "price")}
+        on conflict (option_id, variant_id) do update
+          set price = excluded.price,
+              sku = coalesce(excluded.sku, option_prices.sku),
+              label = coalesce(excluded.label, option_prices.label),
+              updated_at = now()`;
+    }
+    if (history.length) {
+      await tx`
+        insert into commercial_price_history ${tx(history, "option_id", "variant_id", "old_price", "new_price")}`;
     }
   });
   return result;

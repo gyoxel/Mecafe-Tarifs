@@ -43,12 +43,38 @@ function fallbackMenu(items: CatalogItem[]): MenuNode[] {
 /** handle de collection → ids produits dans l'ordre du site. */
 export type CollectionOrder = Record<string, string[]>;
 
-export async function getCatalog(): Promise<{
-  items: CatalogItem[];
-  source: CatalogSource;
-  menu: MenuNode[];
-  order: CollectionOrder;
-}> {
+type Catalog = { items: CatalogItem[]; source: CatalogSource; menu: MenuNode[]; order: CollectionOrder };
+
+/**
+ * Catalogue gardé 20 s en mémoire (par instance) : les pages s'ouvrent sans attendre Shopify à chaque fois, et
+ * les requêtes simultanées partagent une seule lecture. Un prix changé dans Shopify apparaît en moins de
+ * 20 s. Si Shopify ne répond pas, le dernier catalogue connu sert encore (jusqu'à 24 h) au lieu d'une erreur.
+ * Chaque appel reçoit sa propre copie (les appelants peuvent la modifier sans toucher au cache).
+ */
+const FRESH_MS = 20_000;
+const STALE_MS = 24 * 60 * 60_000;
+const cache = globalThis as unknown as { __catalog?: { at: number; data: Catalog }; __catalogLoad?: Promise<Catalog> };
+
+export async function getCatalog(): Promise<Catalog> {
+  const hit = cache.__catalog;
+  if (hit && Date.now() - hit.at < FRESH_MS) return structuredClone(hit.data);
+  cache.__catalogLoad ??= loadCatalog()
+    .then((data) => {
+      cache.__catalog = { at: Date.now(), data };
+      return data;
+    })
+    .finally(() => {
+      cache.__catalogLoad = undefined;
+    });
+  try {
+    return structuredClone(await cache.__catalogLoad);
+  } catch (err) {
+    if (hit && Date.now() - hit.at < STALE_MS) return structuredClone(hit.data);
+    throw err;
+  }
+}
+
+async function loadCatalog(): Promise<Catalog> {
   const source: CatalogSource = isShopifyConfigured() ? "shopify" : "demo";
   let items: CatalogItem[];
   let menu: MenuNode[] | null = null;
@@ -69,7 +95,8 @@ export async function getCatalog(): Promise<{
       menu = pruneMenu(buildMenu(rawMenu, titles), (n) => shopItems.some((it) => inNode(it.collections, n)));
       // Entrées sans collection rattachées par leur titre (ex. « Dosettes ») : ordre lu en complément.
       const handles = new Set<string>();
-      const collect = (nodes: MenuNode[]) => nodes.forEach((n) => (n.handles.forEach((h) => handles.add(h)), collect(n.children)));
+      const collect = (nodes: MenuNode[]) =>
+        nodes.forEach((n) => (n.handles.forEach((h) => handles.add(h)), collect(n.children)));
       collect(menu);
       const missing = [...handles].filter((h) => !(h in order));
       if (missing.length) order = { ...order, ...(await fetchCollectionOrders(missing)) };

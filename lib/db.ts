@@ -21,11 +21,23 @@ export function getSql(): Sql {
   return g.__sql;
 }
 
+/**
+ * Version du schéma : à augmenter à chaque changement ci-dessous (table, colonne, migration). Tant que la base
+ * est à jour, un démarrage ne coûte qu'une requête au lieu d'une vingtaine.
+ */
+const SCHEMA_VERSION = "2026-10-13";
+
 /** Crée les tables au premier accès (équivalent de db/schema.sql). */
 export function ensureSchema(): Promise<void> {
   if (!g.__schema) {
     const sql = getSql();
     g.__schema = (async () => {
+      try {
+        const [row] = await sql`select value from app_settings where key = 'schema_version'`;
+        if (row?.value === SCHEMA_VERSION) return;
+      } catch {
+        // table app_settings absente (première installation) : on crée tout
+      }
       await sql`
         create table if not exists commercial_prices (
           variant_id text primary key,
@@ -131,6 +143,9 @@ export function ensureSchema(): Promise<void> {
           value text not null,
           updated_at timestamptz not null default now()
         )`;
+      await sql`
+        insert into app_settings (key, value) values ('schema_version', ${SCHEMA_VERSION})
+        on conflict (key) do update set value = excluded.value, updated_at = now()`;
     })().catch((err) => {
       g.__schema = undefined; // réessayer au prochain appel
       throw err;

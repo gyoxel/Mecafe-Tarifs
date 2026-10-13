@@ -6,7 +6,9 @@ import type { SavedInvoice } from "./invoice-types";
  * - détail : une ligne par produit facturé (pour les tableaux croisés).
  */
 const cell = (v: string | number | null | undefined): string => {
-  const s = v == null ? "" : String(v);
+  let s = v == null ? "" : String(v);
+  // Texte commençant par = + - @ : Excel le prendrait pour une formule. Une apostrophe le garde en texte.
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const num = (n: number) => n.toFixed(2).replace(".", ",");
@@ -23,7 +25,7 @@ const csv = (rows: (string | number | null)[][]) => "﻿" + rows.map((r) => r.ma
 
 export function invoicesSummaryCsv(list: SavedInvoice[]): string {
   return csv([
-    ["N°", "Date", "Heure", "Revendeur", "Ville", "Articles", "Total (DH)", "Statut", "Modifié le"],
+    ["N°", "Date", "Heure", "Client", "Ville", "Articles", "Total (DH)", "Statut", "Modifié le"],
     ...list.map((i) => [
       i.number,
       date(i.createdAt),
@@ -40,7 +42,7 @@ export function invoicesSummaryCsv(list: SavedInvoice[]): string {
 
 export function invoicesDetailCsv(list: SavedInvoice[]): string {
   return csv([
-    ["N°", "Date", "Revendeur", "Ville", "Marque", "Produit", "Format", "SKU", "Qté", "Prix unitaire (DH)", "Total ligne (DH)", "Total devis (DH)"],
+    ["N°", "Date", "Client", "Ville", "Marque", "Produit", "Format", "SKU", "Qté", "Prix unitaire (DH)", "Total ligne (DH)", "Total devis (DH)"],
     ...list.flatMap((i) =>
       i.rows.map((r) => [
         i.number,

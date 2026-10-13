@@ -15,11 +15,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /** Catalogue admin : choix du commercial, puis prix commerciaux (œil, clic sur le prix) et stock. */
 export default async function AdminCatalog({ searchParams }: { searchParams: SearchParams }) {
-  // Les prix commerciaux ne sont lus (et donc envoyés) qu'après vérification de la session admin.
+  // Les prix commerciaux ne sont lus (et donc envoyés) qu'après vérification de la session admin. Le catalogue
+  // Shopify (sans données privées) est demandé pendant cette vérification.
+  const catalog = getCatalog();
+  catalog.catch(() => {});
   if (!(await getAdminSession())) redirect("/login?admin=1");
 
   const [{ items, source, menu, order }, allPrices, options, sp] = await Promise.all([
-    getCatalog(),
+    catalog,
     getPrices(),
     getOptions(),
     searchParams,

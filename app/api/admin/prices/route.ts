@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     if (!item) return NextResponse.json({ error: `Produit inconnu : ${String(raw?.variantId)}` }, { status: 400 });
 
     const price = raw.price == null ? null : typeof raw.price === "number" ? raw.price : parsePrice(String(raw.price));
-    if (price != null && (!Number.isFinite(price) || price < 0)) {
+    if (price != null && (!Number.isFinite(price) || price < 0 || price > 1_000_000)) {
       return NextResponse.json({ error: `Prix invalide pour ${item.title}` }, { status: 400 });
     }
     updates.push({

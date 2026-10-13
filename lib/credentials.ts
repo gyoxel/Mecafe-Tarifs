@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { assertDurableStorage, ensureSchema, getSql, isDbConfigured } from "./db";
 import type { Role } from "./session";
@@ -84,8 +84,11 @@ export async function verifyCode(role: Role, input: string): Promise<boolean> {
 /** Empreinte courte du code en vigueur, glissée dans la session (change avec le code). */
 export async function codeVersion(role: Role): Promise<string> {
   const stored = (await storedCodes())[role];
-  const source = stored ? stored.hash : `env:${envCode(role) ?? ""}`;
-  return createHash("sha256").update(`${role}:${source}`).digest("hex").slice(0, 16);
+  if (stored) return createHash("sha256").update(`${role}:${stored.hash}`).digest("hex").slice(0, 16);
+  // Code de Vercel (en clair) : empreinte signée avec SESSION_SECRET, pour qu'un cookie de session ne permette
+  // pas de retrouver le code en essayant des milliers de codes hors ligne.
+  const secret = process.env.SESSION_SECRET ?? "dev-only-secret-change-me-0123456789abcdef";
+  return createHmac("sha256", secret).update(`${role}:env:${envCode(role) ?? ""}`).digest("hex").slice(0, 16);
 }
 
 /** Un code est-il défini pour ce rôle (Gestion ou Vercel) ? */

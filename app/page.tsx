@@ -11,8 +11,12 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * Aucun prix revendeur, nom de revendeur, ville ni stock n'est envoyé au navigateur.
  */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
+  // Le catalogue (sans données privées) est demandé pendant la vérification de la session : les deux attentes
+  // se chevauchent au lieu de s'additionner.
+  const catalog = getCatalog();
+  catalog.catch(() => {}); // une erreur remonte plus bas, au await (pas d'erreur « non gérée » si on redirige)
   if (!(await getSession())) redirect("/login");
-  const [{ items, source, menu, order }, sp] = await Promise.all([getCatalog(), searchParams]);
+  const [{ items, source, menu, order }, sp] = await Promise.all([catalog, searchParams]);
   const publicItems = items.map(({ stock: _stock, ...rest }) => rest);
 
   return <Catalog items={publicItems} source={source} menu={menu} order={order} initial={initialFilters(sp)} />;

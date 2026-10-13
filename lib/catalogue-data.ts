@@ -66,11 +66,13 @@ async function getBytes(url: string, accept: string): Promise<Uint8Array | null>
 export async function fetchPhotos(urls: string[], width = 220, concurrency = 12): Promise<Map<string, ImageBytes>> {
   const out = new Map<string, ImageBytes>();
   const queue = [...new Set(urls)];
+  // Photos lentes : passé 25 s, plus de nouvelle photo (case vide) ; le PDF part bien avant la limite de Vercel.
+  const deadline = Date.now() + 25_000;
   const worker = async () => {
-    for (let url = queue.shift(); url; url = queue.shift()) {
+    for (let url = queue.shift(); url && Date.now() < deadline; url = queue.shift()) {
       let bytes = await getBytes(sizedImage(url, width), "image/png,image/jpeg;q=0.9");
       let kind = bytes && kindOf(bytes);
-      if (!kind) {
+      if (!kind && Date.now() < deadline) {
         const u = new URL(sizedImage(url, width));
         u.searchParams.set("format", "jpg");
         bytes = await getBytes(u.toString(), "image/jpeg");
