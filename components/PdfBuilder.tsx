@@ -17,7 +17,7 @@ const MODES: { id: Mode; title: string; text: string; Icon: typeof TagIcon }[] =
   { id: "public", title: "Catalogue de prix", text: "Prix public seulement.", Icon: TagIcon },
   {
     id: "revendeur",
-    title: "Catalogue des tarifs revendeurs",
+    title: "Catalogue des tarifs",
     text: "Prix public et prix du revendeur choisi.",
     Icon: UsersIcon,
   },

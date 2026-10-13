@@ -110,12 +110,12 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
 - **PDF** (bouton « PDF » sous « Gestion », ou Gestion › PDF, `/admin/gestion/pdf`) : catalogues A4 à télécharger.
   1. Choisir le type :
      - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
-     - *Catalogue des tarifs revendeurs* : prix public + prix du revendeur choisi (son nom sur la page de garde ;
+     - *Catalogue des tarifs* : prix public + prix du revendeur choisi (son nom en « Client » en haut ;
        « — » pour un produit sans prix revendeur) ;
      - *Tarifs revendeurs - À valider* : prix public + case « Prix revendeur » vide à remplir à la main, mode
        d'emploi, cases de validation et « Visa direction » sur chaque page.
   2. Contenu : tout le catalogue, ou des marques / catégories / produits cochés (avec recherche).
-  Page de garde avec sommaire (sauf *Catalogue des tarifs revendeurs* : pas de sommaire, le titre — logo, nom du revendeur, date — est en haut
+  Page de garde avec sommaire (sauf *Catalogue des tarifs* : pas de sommaire, le titre — logo, « Client : … », « Tarifs au … » — est en haut
   de la première page et les produits commencent juste dessous),
   puis les marques à la suite, sans saut de page (moins de papier) : chaque marque
   commence par son titre (logo, nom, nombre de produits), répété « (suite) » en haut de colonne ; deux colonnes,

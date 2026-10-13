@@ -11,14 +11,14 @@ import type { CatalogItem } from "./types";
  * nombre de produits, une ou deux colonnes et la hauteur des lignes s'adaptent. Pour chaque produit : photo, nom,
  * format, prix public, et selon le type :
  * - « public » : rien de plus (catalogue de prix, sans mention des revendeurs) ;
- * - « revendeur » : le prix d'un revendeur choisi (« — » s'il n'en a pas) ;
+ * - « revendeur » (« Catalogue des tarifs ») : le prix d'un revendeur choisi, son nom en « Client » (« — » sans prix) ;
  * - « validation » : une case « Prix revendeur » vide à remplir à la main, mode d'emploi et visa de la direction.
  */
 
 export type CatalogueMode = "public" | "revendeur" | "validation";
 export const CATALOGUE_TITLES: Record<CatalogueMode, string> = {
   public: "Catalogue de prix",
-  revendeur: "Catalogue des tarifs revendeurs",
+  revendeur: "Catalogue des tarifs",
   validation: "Tarifs revendeurs - À valider",
 };
 
@@ -290,10 +290,10 @@ export async function cataloguePdf(input: {
     center(page, big, A4.w / 2, ty, Math.min(20, (W - 20) / (width(big, bold, 1) || 1)), bold, INK);
     ty -= 20;
     if (resellerLabel) {
-      center(page, `Revendeur : ${resellerLabel}`, A4.w / 2, ty, 12, bold, hex(PRO));
+      center(page, `Client : ${resellerLabel}`, A4.w / 2, ty, 12, bold, hex(PRO));
       ty -= 18;
     }
-    const pill = `Prix public au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
+    const pill = `Tarifs au ${date}  ·  ${total} produits  ·  ${input.brands.length} marque${input.brands.length > 1 ? "s" : ""}`;
     const pw = width(pill, bold, 8.5) + 24;
     roundRect(page, (A4.w - pw) / 2, ty, pw, 20, 10, { color: tint(GOLD, 0.88) });
     center(page, pill, A4.w / 2, ty - 13.5, 8.5, bold, hex(GOLD));
@@ -517,7 +517,7 @@ export async function cataloguePdf(input: {
       mode === "validation"
         ? "Proposition de prix revendeur — à valider par la direction"
         : mode === "revendeur" && resellerLabel
-          ? `Revendeur : ${resellerLabel}`
+          ? `Client : ${resellerLabel}`
           : null;
     if (subtitle) {
       center(
@@ -616,7 +616,7 @@ export async function cataloguePdf(input: {
     });
     text(
       page,
-      `Mécafé  ·  ${title}  ·  ${mode === "public" ? "prix" : "prix public"} au ${date}`,
+      `Mécafé  ·  ${title}  ·  ${mode === "public" ? "prix" : mode === "revendeur" ? "tarifs" : "prix public"} au ${date}`,
       M,
       fy,
       7.8,
