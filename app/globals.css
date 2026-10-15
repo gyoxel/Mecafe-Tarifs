@@ -4477,9 +4477,12 @@ html.scroll-locked {
   .pdfb-modes {
     grid-template-columns: 1fr;
   }
-  /* sur téléphone, la page défile : pas de liste qui défile dans la page */
+  /* sur téléphone, la page défile : pas de liste qui défile dans la page. Sans zone de défilement propre, le
+     doigt posé sur la liste fait défiler la page (overscroll-behavior: contain la bloquait). */
   .pdfb-tree {
     max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
   }
 }
 @media (max-width: 520px) {
