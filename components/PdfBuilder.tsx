@@ -24,6 +24,7 @@ export type PdfBrand = { name: string; groups: PdfGroup[] };
 
 type Mode = "public" | "revendeur" | "validation";
 const HIDE_PUBLIC_KEY = "mecafe:pdf-sans-prix-public";
+const HIDE_NAME_KEY = "mecafe:pdf-sans-nom";
 type Job = "view" | "share" | "download";
 
 const MODES: { id: Mode; title: string; text: string; Icon: typeof TagIcon }[] = [
@@ -80,11 +81,20 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
   const [custom, setCustom] = useState(false);
   // Catalogue des tarifs : sans la colonne « Prix public » (mémorisé sur l'appareil).
   const [hidePublic, setHidePublicState] = useState(false);
+  // … et sans le nom du revendeur (mémorisé aussi).
+  const [hideName, setHideNameState] = useState(false);
   useEffect(() => {
     try {
       setHidePublicState(localStorage.getItem(HIDE_PUBLIC_KEY) === "1");
+      setHideNameState(localStorage.getItem(HIDE_NAME_KEY) === "1");
     } catch {}
   }, []);
+  const setHideName = (v: boolean) => {
+    setHideNameState(v);
+    try {
+      localStorage.setItem(HIDE_NAME_KEY, v ? "1" : "0");
+    } catch {}
+  };
   const setHidePublic = (v: boolean) => {
     setHidePublicState(v);
     try {
@@ -165,6 +175,7 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
     mode,
     option: mode === "revendeur" ? option : undefined,
     hidePublic: mode === "revendeur" && hidePublic ? true : undefined,
+    hideName: mode === "revendeur" && hideName ? true : undefined,
     ids: custom ? ids : null,
   };
   const requestKey = JSON.stringify(request);
@@ -290,10 +301,18 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
             <input type="checkbox" checked={hidePublic} onChange={(e) => setHidePublic(e.target.checked)} />
             Masquer le prix public
           </label>
+          <label className="check pdfb-hide-public">
+            <input type="checkbox" checked={hideName} onChange={(e) => setHideName(e.target.checked)} />
+            Masquer le nom du revendeur
+          </label>
           <span className="muted small">
-            {hidePublic
-              ? "Seul le prix du revendeur figure sur le PDF, en « Prix TTC »."
-              : "Son nom figure sur le PDF ; « — » pour un produit sans prix revendeur."}
+            {[
+              hidePublic ? "Seul le prix du revendeur figure, en « Prix TTC »." : null,
+              hideName ? "Son nom n'apparaît pas sur le PDF." : "Son nom figure sur le PDF.",
+              "« — » pour un produit sans prix revendeur.",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           </span>
         </div>
       )}

@@ -142,7 +142,8 @@ est remis à 0. L'ancienne base « Revendeur » est renommée « Prix Gros ».
      - *Catalogue de prix* : prix public seulement, aucune mention des revendeurs ;
      - *Catalogue des tarifs* : prix public + prix du revendeur choisi (son nom en « Client » en haut ;
        « — » pour un produit sans prix revendeur) ; case **Masquer le prix public** à côté du revendeur
-       (mémorisée) : seul son prix figure, colonne « PRIX ttc » ;
+       (mémorisée) : seul son prix figure, colonne « PRIX ttc » ; case **Masquer le nom du revendeur** (mémorisée) :
+       son nom n'apparaît ni en haut, ni en tête des pages, ni dans le nom du fichier ;
      - *Tarifs revendeurs - À valider* : prix public + case « Prix revendeur » vide à remplir à la main ;
        mode d'emploi et cases de validation après le dernier produit, « Visa direction » sur chaque page.
   2. Contenu : tout le catalogue, ou des marques / catégories / produits cochés (avec recherche).

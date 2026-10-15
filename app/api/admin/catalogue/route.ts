@@ -15,7 +15,8 @@ const MAX_IDS = 5000;
 
 /**
  * Catalogue en PDF (page Gestion › PDF). Corps : `mode` (public | revendeur | validation), `option` (revendeur,
- * type « revendeur »), `hidePublic` (type « revendeur » : sans le prix public), `ids` (variants choisis ; absent =
+ * type « revendeur »), `hidePublic` (type « revendeur » : sans le prix public), `hideName` (type « revendeur » : sans
+ * le nom du revendeur, ni en haut, ni dans les en-têtes de page, ni dans le nom du fichier), `ids` (variants choisis ; absent =
  * tout le catalogue).
  */
 export async function POST(req: Request) {
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     option?: unknown;
     ids?: unknown;
     hidePublic?: unknown;
+    hideName?: unknown;
   } | null;
   const mode = MODES.find((m) => m === body?.mode);
   if (!mode) return NextResponse.json({ error: "Type de catalogue inconnu" }, { status: 400 });
@@ -49,8 +51,8 @@ export async function POST(req: Request) {
     reseller = {
       prices: pricesFor(option, prices, items),
       // Le tarif de base n'a pas de nom propre : rien n'est affiché.
-      name: isBase(option) ? null : option.name,
-      city: isBase(option) ? null : option.city,
+      name: isBase(option) || body?.hideName === true ? null : option.name,
+      city: isBase(option) || body?.hideName === true ? null : option.city,
     };
   }
 
