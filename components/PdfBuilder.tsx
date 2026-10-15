@@ -23,6 +23,7 @@ export type PdfGroup = { key: string; title: string; crumb: string; items: PdfIt
 export type PdfBrand = { name: string; groups: PdfGroup[] };
 
 type Mode = "public" | "revendeur" | "validation";
+const HIDE_PUBLIC_KEY = "mecafe:pdf-sans-prix-public";
 type Job = "view" | "share" | "download";
 
 const MODES: { id: Mode; title: string; text: string; Icon: typeof TagIcon }[] = [
@@ -77,6 +78,19 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
   const [mode, setMode] = useState<Mode>("public");
   const [option, setOption] = useState(() => defaultOption(options)?.id ?? "");
   const [custom, setCustom] = useState(false);
+  // Catalogue des tarifs : sans la colonne « Prix public » (mémorisé sur l'appareil).
+  const [hidePublic, setHidePublicState] = useState(false);
+  useEffect(() => {
+    try {
+      setHidePublicState(localStorage.getItem(HIDE_PUBLIC_KEY) === "1");
+    } catch {}
+  }, []);
+  const setHidePublic = (v: boolean) => {
+    setHidePublicState(v);
+    try {
+      localStorage.setItem(HIDE_PUBLIC_KEY, v ? "1" : "0");
+    } catch {}
+  };
   const [selected, setSelected] = useState<Set<string>>(() => new Set(allIds));
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
@@ -147,7 +161,12 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
     });
   const visibleIds = shown.flatMap((b) => b.groups.flatMap((g) => g.items.map((it) => it.id)));
 
-  const request = { mode, option: mode === "revendeur" ? option : undefined, ids: custom ? ids : null };
+  const request = {
+    mode,
+    option: mode === "revendeur" ? option : undefined,
+    hidePublic: mode === "revendeur" && hidePublic ? true : undefined,
+    ids: custom ? ids : null,
+  };
   const requestKey = JSON.stringify(request);
   useEffect(() => setShareLater(null), [requestKey]); // autre choix : l'ancien PDF prêt ne vaut plus
   const title = MODES.find((m) => m.id === mode)?.title ?? "Catalogue";
@@ -267,7 +286,15 @@ export function PdfBuilder({ brands, options }: { brands: PdfBrand[]; options: P
         <div className="pdfb-reseller">
           <span className="admin-options-label">Revendeur</span>
           <OptionPicker options={options} value={option} onChange={setOption} label="Revendeur" />
-          <span className="muted small">Son nom figure sur le PDF ; « — » pour un produit sans prix revendeur.</span>
+          <label className="check pdfb-hide-public">
+            <input type="checkbox" checked={hidePublic} onChange={(e) => setHidePublic(e.target.checked)} />
+            Masquer le prix public
+          </label>
+          <span className="muted small">
+            {hidePublic
+              ? "Seul le prix du revendeur figure sur le PDF, en « Prix TTC »."
+              : "Son nom figure sur le PDF ; « — » pour un produit sans prix revendeur."}
+          </span>
         </div>
       )}
 

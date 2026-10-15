@@ -15,13 +15,19 @@ const MAX_IDS = 5000;
 
 /**
  * Catalogue en PDF (page Gestion › PDF). Corps : `mode` (public | revendeur | validation), `option` (revendeur,
- * type « revendeur »), `ids` (variants choisis ; absent = tout le catalogue).
+ * type « revendeur »), `hidePublic` (type « revendeur » : sans le prix public), `ids` (variants choisis ; absent =
+ * tout le catalogue).
  */
 export async function POST(req: Request) {
   const denied = await requireAdmin(req, { write: false });
   if (denied) return denied;
 
-  const body = (await req.json().catch(() => null)) as { mode?: unknown; option?: unknown; ids?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    mode?: unknown;
+    option?: unknown;
+    ids?: unknown;
+    hidePublic?: unknown;
+  } | null;
   const mode = MODES.find((m) => m === body?.mode);
   if (!mode) return NextResponse.json({ error: "Type de catalogue inconnu" }, { status: 400 });
   let ids: Set<string> | null = null;
@@ -63,6 +69,7 @@ export async function POST(req: Request) {
     logo,
     date,
     reseller,
+    hidePublic: mode === "revendeur" && body?.hidePublic === true,
   });
   const day = date.toISOString().slice(0, 10);
   const who = reseller?.name ? `-${slug(reseller.name)}` : "";

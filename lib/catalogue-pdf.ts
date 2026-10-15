@@ -118,8 +118,11 @@ export async function cataloguePdf(input: {
     name: string | null;
     city: string | null;
   };
+  /** Catalogue des tarifs : sans la colonne « Prix public » ; la colonne du revendeur devient « Prix TTC ». */
+  hidePublic?: boolean;
 }): Promise<Uint8Array> {
   const { mode } = input;
+  const hidePublic = mode === "revendeur" && Boolean(input.hidePublic);
   const title = CATALOGUE_TITLES[mode];
   const hasResale = mode !== "public";
   const resellerLabel = input.reseller?.name
@@ -237,7 +240,8 @@ export async function cataloguePdf(input: {
   const colW = cols === 1 ? W : (W - GUTTER) / 2;
   // Colonnes d'une ligne produit (x relatifs au bord droit de la colonne)
   const boxW = !hasResale ? 0 : cols === 1 ? 104 : 66;
-  const siteW = cols === 1 ? 76 : 50;
+  // Largeur de la colonne « Prix public » (aucune quand elle est masquée : le format et le nom prennent sa place)
+  const siteW = hidePublic ? 0 : cols === 1 ? 76 : 50;
   const formatW = cols === 1 ? 84 : 0;
   const imgS = Math.min(cols === 1 ? 40 : 34, h - 8);
   const nameSize = cols === 1 ? 9.6 : 7.9;
@@ -263,11 +267,21 @@ export async function cataloguePdf(input: {
     roundRect(page, x, tableTop, colW, HEAD_H, 6, { color: HEAD });
     text(page, "PRODUIT", x + 10, hy, headSize, bold, INK2);
     if (formatW) text(page, "FORMAT", xSiteEnd - siteW - formatW, hy, headSize, bold, INK2);
-    right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
+    if (!hidePublic) right(page, "PRIX PUBLIC", xSiteEnd, hy, headSize, bold, INK2);
     if (hasResale) {
       roundRect(page, xResale, tableTop, boxW, HEAD_H, 6, { color: hex(PRO) });
-      // Catalogue des tarifs : « Prix Gros » ; à valider : « Prix revendeur »
-      center(page, mode === "revendeur" ? "PRIX GROS" : "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+      if (hidePublic) {
+        // seul prix du catalogue : « PRIX » et « TTC » en petit, sur la même ligne
+        const ttcSize = headSize * 0.78;
+        const w1 = bold.widthOfTextAtSize("PRIX", headSize);
+        const w2 = font.widthOfTextAtSize("TTC", ttcSize);
+        const sx = xResale + boxW / 2 - (w1 + 3 + w2) / 2;
+        text(page, "PRIX", sx, hy, headSize, bold, WHITE);
+        text(page, "TTC", sx + w1 + 3, hy, ttcSize, font, WHITE);
+      } else {
+        // Catalogue des tarifs : « Prix Gros » ; à valider : « Prix revendeur »
+        center(page, mode === "revendeur" ? "PRIX GROS" : "PRIX REVENDEUR", xResale + boxW / 2, hy, headSize, bold, WHITE);
+      }
     }
   };
 
@@ -419,9 +433,11 @@ export async function cataloguePdf(input: {
       pill(nx, ty - 1, 6.4, nw); // sous la dernière ligne du nom, sans la toucher
     }
 
-    // prix public (+ ancien prix barré si promotion)
+    // prix public (+ ancien prix barré si promotion), sauf s'il est masqué
     const ps = cols === 1 ? 11 : 9;
-    if (it.compareAt) {
+    if (hidePublic) {
+      // rien : seul le prix du revendeur figure
+    } else if (it.compareAt) {
       const old = formatDH(it.compareAt);
       const os = cols === 1 ? 7.5 : 6.5;
       right(page, old, xSiteEnd, mid + 4.5, os, font, FAINT);
